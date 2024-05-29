@@ -13,17 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Set up CMake
-      uses: microsoft/setup-cmake@v1
-      with:
-        version: latest
+    # Install dependencies
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y cmake g++
+    # Configure CMake
     - name: Configure CMake
-      run: |
-        cmake -B./build \
-              -DCMAKE_CXX_COMPILER=g++ \
-              -DCMAKE_C_COMPILER=gcc \
-              -DCMAKE_BUILD_TYPE=Release \
-              -S.
+      run: cmake -B./build -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -S.
+    # Build
     - name: Build
       run: cmake --build./build --config Release
 
