@@ -72,4 +72,5 @@ atlassian-ide-plugin.xml
 CMakeLists.txt.user
 cmake-build-debug/
 cmake-build-release/
+build/
 CMakeCache.txt
