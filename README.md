@@ -39,5 +39,6 @@ This project uses cmake to build as well as CPM.cmake to manage dependencies.
 
 Dependencies are managed using CPM.cmake so you don't need to install them manually. but here are the dependencies used in this project.
 
+- [CPM.cmake]((https://github.com/cpm-cmake/CPM.cmake))
 - [Vulkan](https://vulkan.lunarg.com/)
 - [GLFW](https://www.glfw.org/)
