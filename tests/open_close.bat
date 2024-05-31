@@ -13,12 +13,12 @@ IF EXIST "%EXECUTABLE_PATH%" (
     ECHO Starting executable: %EXECUTABLE_PATH%
 
     :: Start the executable and grab its PID
-    %EXECUTABLE_PATH%
+    START "" "%EXECUTABLE_PATH%"
     SET PID=
     FOR /F "tokens=2" %%A IN ('TASKLIST /FI "IMAGENAME eq %EXECUTABLE_PATH%" /FO LIST ^| FIND "PID:"') DO SET PID=%%A
 
     :: Wait for 5 seconds
-    TIMEOUT /T 5 /NOBREAK > NUL
+    TIMEOUT /T 5 /NOBREAK
 
     :: Close the executable
     IF DEFINED PID (
