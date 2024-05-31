@@ -18,8 +18,10 @@ fi
 echo "Opening $1"
 $1 &
 pid=$!
-# check if the executable is running
-if [ -z $pid ]; then
+
+# wait for the executable to start and if it fails return its exit code
+wait $pid
+if [ $? -ne 0 ]; then
     echo "Failed to open $1"
     exit 1
 fi
