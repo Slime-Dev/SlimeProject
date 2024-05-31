@@ -11,7 +11,7 @@ IF "%EXECUTABLE_PATH%"=="" (
 
 WMIC PROCESS CALL CREATE "%EXECUTABLE_PATH%"
 
-:: Wait for 5 seconds (Cant use input redirection as it will not work in windows)
+:: Wait for 5 seconds (Cant use input redirection as it will not work in git actions)
 ping 127.0.0.1 -n 6 > nul
 
 :: Use WMIC to kill the process
