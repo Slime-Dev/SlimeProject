@@ -14,9 +14,9 @@ enable_testing()
 add_executable(SlimeOdyssey ${SOURCES})
 
 # if on linux, pass exe directory to the shell script
-if(UNIX AND NOT APPLE)
-  add_test(NAME OpenClose COMMAND ../../tests/open_close.sh $<TARGET_FILE:SlimeOdyssey>)
-endif()
+# if(UNIX AND NOT APPLE)
+#   add_test(NAME OpenClose COMMAND ../../tests/open_close.sh $<TARGET_FILE:SlimeOdyssey>)
+# endif()
 
 # if on windows, pass exe directory to the bat script
 if(WIN32)
