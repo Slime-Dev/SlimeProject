@@ -14,6 +14,9 @@ if [ ! -f $1 ]; then
     exit 1
 fi
 
+# list all files in the directory $0 
+ls -l $0
+
 # Open the executable
 echo "Opening $1"
 $1 &
