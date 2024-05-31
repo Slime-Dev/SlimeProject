@@ -13,7 +13,7 @@ IF EXIST "%EXECUTABLE_PATH%" (
     ECHO Starting executable: %EXECUTABLE_PATH%
 
     :: Start the executable and grab its PID
-    START "" "%EXECUTABLE_PATH%"
+    %EXECUTABLE_PATH%
     SET PID=
     FOR /F "tokens=2" %%A IN ('TASKLIST /FI "IMAGENAME eq %EXECUTABLE_PATH%" /FO LIST ^| FIND "PID:"') DO SET PID=%%A
 
