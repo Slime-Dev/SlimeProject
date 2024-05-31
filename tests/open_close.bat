@@ -16,13 +16,13 @@ IF EXIST "%EXECUTABLE_PATH%" (
     :: Wait for 5 seconds
     PING -n 6 > NUL
     
-    :: Check if the process is still running
-    FOR /F "tokens=2" %%P IN ('tasklist ^| findstr /i "SlimeOdyssey.exe"') DO SET PID=%%P
+    :: Attempt to retrieve the PID of the executable
+    FOR /F "tokens=2 delims= " %%P IN ('tasklist ^| findstr /i "SlimeOdyssey.exe"') DO SET PID=%%P
     IF DEFINED PID (
         ECHO Closing the executable...
         TASKKILL /PID %PID% /F
     ) ELSE (
-        ECHO Executable has already exited.
+        ECHO Executable has already exited or not found.
     )
 ) ELSE (
     ECHO Executable not found: %EXECUTABLE_PATH%
