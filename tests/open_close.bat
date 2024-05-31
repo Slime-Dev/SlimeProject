@@ -9,26 +9,17 @@ SET EXECUTABLE_PATH=%~1
 SET EXECUTABLE_PATH=%EXECUTABLE_PATH:/=\%
 
 :: Check if the executable exists
-IF EXIST "%EXECUTABLE_PATH%" (
-    ECHO Starting executable: %EXECUTABLE_PATH%
-
-    :: Start the executable and grab its PID
-    START "" "%EXECUTABLE_PATH%"
-    SET PID=
-    FOR /F "tokens=2" %%A IN ('TASKLIST /FI "IMAGENAME eq %EXECUTABLE_PATH%" /FO LIST ^| FIND "PID:"') DO SET PID=%%A
-
-    :: Wait for 5 seconds
-    TIMEOUT /T 5 /NOBREAK
-
-    :: Close the executable
-    IF DEFINED PID (
-        TASKKILL /F /PID %PID%
-    ) ELSE (
-        ECHO Failed to find PID for executable
-    )
-) ELSE (
-    ECHO Executable not found: %EXECUTABLE_PATH%
+IF NOT EXIST "%EXECUTABLE_PATH%" (
+    ECHO The executable does not exist
+    EXIT /B 1
 )
+
+:: Open the executable
+START "" "%EXECUTABLE_PATH%"
+:: Wait for 5 seconds
+TIMEOUT /T 5 /NOBREAK
+:: Close the executable
+TASKKILL /F /IM "%EXECUTABLE_PATH%" /T
 
 ENDLOCAL
 
