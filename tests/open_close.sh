@@ -15,13 +15,16 @@ if [ ! -f $1 ]; then
 fi
 
 # Open the executable
+echo "Opening $1"
 $1 &
 pid=$!
 
 # Wait for 5 seconds
+echo "Running for 5 seconds"
 sleep 5
 
 # Close the executable
+echo "Closing $1"
 kill $pid
 wait $pid
 
