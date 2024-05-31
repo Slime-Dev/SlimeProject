@@ -8,7 +8,13 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
+# enable testing
+enable_testing()
+
 add_executable(SlimeOdyssey ${SOURCES})
+
+# testing
+add_test(NAME SlimeOdyssey COMMAND SlimeOdyssey)
 
 # using CPM to download and build GLFW
 include(cmake/CPM.cmake)
