@@ -28,15 +28,22 @@ fi
 echo "Running for 5 seconds"
 sleep 5
 
-# Close the executable
-echo "Closing $1"
-kill $pid
-wait $pid
+# Get the process ID of the running executable
+pid=$(pgrep $1)
 
-# Check if the executable is closed
-if [ $? -ne 0 ]; then
-    echo "Failed to close $1"
-    exit 1
+# If the process ID is not empty, try to kill the process
+if [ ! -z "$pid" ]; then
+    echo "Closing $1"
+    kill $pid
+    wait $pid
+
+    # Check if the executable is closed
+    if [ $? -ne 0 ]; then
+        echo "Failed to close $1"
+        exit 1
+    fi
+else
+    echo "$1 is not running"
 fi
 
 exit 0
