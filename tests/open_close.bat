@@ -10,6 +10,11 @@ IF "%1"=="" (
     EXIT /B 1
 )
 
+ECHO "Opening and closing the executable"
+
+:: Output the executable path
+ECHO "Executable path: %1"
+
 :: Open the executable
 START "" "%1"
 
