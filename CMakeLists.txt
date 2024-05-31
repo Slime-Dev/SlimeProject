@@ -13,11 +13,16 @@ enable_testing()
 
 add_executable(SlimeOdyssey ${SOURCES})
 
-# testing
-add_test(NAME SlimeOdyssey COMMAND SlimeOdyssey)
+# if on linux, pass exe directory to the shell script
+if(UNIX AND NOT APPLE)
+  add_test(NAME OpenClose COMMAND tests/open_close.sh $<TARGET_FILE:SlimeOdyssey>)
+endif()
 
-# the above test will fail, so we need to add a test that will pass
-add_test(NAME SlimeOdysseyPass COMMAND ${CMAKE_COMMAND} -E echo "SlimeOdyssey test passed")
+# if on mac, pass exe directory to the bat script
+if(APPLE)
+  add_test(NAME OpenClose COMMAND tests/open_close.bat $<TARGET_FILE:SlimeOdyssey>)
+endif()
+
 
 # using CPM to download and build GLFW
 include(cmake/CPM.cmake)
