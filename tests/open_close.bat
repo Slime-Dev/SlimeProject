@@ -4,25 +4,31 @@
 
 @ECHO OFF
 SET EXECUTABLE_PATH=%~1
-
-:: Get just the executable name eg. "SlimeOdyssey.exe"
-SET EXECUTABLE_NAME=%~nx1
-
 IF "%EXECUTABLE_PATH%"=="" (
     ECHO "Please provide the executable path"
     EXIT /B 1
 )
 
-START /wait "" "%EXECUTABLE_PATH%"
+:: Use WMIC to start and get the process id of the executable
+WMIC PROCESS CALL CREATE "%EXECUTABLE_PATH%"
 IF ERRORLEVEL 1 (
     ECHO "Failed to start the executable"
     EXIT /B 1
+)
+
+SET PID=
+FOR /F "tokens=2 delims=," %%A IN ('WMIC PROCESS WHERE "CommandLine LIKE '%%%EXECUTABLE_PATH%%%'" GET ProcessId /VALUE') DO (
+    SET PID=%%A
 )
 
 :: Wait for 5 seconds
 PING -n 6
 
 :: Close the executable
-TASKKILL /IM "%EXECUTABLE_NAME%" /F
+TASKKILL /PID %PID% /F
+IF ERRORLEVEL 1 (
+    ECHO "Failed to close the executable"
+    EXIT /B 1
+)
 
 EXIT /B 0
