@@ -11,29 +11,26 @@ SET EXECUTABLE_PATH=%EXECUTABLE_PATH:/=\%
 :: Check if the executable exists
 IF EXIST "%EXECUTABLE_PATH%" (
     ECHO Starting executable: %EXECUTABLE_PATH%
+
+    :: Start the executable and grab its PID
     START "" "%EXECUTABLE_PATH%"
-    
+    SET PID=
+    FOR /F "tokens=2" %%A IN ('TASKLIST /FI "IMAGENAME eq %EXECUTABLE_PATH%" /FO LIST ^| FIND "PID:"') DO SET PID=%%A
+
     :: Wait for 5 seconds
-    PING -n 6 > NUL
-    
-    :: Attempt to retrieve the PID of the executable
-    FOR /F "tokens=2 delims= " %%P IN ('tasklist ^| findstr /i "SlimeOdyssey.exe"') DO SET PID=%%P
+    TIMEOUT /T 5 /NOBREAK > NUL
+
+    :: Close the executable
     IF DEFINED PID (
-        ECHO Closing the executable...
-        TASKKILL /PID %PID% /F
+        TASKKILL /F /PID %PID%
     ) ELSE (
-        ECHO Executable has already exited or not found.
+        ECHO Failed to find PID for executable
     )
 ) ELSE (
     ECHO Executable not found: %EXECUTABLE_PATH%
-    EXIT /B 1
-)
-
-:: Check for any errors
-IF ERRORLEVEL 1 (
-    ECHO An error occurred while closing the executable.
-    EXIT /B 1
 )
 
 ENDLOCAL
-EXIT /B 0
+
+:: Exit with the error code of the executable
+EXIT /B %ERRORLEVEL%
