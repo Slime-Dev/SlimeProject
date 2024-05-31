@@ -9,26 +9,14 @@ IF "%EXECUTABLE_PATH%"=="" (
     EXIT /B 1
 )
 
-:: Use WMIC to start and get the process id of the executable
-WMIC PROCESS CALL CREATE "%EXECUTABLE_PATH%"
-IF ERRORLEVEL 1 (
-    ECHO "Failed to start the executable"
-    EXIT /B 1
-)
-
-SET PID=
-FOR /F "tokens=2 delims=," %%A IN ('WMIC PROCESS WHERE "CommandLine LIKE '%%%EXECUTABLE_PATH%%%'" GET ProcessId /VALUE') DO (
-    SET PID=%%A
-)
+:: Use WMIC to start and get the process id of the executable in one line
+FOR /F "tokens=2 delims=," %%A IN ('WMIC PROCESS CALL CREATE "%EXECUTABLE_PATH%" ^| FIND "ProcessId"') DO SET PID=%%A
 
 :: Wait for 5 seconds
-PING -n 6
+PING 
+TIMEOUT /T 5
 
-:: Close the executable
-TASKKILL /PID %PID% /F
-IF ERRORLEVEL 1 (
-    ECHO "Failed to close the executable"
-    EXIT /B 1
-)
+:: Use WMIC to kill the process
+WMIC PROCESS WHERE "ProcessId=%PID%" DELETE
 
 EXIT /B 0
