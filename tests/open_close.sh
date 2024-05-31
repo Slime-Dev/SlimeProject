@@ -18,6 +18,11 @@ fi
 echo "Opening $1"
 $1 &
 pid=$!
+# check if the executable is running
+if [ -z $pid ]; then
+    echo "Failed to open $1"
+    exit 1
+fi
 
 # Wait for 5 seconds
 echo "Running for 5 seconds"
@@ -27,5 +32,11 @@ sleep 5
 echo "Closing $1"
 kill $pid
 wait $pid
+
+# Check if the executable is closed
+if [ $? -ne 0 ]; then
+    echo "Failed to close $1"
+    exit 1
+fi
 
 exit 0
