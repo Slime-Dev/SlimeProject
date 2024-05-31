@@ -8,27 +8,13 @@ IF "%EXECUTABLE_PATH%"=="" (
     EXIT /B 1
 )
 
-:: Check if the executable exists
-IF NOT EXIST "%EXECUTABLE_PATH%" (
-    ECHO "The executable does not exist at the provided path"
-    EXIT /B 1
-)
-
-:: Try to start the process and check if it was successful
-FOR /F "tokens=2 delims=;=" %%A IN ('WMIC PROCESS CALL CREATE "%EXECUTABLE_PATH%" ^| FIND "ProcessId"') DO SET PID=%%A
-IF "%PID%"=="" (
-    ECHO "Failed to start the process"
-    EXIT /B 1
-)
+WMIC PROCESS CALL CREATE "%EXECUTABLE_PATH%"
 
 :: Wait for 5 seconds
 TIMEOUT /T 5
 
-:: Try to kill the process and check if it was successful
-WMIC PROCESS WHERE "ProcessId=%PID%" DELETE
-IF ERRORLEVEL 1 (
-    ECHO "Failed to kill the process"
-    EXIT /B 1
-)
+:: Use WMIC to kill the process
+WMIC PROCESS WHERE "CommandLine LIKE '%%%EXECUTABLE_PATH%%%'" DELETE
 
-EXIT /B 0
+:: Exit with the exit code of the executable
+EXIT /B %ERRORLEVEL%
