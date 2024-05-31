@@ -29,5 +29,11 @@ IF EXIST "%EXECUTABLE_PATH%" (
     EXIT /B 1
 )
 
+:: Check for any errors
+IF ERRORLEVEL 1 (
+    ECHO An error occurred while closing the executable.
+    EXIT /B 1
+)
+
 ENDLOCAL
 EXIT /B 0
