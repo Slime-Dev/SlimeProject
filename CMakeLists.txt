@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 
 project(SlimeOdyssey)
 set(CMAKE_CXX_STANDARD 20)
+set_target_properties(SlimeOdyssey PROPERTIES
+                      RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release")
+
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src)
@@ -12,6 +15,7 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 enable_testing()
 
 add_executable(SlimeOdyssey ${SOURCES})
+
 
 # if on linux, pass exe directory to the shell script
 # if(UNIX AND NOT APPLE)
