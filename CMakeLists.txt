@@ -26,6 +26,13 @@ if (WIN32)
 elseif (UNIX)
     set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_XCB_KHR)
 endif()
+
+CPMAddPackage(
+  NAME Vulkan-Headers
+  GITHUB_REPOSITORY KhronosGroup/Vulkan-Headers
+  GIT_TAG v1.3.286
+)
+
 CPMAddPackage(
   NAME volk
   GITHUB_REPOSITORY zeux/volk
