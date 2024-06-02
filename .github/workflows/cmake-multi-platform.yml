@@ -38,21 +38,23 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: UBUNTU - Install dependencies
       if: matrix.os == 'ubuntu-latest'
       run: sudo apt-get install -y libglfw3-dev xorg-dev libegl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
-    - name: Install Vulkan SDK
+    - name: UBUNTU - Install Vulkan SDK
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
           wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt update
           sudo apt install vulkan-sdk
-        elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+      
+    - name: WINDOWS - Install Vulkan SDK
+      if: matrix.os == 'windows-latest'
+      run: |
           curl -L -o VulkanSDK-1.2.183-Installer.exe https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe
-         .\VulkanSDK-1.2.183-Installer.exe  --accept-licenses --default-answer --confirm-command install
-        fi
+          .\VulkanSDK-1.2.183-Installer.exe  --accept-licenses --default-answer --confirm-command install
 
     - name: Set reusable strings
       id: strings
