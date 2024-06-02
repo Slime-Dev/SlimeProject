@@ -28,8 +28,19 @@ CPMAddPackage(
   OPTIONS "GLFW_BUILD_DOCS OFF" "GLFW_BUILD_TESTS OFF" "GLFW_BUILD_EXAMPLES OFF"
 )
 
-# vulkan
+# vulkan if it cant find the vulkan sdk then it will download it
 find_package(Vulkan REQUIRED)
+
+# vulkan sdk
+if(NOT Vulkan_FOUND)
+  message(STATUS "Vulkan not found. Downloading Vulkan SDK")
+  CPMAddPackage(
+    NAME VulkanSDK
+    GITHUB_REPOSITORY KhronosGroup/Vulkan-Headers
+    GIT_TAG v1.2.182
+  )
+  add_library(Vulkan::Vulkan ALIAS VulkanSDK)
+endif()
 
 # vulkan bootstrap
 CPMAddPackage(
