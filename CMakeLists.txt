@@ -18,26 +18,29 @@ if(WIN32)
   add_test(NAME OpenClose COMMAND ../../tests/open_close.bat $<TARGET_FILE:SlimeOdyssey>)
 endif()
 
+# LIBRARIES AND DEPENDENCIES ################################################
+include(cmake/CPM.cmake)
+
+# use the vulkan loader from cpm
+CPMAddPackage(
+  NAME Vulkan-Headers
+  GITHUB_REPOSITORY KhronosGroup/Vulkan-Headers
+  GIT_TAG v1.3.286
+)
+
+CPMAddPackage(
+  NAME Vulkan-Loader
+  GITHUB_REPOSITORY KhronosGroup/Vulkan-Loader
+  GIT_TAG v1.3.285
+)
 
 # using CPM to download and build GLFW
-include(cmake/CPM.cmake)
 CPMAddPackage(
   NAME glfw
   GITHUB_REPOSITORY glfw/glfw
   GIT_TAG 3.4
   OPTIONS "GLFW_BUILD_DOCS OFF" "GLFW_BUILD_TESTS OFF" "GLFW_BUILD_EXAMPLES OFF"
 )
-
-
-# if we didnt find vulkan then use Vulkan_LIBRARY and Vulkan_INCLUDE_DIR environment variables C:\VulkanSDK\1.3.283.0\Lib
-if(NOT Vulkan_INCLUDE_DIRS OR NOT Vulkan_LIBRARIES)
-  message("Vulkan not found")
-  find_path(Vulkan_INCLUDE_DIRS NAMES vulkan/vulkan.h)
-  find_library(Vulkan_LIBRARIES NAMES vulkan-1 vulkan PATH_SUFFIXES Lib)
-endif()
-
-# vulkan
-find_package(Vulkan REQUIRED)
 
 # vulkan bootstrap
 CPMAddPackage(
@@ -54,4 +57,5 @@ CPMAddPackage(
 )
 
 # Link libraries
-target_link_libraries(SlimeOdyssey glfw Vulkan::Vulkan vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator)
+
+target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator)

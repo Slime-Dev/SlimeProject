@@ -65,12 +65,12 @@ jobs:
         curl -L -o VulkanSDK-1.2.183-Installer.exe https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe
         .\VulkanSDK-1.2.183-Installer.exe  --accept-licenses --default-answer --confirm-command install
 
-    - name: WINDOWS - SET PATH (Vulkan SDK, for cmake to find Vulkan headers and libraries)
-      if: matrix.os == 'windows-latest'
-      run: |
-        $env:VULKAN_SDK = "C:\VulkanSDK\1.3.283.0\Lib"
-        $env:Vulkan_LIBRARY = "$env:VULKAN_SDK\Lib"
-        $env:Vulkan_INCLUDE_DIR = "$env:VULKAN_SDK\Include"
+#    - name: WINDOWS - SET PATH (Vulkan SDK, for cmake to find Vulkan headers and libraries)
+#      if: matrix.os == 'windows-latest'
+#      run: |
+#        $env:VULKAN_SDK = "C:\VulkanSDK\1.3.283.0\Lib"
+#        $env:Vulkan_LIBRARY = "$env:VULKAN_SDK\Lib"
+#        $env:Vulkan_INCLUDE_DIR = "$env:VULKAN_SDK\Include"
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
