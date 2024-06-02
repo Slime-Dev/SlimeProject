@@ -28,15 +28,16 @@ CPMAddPackage(
   OPTIONS "GLFW_BUILD_DOCS OFF" "GLFW_BUILD_TESTS OFF" "GLFW_BUILD_EXAMPLES OFF"
 )
 
-# vulkan if it cant find the vulkan sdk then it will download it
-find_package(Vulkan REQUIRED)
 
 # if we didnt find vulkan then use Vulkan_LIBRARY and Vulkan_INCLUDE_DIR environment variables
-if(NOT Vulkan_FOUND)
+if(NOT Vulkan_INCLUDE_DIRS OR NOT Vulkan_LIBRARIES)
   message("Vulkan not found, using environment variables")
   set(Vulkan_INCLUDE_DIRS $ENV{Vulkan_INCLUDE_DIR})
   set(Vulkan_LIBRARIES $ENV{Vulkan_LIBRARY})
 endif()
+
+# vulkan
+find_package(Vulkan REQUIRED)
 
 # vulkan bootstrap
 CPMAddPackage(
