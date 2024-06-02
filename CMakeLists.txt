@@ -32,10 +32,10 @@ CPMAddPackage(
 # if we didnt find vulkan then use Vulkan_LIBRARY and Vulkan_INCLUDE_DIR environment variables
 if(NOT Vulkan_INCLUDE_DIRS OR NOT Vulkan_LIBRARIES)
   message("Vulkan not found, using environment variables")
-  message("Vulkan_INCLUDE_DIRS: $ENV{Vulkan_INCLUDE_DIR}")
-  set(Vulkan_INCLUDE_DIRS $ENV{Vulkan_INCLUDE_DIR})
-  message("Vulkan_LIBRARIES: $ENV{Vulkan_LIBRARY}")
-  set(Vulkan_LIBRARIES $ENV{Vulkan_LIBRARY})
+  message("Vulkan_INCLUDE_DIRS: C:\VulkanSDK\1.3.283.0\Include")
+  set(Vulkan_INCLUDE_DIRS "C:\VulkanSDK\1.3.283.0\Include")
+  message("Vulkan_LIBRARIES: C:\VulkanSDK\1.3.283.0\Lib") 
+  set(Vulkan_LIBRARIES "C:\VulkanSDK\1.3.283.0\Lib")
 endif()
 
 # vulkan
