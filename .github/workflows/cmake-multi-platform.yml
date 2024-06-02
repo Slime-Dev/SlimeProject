@@ -62,7 +62,7 @@ jobs:
     - name: WINDOWS - Install Vulkan SDK
       if: matrix.os == 'windows-latest'
       run: |
-        curl -L -o VulkanSDK-1.2.183-Installer.exe https://example.com/path/to/latest/version/VulkanSDK-1.2.183-Installer.exe
+        curl -L -o VulkanSDK-1.2.183-Installer.exe https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe
         .\VulkanSDK-1.2.183-Installer.exe --quiet
 
     - name: Set reusable strings
