@@ -49,8 +49,11 @@ jobs:
 
     - name: Install dependencies
       if: matrix.os == 'ubuntu-latest'
-      run: sudo apt-get install -y libglfw3-dev xorg-dev xkbcommon xkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
-
+      run: sudo apt-get install -y libglfw3-dev xorg-dev xkbcommon xkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-
+    
+    - name: Setup Vulkan SDK
+      uses: humbletim/setup-vulkan-sdk@v1.2.0
+            
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
