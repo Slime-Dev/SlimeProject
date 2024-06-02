@@ -65,6 +65,11 @@ jobs:
         curl -L -o VulkanSDK-1.2.183-Installer.exe https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe
         .\VulkanSDK-1.2.183-Installer.exe  --accept-licenses --default-answer --confirm-command install
 
+    - name: WINDOWS - SET PATH
+      if: matrix.os == 'windows-latest'
+      run: |
+        $env:VULKAN_SDK = "C:\VulkanSDK\
+
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
