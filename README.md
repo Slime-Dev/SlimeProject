@@ -41,6 +41,7 @@ Dependencies are managed using CPM.cmake so you don't need to install them manua
 
 - [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake)
 - [Vulkan](https://vulkan.lunarg.com/)
+- [Vulkan-Loader](https://github.com/KhronosGroup/Vulkan-Loader)
 - [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers)
 - [Vk-Bootstrap](https://github.com/charles-lunarg/vk-bootstrap)
 - [VulkanMemoryAllocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
