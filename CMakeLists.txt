@@ -31,15 +31,11 @@ CPMAddPackage(
 # vulkan if it cant find the vulkan sdk then it will download it
 find_package(Vulkan REQUIRED)
 
-# vulkan sdk
+# if we didnt find vulkan then use Vulkan_LIBRARY and Vulkan_INCLUDE_DIR environment variables
 if(NOT Vulkan_FOUND)
-  message(STATUS "Vulkan not found. Downloading Vulkan SDK")
-  CPMAddPackage(
-    NAME VulkanSDK
-    GITHUB_REPOSITORY KhronosGroup/Vulkan-Headers
-    GIT_TAG v1.2.182
-  )
-  add_library(Vulkan::Vulkan ALIAS VulkanSDK)
+  message("Vulkan not found, using environment variables")
+  set(Vulkan_INCLUDE_DIRS $ENV{Vulkan_INCLUDE_DIR})
+  set(Vulkan_LIBRARIES $ENV{Vulkan_LIBRARY})
 endif()
 
 # vulkan bootstrap
