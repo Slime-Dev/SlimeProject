@@ -12,14 +12,17 @@ int main() {
         glfwTerminate();
         return -1;
     }
+    
+    GLFWwindow* fakeWindow = nullptr;
+
 
     // Make the window's context current
-    glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(fakeWindow);
 
     // Loop until the user closes the window
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(fakeWindow)) {
         // Swap front and back buffers
-        glfwSwapBuffers(window);
+        glfwSwapBuffers(fakeWindow);
 
         // Poll for and process events
         glfwPollEvents();
