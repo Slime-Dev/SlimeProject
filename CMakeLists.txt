@@ -29,13 +29,11 @@ CPMAddPackage(
 )
 
 
-# if we didnt find vulkan then use Vulkan_LIBRARY and Vulkan_INCLUDE_DIR environment variables
+# if we didnt find vulkan then use Vulkan_LIBRARY and Vulkan_INCLUDE_DIR environment variables C:\VulkanSDK\1.3.283.0\Lib
 if(NOT Vulkan_INCLUDE_DIRS OR NOT Vulkan_LIBRARIES)
-  message("Vulkan not found, using environment variables")
-  message("Vulkan_INCLUDE_DIRS: C:\VulkanSDK\1.3.283.0\Include")
-  set(Vulkan_INCLUDE_DIRS "C:\VulkanSDK\1.3.283.0\Include")
-  message("Vulkan_LIBRARIES: C:\VulkanSDK\1.3.283.0\Lib") 
-  set(Vulkan_LIBRARIES "C:\VulkanSDK\1.3.283.0\Lib")
+  message("Vulkan not found")
+  find_path(Vulkan_INCLUDE_DIRS NAMES vulkan/vulkan.h)
+  find_library(Vulkan_LIBRARIES NAMES vulkan-1 vulkan PATH_SUFFIXES Lib)
 endif()
 
 # vulkan
