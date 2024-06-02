@@ -21,12 +21,7 @@ endif()
 # LIBRARIES AND DEPENDENCIES ################################################
 include(cmake/CPM.cmake)
 
-if (WIN32)
-    set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
-elseif (UNIX)
-    set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_XCB_KHR)
-endif()
-
+# use the vulkan loader from cpm
 CPMAddPackage(
   NAME Vulkan-Headers
   GITHUB_REPOSITORY KhronosGroup/Vulkan-Headers
@@ -34,9 +29,9 @@ CPMAddPackage(
 )
 
 CPMAddPackage(
-  NAME volk
-  GITHUB_REPOSITORY zeux/volk
-  GIT_TAG 1.3.270
+  NAME Vulkan-Loader
+  GITHUB_REPOSITORY KhronosGroup/Vulkan-Loader
+  GIT_TAG v1.3.285
 )
 
 # using CPM to download and build GLFW
@@ -63,4 +58,4 @@ CPMAddPackage(
 
 # Link libraries
 
-target_link_libraries(SlimeOdyssey volk_headers glfw vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator)
+target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator)
