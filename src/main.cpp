@@ -1,10 +1,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-// Vulkan (vk_mem_alloc, vk-bootstrap, vk)
-#include <vk_mem_alloc.h>
 #include <VkBootstrap.h>
-#include <vulkan/vulkan.h>
 
 int main() {
     // Initialize Vulkan with vk-bootstrap
