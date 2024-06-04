@@ -56,6 +56,12 @@ CPMAddPackage(
         GIT_TAG v3.1.0
 )
 
-# Link libraries
+# SPDLOG
+CPMAddPackage(
+  NAME spdlog
+  GITHUB_REPOSITORY gabime/spdlog
+  GIT_TAG v1.14.1
+)
 
-target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator)
+# Link libraries
+target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator spdlog::spdlog)
