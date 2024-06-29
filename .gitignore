@@ -74,3 +74,9 @@ cmake-build-debug/
 cmake-build-release/
 build/
 CMakeCache.txt
+
+# VS Code
+.vscode/
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
