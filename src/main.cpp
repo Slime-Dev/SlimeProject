@@ -1,5 +1,7 @@
 #include "vulkanhelper.h"
 #include "vulkanwindow.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks-inl.h"
 
 #define BUILD_DIRECTORY "/home/alexm/Source/SlimeOdyssey/Shaders"
 
@@ -7,6 +9,9 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
+	spdlog::stdout_color_mt("console");
+
 	SlimeEngine::Init init;
 	SlimeEngine::RenderData data;
 

@@ -77,6 +77,8 @@ void EndSingleTimeCommands(Init& init, RenderData& data, VkCommandBuffer command
 
 int DeviceInit(Init& init)
 {
+	spdlog::info("Initializing Vulkan...");
+
 	init.window = SlimeEngine::CreateWindow("Vulkan Triangle", true);
 
 	// set up the debug messenger to use spdlog
@@ -95,20 +97,20 @@ int DeviceInit(Init& init)
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
 			spdlog::error("{}\n", pCallbackData->pMessage);
 			break;
+		default:
+			spdlog::error("Unknown message severity: {}", pCallbackData->pMessage);
 		}
 
 		return VK_FALSE;
 	};
 
-	spdlog::set_level(spdlog::level::trace);
-	spdlog::stdout_color_mt("console");
-
 	// Create instance with VK_KHR_dynamic_rendering extension
+	spdlog::info("Creating Vulkan instance...");
 	vkb::InstanceBuilder instance_builder;
 	auto instance_ret = instance_builder
+	                    .request_validation_layers(true)
+	                    .set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 	                    .set_debug_callback(debugCallback)
-	                    .set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-	                    .request_validation_layers()
 	                    .require_api_version(1, 3, 0)
 	                    .build();
 
@@ -117,6 +119,7 @@ int DeviceInit(Init& init)
 		spdlog::error("Failed to create instance: {}", instance_ret.error().message());
 		return -1;
 	}
+	spdlog::info("Vulkan instance created.");
 
 	init.instance = instance_ret.value();
 	init.instDisp = init.instance.make_table();
@@ -124,6 +127,7 @@ int DeviceInit(Init& init)
 	init.surface = SlimeEngine::CreateSurface(init.instance.instance, init.window);
 
 	// Select physical device //
+	spdlog::info("Selecting physical device...");
 	VkPhysicalDeviceVulkan13Features features{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
 	features.dynamicRendering = true;
 	features.synchronization2 = true;
@@ -146,10 +150,13 @@ int DeviceInit(Init& init)
 		spdlog::error("Failed to select physical device: {}", phys_device_ret.error().message());
 		return -1;
 	}
+	spdlog::info("Physical device selected.");
+	spdlog::info("Physical device: {}", phys_device_ret.value().properties.deviceName);
 
 	vkb::PhysicalDevice physical_device = phys_device_ret.value();
 
 	// Create device (extension is automatically enabled as it was required in PhysicalDeviceSelector)
+	spdlog::info("Creating logical device...");
 	vkb::DeviceBuilder device_builder{ physical_device };
 	auto device_ret = device_builder.build();
 
@@ -158,7 +165,7 @@ int DeviceInit(Init& init)
 		spdlog::error("Failed to create logical device: {}", device_ret.error().message());
 		return -1;
 	}
-
+	spdlog::info("Logical device created.");
 	init.device = device_ret.value();
 
 	init.disp = init.device.make_table();
@@ -168,6 +175,7 @@ int DeviceInit(Init& init)
 
 int CreateImageViews(Init& init, RenderData& data)
 {
+	spdlog::info("Creating image views...");
 	// Delete old image views
 	for (auto& image_view : data.swapchainImageViews)
 	{
@@ -213,10 +221,11 @@ int CreateImageViews(Init& init, RenderData& data)
 
 int CreateSwapchain(Init& init, RenderData& data)
 {
+	spdlog::info("Creating swapchain...");
 	vkb::SwapchainBuilder swapchain_builder{ init.device };
 
 	auto swap_ret = swapchain_builder
-	                .set_desired_format(VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_UNORM, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
+	                .set_desired_format(VkSurfaceFormatKHR{ .format = VK_FORMAT_UNDEFINED, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
 	                .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
 	                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	                .set_old_swapchain(init.swapchain)
@@ -260,6 +269,7 @@ int GetQueues(Init& init, RenderData& data)
 
 VkShaderModule CreateShaderModule(Init& init, const std::vector<char>& code)
 {
+	spdlog::info("Creating shader module...");
 	VkShaderModuleCreateInfo create_info = {};
 	create_info.sType                    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	create_info.codeSize                 = code.size();
@@ -276,6 +286,7 @@ VkShaderModule CreateShaderModule(Init& init, const std::vector<char>& code)
 
 int CreateGraphicsPipeline(Init& init, RenderData& data, const char* shaderDir)
 {
+	spdlog::info("Creating graphics pipeline...");
 	auto vert_code = SlimeEngine::ReadFile(std::string(shaderDir) + "/vert.spv");
 	auto frag_code = SlimeEngine::ReadFile(std::string(shaderDir) + "/frag.spv");
 
@@ -411,6 +422,7 @@ int CreateGraphicsPipeline(Init& init, RenderData& data, const char* shaderDir)
 
 int CreateCommandPool(Init& init, RenderData& data)
 {
+	spdlog::info("Creating command pool...");
 	VkCommandPoolCreateInfo pool_info = {};
 	pool_info.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_info.queueFamilyIndex        = init.device.get_queue_index(vkb::QueueType::graphics).value(); // Assuming graphics queue family
@@ -426,7 +438,7 @@ int CreateCommandPool(Init& init, RenderData& data)
 
 int RecordCommandBuffers(Init& init, RenderData& data)
 {
-
+	spdlog::info("Recording command buffers...");
 	data.commandBuffers.resize(init.swapchain.image_count);
 
 	VkCommandBufferAllocateInfo alloc_info = {};
@@ -509,6 +521,7 @@ int RecordCommandBuffers(Init& init, RenderData& data)
 
 int InitSyncObjects(Init& init, RenderData& data)
 {
+	spdlog::info("Initializing synchronization objects...");
 	// Create synchronization objects
 	data.availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 	data.finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
@@ -633,6 +646,7 @@ int RenderFrame(Init& init, RenderData& data)
 
 int Cleanup(Init& init, RenderData& data)
 {
+	spdlog::info("Cleaning up...");
 	for (auto& image_view : data.swapchainImageViews)
 	{
 		init.disp.destroyImageView(image_view, nullptr);

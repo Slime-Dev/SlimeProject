@@ -2,18 +2,12 @@
   <code_scheme name="Project" version="173">
     <option name="RIGHT_MARGIN" value="400" />
     <RiderCodeStyleSettings>
-      <option name="/Default/CodeStyle/CodeFormatting/CppClangFormat/EnableClangFormatSupport/@EntryValue" />
-      <option name="/Default/CodeStyle/CodeFormatting/CppClangFormat/ExecutableToUse/@EntryValue" />
       <option name="/Default/CodeStyle/CodeFormatting/CppClangFormat/ExternalClangFormatPath/@EntryValue" value="$PROJECT_DIR$/clang-format" type="string" />
       <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_STYLE/@EntryValue" value="Tab" type="string" />
-      <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_LIMIT/@EntryValue" />
-      <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BEFORE_COMMA_IN_BASE_CLAUSE/@EntryValue" />
       <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_LINES/@EntryValue" value="false" type="bool" />
       <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/NAMESPACE_INDENTATION/@EntryValue" value="Inner" type="string" />
       <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/LINKAGE_SPECIFICATION_INDENTATION/@EntryValue" value="All" type="string" />
       <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/ALLOW_COMMENT_AFTER_LBRACE/@EntryValue" value="true" type="bool" />
-      <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BRACED_INIT_LIST_STYLE/@EntryValue" />
-      <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_AFTER_EXPRESSION_LBRACE/@EntryValue" />
     </RiderCodeStyleSettings>
   </code_scheme>
 </component>
