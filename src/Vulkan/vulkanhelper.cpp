@@ -250,8 +250,8 @@ VkShaderModule CreateShaderModule(Init& init, const std::vector<char>& code)
 int CreateGraphicsPipeline(Init& init, RenderData& data, const char* shaderDir)
 {
 	spdlog::info("Creating graphics pipeline...");
-	auto vert_code = SlimeEngine::ReadFile(std::string(shaderDir) + "/vert.spv");
-	auto frag_code = SlimeEngine::ReadFile(std::string(shaderDir) + "/frag.spv");
+	auto vert_code = SlimeEngine::ReadFile(std::string(shaderDir) + "/shader.vert.spv");
+	auto frag_code = SlimeEngine::ReadFile(std::string(shaderDir) + "/shader.frag.spv");
 
 	VkShaderModule vert_module = CreateShaderModule(init, vert_code);
 	VkShaderModule frag_module = CreateShaderModule(init, frag_code);
@@ -417,11 +417,6 @@ int RecordCommandBuffers(Init& init, RenderData& data)
 		return -1;
 	}
 
-	for (size_t i = 0; i < data.commandBuffers.size(); i++)
-	{
-
-	}
-
 	return 0;
 }
 
@@ -450,6 +445,75 @@ void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLa
 	depInfo.pImageMemoryBarriers    = &imageBarrier;
 
 	vkCmdPipelineBarrier2(cmd, &depInfo);
+}
+
+int Draw(Init& init, RenderData& data, VkCommandBuffer& cmd, int imageIndex)
+{
+	VkCommandBufferBeginInfo begin_info = {};
+	begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+	if (init.disp.beginCommandBuffer(cmd, &begin_info) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to begin recording command buffer!");
+		return -1;
+	}
+
+	// Set dynamic viewport state
+	VkViewport viewport = {
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = (float)init.swapchain.extent.width,
+		.height = (float)init.swapchain.extent.height,
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+
+	VkRect2D scissor = {
+		.offset = { 0, 0 },
+		.extent = init.swapchain.extent
+	};
+
+	init.disp.cmdSetViewport(cmd, 0, 1, &viewport); // Set dynamic viewport
+
+	// Set dynamic scissor state
+	init.disp.cmdSetScissor(cmd, 0, 1, &scissor); // Set dynamic scissor
+
+	TransitionImage(cmd, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+	// Setup rendering info
+	VkRenderingAttachmentInfo color_attachment_info = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+		.imageView = data.swapchainImageViews[imageIndex],
+		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } },
+	};
+
+	VkRenderingInfo rendering_info          = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.renderArea = { .extent = init.swapchain.extent },
+		.layerCount = 1,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &color_attachment_info
+	};
+
+	init.disp.cmdBeginRendering(cmd, &rendering_info);
+
+	init.disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline);
+
+	// Perform drawing
+	init.disp.cmdDraw(cmd, 3, 1, 0, 0);
+
+	init.disp.cmdEndRendering(cmd);
+
+	if (init.disp.endCommandBuffer(cmd) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to record command buffer!");
+		return -1;
+	}
+
+	return 0;
 }
 
 int RenderFrame(Init& init, RenderData& data)
@@ -484,69 +548,8 @@ int RenderFrame(Init& init, RenderData& data)
 	// Begin command buffer recording
 	VkCommandBuffer cmd = data.commandBuffers[image_index];
 
-	VkCommandBufferBeginInfo begin_info = {};
-	begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-	if (init.disp.beginCommandBuffer(cmd, &begin_info) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to begin recording command buffer!");
+	if (Draw(init, data, cmd, image_index) != 0)
 		return -1;
-	}
-
-	// Set dynamic viewport state
-	VkViewport viewport = {};
-	viewport.x          = 0.0f;
-	viewport.y          = 0.0f;
-	viewport.width      = (float)init.swapchain.extent.width;
-	viewport.height     = (float)init.swapchain.extent.height;
-	viewport.minDepth   = 0.0f;
-	viewport.maxDepth   = 1.0f;
-
-	VkRect2D scissor = {};
-	scissor.offset   = { 0, 0 };
-	scissor.extent   = init.swapchain.extent;
-
-	init.disp.cmdSetViewport(cmd, 0, 1, &viewport); // Set dynamic viewport
-
-	// Set dynamic scissor state
-	init.disp.cmdSetScissor(cmd, 0, 1, &scissor); // Set dynamic scissor
-
-	// Other rendering setup
-	VkRenderingAttachmentInfo color_attachment_info = {};
-	color_attachment_info.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	color_attachment_info.imageView                 = data.swapchainImageViews[image_index];
-	color_attachment_info.imageLayout               = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	color_attachment_info.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	color_attachment_info.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
-	VkClearValue clear_value                        = { .color = { { 0.0f, 0.0f, 0.0f, 1.0f } } };
-	color_attachment_info.clearValue                = clear_value;
-
-	VkRenderingInfo rendering_info          = {};
-	rendering_info.sType                    = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	rendering_info.renderArea.extent.width  = init.swapchain.extent.width;
-	rendering_info.renderArea.extent.height = init.swapchain.extent.height;
-	rendering_info.layerCount               = 1;
-	rendering_info.colorAttachmentCount     = 1;
-	rendering_info.pColorAttachments        = &color_attachment_info;
-
-	TransitionImage(cmd, data.swapchainImages[image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-	init.disp.cmdBeginRendering(cmd, &rendering_info);
-
-	init.disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline);
-
-	// Perform drawing
-	init.disp.cmdDraw(cmd, 3, 1, 0, 0);
-
-	init.disp.cmdEndRendering(cmd);
-
-	if (init.disp.endCommandBuffer(cmd) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to record command buffer!");
-		return -1;
-	}
-
-	// End of command buffer recording
 
 	// Mark the image as now being in use by this frame
 	data.imageInFlight[image_index] = data.inFlightFences[data.currentFrame];
