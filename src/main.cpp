@@ -2,7 +2,7 @@
 #include "vulkan/vulkanhelper.h"
 #include "vulkan/window.h"
 
-#define BUILD_DIRECTORY "C:/Users/Alex/CLionProjects/SlimeOdyssey/Shaders"
+#define BUILD_DIRECTORY "F:/PersonalProjects/SlimeOdyssey/Shaders"
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
