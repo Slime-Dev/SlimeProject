@@ -5,6 +5,7 @@
 #include <string>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <GLFW/glfw3.h>
+#include <vk_mem_alloc.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -173,59 +174,16 @@ int DeviceInit(Init& init)
 	return 0;
 }
 
-int CreateImageViews(Init& init, RenderData& data)
-{
-	spdlog::info("Creating image views...");
-	// Delete old image views
-	for (auto& image_view : data.swapchainImageViews)
-	{
-		init.disp.destroyImageView(image_view, nullptr);
-	}
-
-	data.swapchainImageViews.resize(init.swapchain.image_count);
-
-	for (size_t i = 0; i < init.swapchain.image_count; ++i)
-	{
-		// Begin single time command buffer for layout transition
-		VkCommandBuffer layout_transition_cmd = BeginSingleTimeCommands(init, data);
-
-		// Prepare image view creation info
-		VkImageViewCreateInfo create_info           = {};
-		create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		create_info.image                           = init.swapchain.get_images().value()[i];
-		create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-		create_info.format                          = init.swapchain.image_format;
-		create_info.components.r                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.components.g                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.components.b                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.components.a                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-		create_info.subresourceRange.baseMipLevel   = 0;
-		create_info.subresourceRange.levelCount     = 1;
-		create_info.subresourceRange.baseArrayLayer = 0;
-		create_info.subresourceRange.layerCount     = 1;
-
-		// Create the image view
-		if (init.disp.createImageView(&create_info, nullptr, &data.swapchainImageViews[i]) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to create image views!");
-			return -1;
-		}
-
-		// End single time command buffer for layout transition
-		EndSingleTimeCommands(init, data, layout_transition_cmd);
-	}
-
-	return 0;
-}
-
 int CreateSwapchain(Init& init, RenderData& data)
 {
 	spdlog::info("Creating swapchain...");
-	vkb::SwapchainBuilder swapchain_builder{ init.device };
+	vkDeviceWaitIdle(init.device);
+
+	vkb::SwapchainBuilder swapchain_builder(init.device, init.surface);
 
 	auto swap_ret = swapchain_builder
-	                .set_desired_format(VkSurfaceFormatKHR{ .format = VK_FORMAT_UNDEFINED, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
+	                .use_default_format_selection()
+	                .set_desired_format(VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_UNORM, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
 	                .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
 	                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	                .set_old_swapchain(init.swapchain)
@@ -240,9 +198,14 @@ int CreateSwapchain(Init& init, RenderData& data)
 	vkb::destroy_swapchain(init.swapchain);
 	init.swapchain = swap_ret.value();
 
-	// Create image views after swapchain creation
-	if (CreateImageViews(init, data) != 0)
-		return -1;
+	// Delete old image views
+	for (auto& image_view : data.swapchainImageViews)
+	{
+		init.disp.destroyImageView(image_view, nullptr);
+	}
+
+	data.swapchainImages     = init.swapchain.get_images().value();
+	data.swapchainImageViews = init.swapchain.get_image_views().value();
 
 	return 0;
 }
@@ -426,6 +389,7 @@ int CreateCommandPool(Init& init, RenderData& data)
 	VkCommandPoolCreateInfo pool_info = {};
 	pool_info.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_info.queueFamilyIndex        = init.device.get_queue_index(vkb::QueueType::graphics).value(); // Assuming graphics queue family
+	pool_info.flags                   = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
 	if (init.disp.createCommandPool(&pool_info, nullptr, &data.commandPool) != VK_SUCCESS)
 	{
@@ -455,98 +419,37 @@ int RecordCommandBuffers(Init& init, RenderData& data)
 
 	for (size_t i = 0; i < data.commandBuffers.size(); i++)
 	{
-		VkCommandBufferBeginInfo begin_info = {};
-		begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-		if (init.disp.beginCommandBuffer(data.commandBuffers[i], &begin_info) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to begin recording command buffer!");
-			return -1;
-		}
-
-		// Set dynamic viewport state
-		VkViewport viewport = {};
-		viewport.x          = 0.0f;
-		viewport.y          = 0.0f;
-		viewport.width      = (float)init.swapchain.extent.width;
-		viewport.height     = (float)init.swapchain.extent.height;
-		viewport.minDepth   = 0.0f;
-		viewport.maxDepth   = 1.0f;
-
-		VkRect2D scissor = {};
-		scissor.offset   = { 0, 0 };
-		scissor.extent   = init.swapchain.extent;
-
-		init.disp.cmdSetViewport(data.commandBuffers[i], 0, 1, &viewport); // Set dynamic viewport
-
-		// Set dynamic scissor state
-		init.disp.cmdSetScissor(data.commandBuffers[i], 0, 1, &scissor); // Set dynamic scissor
-
-		// Other rendering setup
-		VkRenderingAttachmentInfo color_attachment_info = {};
-		color_attachment_info.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		color_attachment_info.imageView                 = data.swapchainImageViews[i];
-		color_attachment_info.imageLayout               = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		color_attachment_info.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		color_attachment_info.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
-		VkClearValue clear_value                        = { .color = { { 0.0f, 0.0f, 0.0f, 1.0f } } };
-		color_attachment_info.clearValue                = clear_value;
-
-		VkRenderingInfo rendering_info          = {};
-		rendering_info.sType                    = VK_STRUCTURE_TYPE_RENDERING_INFO;
-		rendering_info.renderArea.extent.width  = init.swapchain.extent.width;
-		rendering_info.renderArea.extent.height = init.swapchain.extent.height;
-		rendering_info.layerCount               = 1;
-		rendering_info.colorAttachmentCount     = 1;
-		rendering_info.pColorAttachments        = &color_attachment_info;
-
-		init.disp.cmdBeginRendering(data.commandBuffers[i], &rendering_info);
-
-		init.disp.cmdBindPipeline(data.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline);
-
-		// Perform drawing
-		init.disp.cmdDraw(data.commandBuffers[i], 3, 1, 0, 0);
-
-		init.disp.cmdEndRendering(data.commandBuffers[i]);
-
-		if (init.disp.endCommandBuffer(data.commandBuffers[i]) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to record command buffer!");
-			return -1;
-		}
 	}
 
 	return 0;
 }
 
-int InitSyncObjects(Init& init, RenderData& data)
+void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
 {
-	spdlog::info("Initializing synchronization objects...");
-	// Create synchronization objects
-	data.availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	data.finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
-	data.inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-	data.imageInFlight.resize(init.swapchain.image_count, VK_NULL_HANDLE);
+	VkImageMemoryBarrier2 imageBarrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+	imageBarrier.pNext = nullptr;
 
-	VkSemaphoreCreateInfo semaphore_info = {};
-	semaphore_info.sType                 = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	imageBarrier.srcStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+	imageBarrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+	imageBarrier.dstStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+	imageBarrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
 
-	VkFenceCreateInfo fence_info = {};
-	fence_info.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fence_info.flags             = VK_FENCE_CREATE_SIGNALED_BIT;
+	imageBarrier.oldLayout = currentLayout;
+	imageBarrier.newLayout = newLayout;
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		if (init.disp.createSemaphore(&semaphore_info, nullptr, &data.availableSemaphores[i]) != VK_SUCCESS ||
-		    init.disp.createSemaphore(&semaphore_info, nullptr, &data.finishedSemaphore[i]) != VK_SUCCESS ||
-		    init.disp.createFence(&fence_info, nullptr, &data.inFlightFences[i]) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to create synchronization objects!");
-			return -1;
-		}
-	}
+	VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+	imageBarrier.subresourceRange = { aspectMask, 0, 1, 0, 1 };
+	imageBarrier.image            = image;
 
-	return 0;
+	VkDependencyInfo depInfo{};
+	depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	depInfo.pNext = nullptr;
+
+	depInfo.imageMemoryBarrierCount = 1;
+	depInfo.pImageMemoryBarriers    = &imageBarrier;
+
+	vkCmdPipelineBarrier2(cmd, &depInfo);
 }
 
 int RenderFrame(Init& init, RenderData& data)
@@ -563,7 +466,6 @@ int RenderFrame(Init& init, RenderData& data)
 		return -1;
 	}
 
-	// Acquire image from swapchain
 	uint32_t image_index;
 	VkResult result = init.disp.acquireNextImageKHR(init.swapchain, UINT64_MAX, data.availableSemaphores[data.currentFrame], VK_NULL_HANDLE, &image_index);
 
@@ -579,15 +481,72 @@ int RenderFrame(Init& init, RenderData& data)
 		return -1;
 	}
 
-	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
-	if (data.imageInFlight[image_index] != VK_NULL_HANDLE)
+	// Begin command buffer recording
+	VkCommandBuffer cmd = data.commandBuffers[image_index];
+
+	VkCommandBufferBeginInfo begin_info = {};
+	begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+	if (init.disp.beginCommandBuffer(cmd, &begin_info) != VK_SUCCESS)
 	{
-		if (init.disp.waitForFences(1, &data.imageInFlight[image_index], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to wait for image in flight!");
-			return -1;
-		}
+		spdlog::error("Failed to begin recording command buffer!");
+		return -1;
 	}
+
+	// Set dynamic viewport state
+	VkViewport viewport = {};
+	viewport.x          = 0.0f;
+	viewport.y          = 0.0f;
+	viewport.width      = (float)init.swapchain.extent.width;
+	viewport.height     = (float)init.swapchain.extent.height;
+	viewport.minDepth   = 0.0f;
+	viewport.maxDepth   = 1.0f;
+
+	VkRect2D scissor = {};
+	scissor.offset   = { 0, 0 };
+	scissor.extent   = init.swapchain.extent;
+
+	init.disp.cmdSetViewport(cmd, 0, 1, &viewport); // Set dynamic viewport
+
+	// Set dynamic scissor state
+	init.disp.cmdSetScissor(cmd, 0, 1, &scissor); // Set dynamic scissor
+
+	// Other rendering setup
+	VkRenderingAttachmentInfo color_attachment_info = {};
+	color_attachment_info.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	color_attachment_info.imageView                 = data.swapchainImageViews[image_index];
+	color_attachment_info.imageLayout               = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	color_attachment_info.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	color_attachment_info.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
+	VkClearValue clear_value                        = { .color = { { 0.0f, 0.0f, 0.0f, 1.0f } } };
+	color_attachment_info.clearValue                = clear_value;
+
+	VkRenderingInfo rendering_info          = {};
+	rendering_info.sType                    = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	rendering_info.renderArea.extent.width  = init.swapchain.extent.width;
+	rendering_info.renderArea.extent.height = init.swapchain.extent.height;
+	rendering_info.layerCount               = 1;
+	rendering_info.colorAttachmentCount     = 1;
+	rendering_info.pColorAttachments        = &color_attachment_info;
+
+	TransitionImage(cmd, data.swapchainImages[image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+	init.disp.cmdBeginRendering(cmd, &rendering_info);
+
+	init.disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline);
+
+	// Perform drawing
+	init.disp.cmdDraw(cmd, 3, 1, 0, 0);
+
+	init.disp.cmdEndRendering(cmd);
+
+	if (init.disp.endCommandBuffer(cmd) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to record command buffer!");
+		return -1;
+	}
+
+	// End of command buffer recording
 
 	// Mark the image as now being in use by this frame
 	data.imageInFlight[image_index] = data.inFlightFences[data.currentFrame];
@@ -602,7 +561,7 @@ int RenderFrame(Init& init, RenderData& data)
 	submit_info.pWaitDstStageMask      = wait_stages;
 
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers    = &data.commandBuffers[image_index];
+	submit_info.pCommandBuffers    = &cmd;
 
 	VkSemaphore signal_semaphores[]  = { data.finishedSemaphore[data.currentFrame] };
 	submit_info.signalSemaphoreCount = 1;
@@ -644,9 +603,49 @@ int RenderFrame(Init& init, RenderData& data)
 	return 0;
 }
 
+int InitSyncObjects(Init& init, RenderData& data)
+{
+	spdlog::info("Initializing synchronization objects...");
+	// Create synchronization objects
+	data.availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	data.finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
+	data.inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+	data.imageInFlight.resize(init.swapchain.image_count, VK_NULL_HANDLE);
+
+	VkSemaphoreCreateInfo semaphore_info = {};
+	semaphore_info.sType                 = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fence_info = {};
+	fence_info.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fence_info.flags             = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		if (init.disp.createSemaphore(&semaphore_info, nullptr, &data.availableSemaphores[i]) != VK_SUCCESS ||
+		    init.disp.createSemaphore(&semaphore_info, nullptr, &data.finishedSemaphore[i]) != VK_SUCCESS ||
+		    init.disp.createFence(&fence_info, nullptr, &data.inFlightFences[i]) != VK_SUCCESS)
+		{
+			spdlog::error("Failed to create synchronization objects!");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 int Cleanup(Init& init, RenderData& data)
 {
 	spdlog::info("Cleaning up...");
+	vkDeviceWaitIdle(init.device);
+
+	// Destroy synchronization objects
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		init.disp.destroySemaphore(data.availableSemaphores[i], nullptr);
+		init.disp.destroySemaphore(data.finishedSemaphore[i], nullptr);
+		init.disp.destroyFence(data.inFlightFences[i], nullptr);
+	}
+
 	for (auto& image_view : data.swapchainImageViews)
 	{
 		init.disp.destroyImageView(image_view, nullptr);

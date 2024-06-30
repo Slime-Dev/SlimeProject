@@ -43,7 +43,7 @@ struct RenderData
 VkCommandBuffer BeginSingleTimeCommands(Init& init, RenderData& data);
 void EndSingleTimeCommands(Init& init, RenderData& data, VkCommandBuffer command_buffer);
 int DeviceInit(Init& init);
-int CreateImageViews(Init& init, RenderData& data);
+int CreateImages(Init& init, RenderData& data);
 int CreateSwapchain(Init& init, RenderData& data);
 int GetQueues(Init& init, RenderData& data);
 VkShaderModule CreateShaderModule(Init& init, const std::vector<char>& code);
