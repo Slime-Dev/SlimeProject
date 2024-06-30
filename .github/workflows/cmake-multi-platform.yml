@@ -2,9 +2,9 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "AddedCaching" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "AddedCaching" ]
 
 jobs:
   build:
