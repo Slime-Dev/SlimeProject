@@ -47,9 +47,9 @@ jobs:
       uses: actions/cache@v4
       with:
           path: ${{ github.workspace }}/build
-          key: build
+          key: build-${{ matrix.os }}
           restore-keys: |
-            build
+            build-${{ matrix.os }}
 
     - name: UBUNTU - Install Vulkan SDK
       if: matrix.os == 'ubuntu-latest'
@@ -58,7 +58,7 @@ jobs:
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt update
           sudo apt install vulkan-sdk
-      
+
     - name: WINDOWS - Install Vulkan SDK
       if: matrix.os == 'windows-latest'
       run: |
