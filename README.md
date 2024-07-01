@@ -4,6 +4,8 @@ Slime Odyssey is a graphics engine I am developing in C++ using vulkan. The goal
 
 This project uses cmake to build as well as CPM.cmake to manage dependencies.
 
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/65fcce3de3e74dc3bc526bd1fc56ee3d)](https://app.codacy.com/gh/AlexMollard/SlimeOdyssey/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+![example workflow](https://github.com/AlexMollard/SlimeOdyssey/actions/workflows/cmake-multi-platform.yml/badge.svg)
 ## Features
 
 - [x] Cross Platform
