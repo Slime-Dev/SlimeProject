@@ -57,16 +57,10 @@ CPMAddPackage(
 )
 
 CPMAddPackage(
-        NAME VulkanMemoryAllocator
-        GITHUB_REPOSITORY GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-        GIT_TAG v3.1.0
-)
-
-CPMAddPackage(
         NAME spdlog
         GITHUB_REPOSITORY gabime/spdlog
         GIT_TAG v1.14.1
 )
 
 # Link libraries
-target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator spdlog::spdlog)
+target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap spdlog::spdlog)

@@ -4,6 +4,13 @@
 #include <string>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <GLFW/glfw3.h>
+
+#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
+#define VMA_IMPLEMENTATION
+#define VMA_DEBUG_LOG(format, ...) do { \
+	spdlog::debug(format, ##__VA_ARGS__); \
+} while(0)
+
 #include <vk_mem_alloc.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
@@ -170,6 +177,17 @@ int DeviceInit(Init& init)
 
 	init.disp = init.device.make_table();
 
+	// Setup the VMA allocator
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice         = physical_device.physical_device;
+	allocatorInfo.device                 = init.device.device;
+	allocatorInfo.instance               = init.instance.instance;
+
+	if (vmaCreateAllocator(&allocatorInfo, &init.allocator) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create VMA allocator");
+	}
+
 	return 0;
 }
 
@@ -263,18 +281,18 @@ int CreateCommandPool(Init& init, RenderData& data)
 	return 0;
 }
 
-int RecordCommandBuffers(Init& init, RenderData& data)
+int CreateRenderCommandBuffers(Init& init, RenderData& data)
 {
 	spdlog::info("Recording command buffers...");
-	data.commandBuffers.resize(init.swapchain.image_count);
+	data.renderCommandBuffers.resize(init.swapchain.image_count);
 
 	VkCommandBufferAllocateInfo alloc_info = {};
 	alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	alloc_info.commandPool                 = data.commandPool;
 	alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandBufferCount          = static_cast<uint32_t>(data.commandBuffers.size());
+	alloc_info.commandBufferCount          = static_cast<uint32_t>(data.renderCommandBuffers.size());
 
-	if (init.disp.allocateCommandBuffers(&alloc_info, data.commandBuffers.data()) != VK_SUCCESS)
+	if (init.disp.allocateCommandBuffers(&alloc_info, data.renderCommandBuffers.data()) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to allocate command buffers!");
 		return -1;
@@ -353,7 +371,7 @@ int Draw(Init& init, RenderData& data, VkCommandBuffer& cmd, int imageIndex)
 		.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } },
 	};
 
-	VkRenderingInfo rendering_info          = {
+	VkRenderingInfo rendering_info = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
 		.renderArea = { .extent = init.swapchain.extent },
 		.layerCount = 1,
@@ -365,7 +383,12 @@ int Draw(Init& init, RenderData& data, VkCommandBuffer& cmd, int imageIndex)
 
 	init.disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline[0]);
 
-	// Perform drawing
+	// Draw model
+	for (auto& modelConfig : data.models)
+	{
+		SlimeEngine::drawModel(cmd, modelConfig, init);
+	}
+
 	init.disp.cmdDraw(cmd, 3, 1, 0, 0);
 
 	init.disp.cmdEndRendering(cmd);
@@ -409,7 +432,7 @@ int RenderFrame(Init& init, RenderData& data)
 	}
 
 	// Begin command buffer recording
-	VkCommandBuffer cmd = data.commandBuffers[image_index];
+	VkCommandBuffer cmd = data.renderCommandBuffers[image_index];
 
 	if (Draw(init, data, cmd, image_index) != 0)
 		return -1;
@@ -512,6 +535,16 @@ int Cleanup(Init& init, RenderData& data)
 		init.disp.destroyFence(data.inFlightFences[i], nullptr);
 	}
 
+	// Destroy models
+	for (auto& modelConfig : data.models)
+	{
+		for (auto& bufferConfig : modelConfig.buffers)
+		{
+			bufferData& buffer = bufferConfig.second;
+			vmaDestroyBuffer(init.allocator, buffer.buffer, buffer.allocation);
+		}
+	}
+
 	for (auto& image_view : data.swapchainImageViews)
 	{
 		init.disp.destroyImageView(image_view, nullptr);
@@ -523,10 +556,19 @@ int Cleanup(Init& init, RenderData& data)
 		init.disp.destroyPipelineLayout(data.pipelineLayout[i], nullptr);
 	}
 
+	for (auto& descriptorSetLayout : data.descriptorSetLayout)
+	{
+		init.disp.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+	}
+
 	init.disp.destroyCommandPool(data.commandPool, nullptr);
 
 	vkb::destroy_swapchain(init.swapchain);
 	vkb::destroy_surface(init.instance, init.surface);
+
+	// Destroy the allocator
+	vmaDestroyAllocator(init.allocator);
+
 	vkb::destroy_device(init.device);
 	vkb::destroy_instance(init.instance);
 

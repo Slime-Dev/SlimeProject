@@ -8,7 +8,7 @@ namespace SlimeEngine
 {
 int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& shaderConfig, const PipelineConfig& config, const ColorBlendingConfig& blendingConfig)
 {
-spdlog::info("Creating graphics pipeline...");
+	spdlog::info("Creating graphics pipeline...");
 	auto vert_code = SlimeEngine::ReadFile(shaderConfig.vertShaderPath);
 	auto frag_code = SlimeEngine::ReadFile(shaderConfig.fragShaderPath);
 
@@ -34,10 +34,35 @@ spdlog::info("Creating graphics pipeline...");
 
 	VkPipelineShaderStageCreateInfo shader_stages[] = { vert_stage_info, frag_stage_info };
 
-	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
-	vertex_input_info.sType                                = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertex_input_info.vertexBindingDescriptionCount        = 0;
-	vertex_input_info.vertexAttributeDescriptionCount      = 0;
+	struct Vertex
+	{
+		float position[3];
+		float normal[3];
+	};
+
+	// Define vertex input attributes
+	VkVertexInputBindingDescription bindingDescription = {};
+	bindingDescription.binding                         = 0;
+	bindingDescription.stride                          = sizeof(Vertex); // Assuming Vertex structure definition
+	bindingDescription.inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+	attributeDescriptions[0].binding                                       = 0;
+	attributeDescriptions[0].location                                      = 0;
+	attributeDescriptions[0].format                                        = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[0].offset                                        = offsetof(Vertex, position);
+
+	attributeDescriptions[1].binding  = 0;
+	attributeDescriptions[1].location = 1;
+	attributeDescriptions[1].format   = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions[1].offset   = offsetof(Vertex, normal);
+
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	vertexInputInfo.sType                                = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount        = 1;
+	vertexInputInfo.pVertexBindingDescriptions           = &bindingDescription;
+	vertexInputInfo.vertexAttributeDescriptionCount      = static_cast<uint32_t>(attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions         = attributeDescriptions.data();
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly = {};
 	input_assembly.sType                                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -105,8 +130,9 @@ spdlog::info("Creating graphics pipeline...");
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
 	pipeline_layout_info.sType                      = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipeline_layout_info.setLayoutCount             = 0;
 	pipeline_layout_info.pushConstantRangeCount     = 0;
+	pipeline_layout_info.setLayoutCount             = 1;
+	pipeline_layout_info.pSetLayouts                = &data.descriptorSetLayout[0];
 
 	VkPipelineLayout& pipelineLayout = data.pipelineLayout.emplace_back();
 	if (init.disp.createPipelineLayout(&pipeline_layout_info, nullptr, &pipelineLayout) != VK_SUCCESS)
@@ -119,7 +145,7 @@ spdlog::info("Creating graphics pipeline...");
 	pipeline_info.sType                        = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_info.stageCount                   = 2;
 	pipeline_info.pStages                      = shader_stages;
-	pipeline_info.pVertexInputState            = &vertex_input_info;
+	pipeline_info.pVertexInputState            = &vertexInputInfo;
 	pipeline_info.pInputAssemblyState          = &input_assembly;
 	pipeline_info.pViewportState               = &viewport_state;
 	pipeline_info.pRasterizationState          = &rasterizer;
@@ -144,4 +170,4 @@ spdlog::info("Creating graphics pipeline...");
 	return 0;
 }
 
-}
+} // namespace SlimeEngine

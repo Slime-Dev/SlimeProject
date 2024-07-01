@@ -1,8 +1,10 @@
 #pragma once
 
+#include "vulkanModel.h"
 #include <vector>
 
 #include <VkBootstrap.h>
+#include <vk_mem_alloc.h>
 
 struct GLFWwindow;
 
@@ -17,6 +19,7 @@ struct Init
 	vkb::Device device;
 	vkb::DispatchTable disp;
 	vkb::Swapchain swapchain;
+	VmaAllocator allocator;
 };
 
 struct RenderData
@@ -29,15 +32,18 @@ struct RenderData
 
 	std::vector<VkPipelineLayout> pipelineLayout;
 	std::vector<VkPipeline> graphicsPipeline;
+	std::vector<VkDescriptorSetLayout> descriptorSetLayout;
 
 	VkCommandPool commandPool;
-	std::vector<VkCommandBuffer> commandBuffers;
+	std::vector<VkCommandBuffer> renderCommandBuffers;
 
 	std::vector<VkSemaphore> availableSemaphores;
 	std::vector<VkSemaphore> finishedSemaphore;
 	std::vector<VkFence> inFlightFences;
 	std::vector<VkFence> imageInFlight;
 	size_t currentFrame = 0;
+
+	std::vector<ModelConfig> models; // TODO: This should be a map and I dont really want it in this struct
 };
 
 VkCommandBuffer BeginSingleTimeCommands(Init& init, RenderData& data);
@@ -48,7 +54,7 @@ int CreateSwapchain(Init& init, RenderData& data);
 int GetQueues(Init& init, RenderData& data);
 VkShaderModule CreateShaderModule(Init& init, const std::vector<char>& code);
 int CreateCommandPool(Init& init, RenderData& data);
-int RecordCommandBuffers(Init& init, RenderData& data);
+int CreateRenderCommandBuffers(Init& init, RenderData& data);
 int InitSyncObjects(Init& init, RenderData& data);
 int RenderFrame(Init& init, RenderData& data);
 
