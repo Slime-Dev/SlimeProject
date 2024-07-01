@@ -30,9 +30,9 @@ struct RenderData
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
 
-	std::vector<VkPipelineLayout> pipelineLayout;
-	std::vector<VkPipeline> graphicsPipeline;
-	std::vector<VkDescriptorSetLayout> descriptorSetLayout;
+	std::map<const char*, VkPipelineLayout> pipelineLayout;
+	std::map<const char*, VkPipeline> graphicsPipeline;
+	std::map<const char*, VkDescriptorSetLayout> descriptorSetLayout;
 
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> renderCommandBuffers;
@@ -43,7 +43,7 @@ struct RenderData
 	std::vector<VkFence> imageInFlight;
 	size_t currentFrame = 0;
 
-	std::vector<ModelConfig> models; // TODO: This should be a map and I dont really want it in this struct
+	std::map<const char*, ModelConfig> models; // TODO: This should be a map and I dont really want it in this struct
 };
 
 VkCommandBuffer BeginSingleTimeCommands(Init& init, RenderData& data);

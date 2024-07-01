@@ -1,12 +1,13 @@
 #include "vulkanGraphicsPipeline.h"
 #include "vulkanhelper.h"
+#include "vulkanShader.h"
 #include "fileHelper.h"
 
 #include <spdlog/spdlog.h>
 
 namespace SlimeEngine
 {
-int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& shaderConfig, const PipelineConfig& config, const ColorBlendingConfig& blendingConfig)
+int CreateGraphicsPipeline(Init& init, RenderData& data, const char* name, const ShaderConfig& shaderConfig, const PipelineConfig& config, const ColorBlendingConfig& blendingConfig)
 {
 	spdlog::info("Creating graphics pipeline...");
 	auto vert_code = SlimeEngine::ReadFile(shaderConfig.vertShaderPath);
@@ -34,35 +35,13 @@ int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& sha
 
 	VkPipelineShaderStageCreateInfo shader_stages[] = { vert_stage_info, frag_stage_info };
 
-	struct Vertex
-	{
-		float position[3];
-		float normal[3];
-	};
-
 	// Define vertex input attributes
-	VkVertexInputBindingDescription bindingDescription = {};
-	bindingDescription.binding                         = 0;
-	bindingDescription.stride                          = sizeof(Vertex); // Assuming Vertex structure definition
-	bindingDescription.inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
-
-	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
-	attributeDescriptions[0].binding                                       = 0;
-	attributeDescriptions[0].location                                      = 0;
-	attributeDescriptions[0].format                                        = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[0].offset                                        = offsetof(Vertex, position);
-
-	attributeDescriptions[1].binding  = 0;
-	attributeDescriptions[1].location = 1;
-	attributeDescriptions[1].format   = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[1].offset   = offsetof(Vertex, normal);
-
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType                                = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount        = 1;
-	vertexInputInfo.pVertexBindingDescriptions           = &bindingDescription;
-	vertexInputInfo.vertexAttributeDescriptionCount      = static_cast<uint32_t>(attributeDescriptions.size());
-	vertexInputInfo.pVertexAttributeDescriptions         = attributeDescriptions.data();
+	vertexInputInfo.pVertexBindingDescriptions           = &shaderConfig.vertexInputConfig.bindingDescriptions;
+	vertexInputInfo.vertexAttributeDescriptionCount      = static_cast<uint32_t>(shaderConfig.vertexInputConfig.attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions         = shaderConfig.vertexInputConfig.attributeDescriptions.data();
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly = {};
 	input_assembly.sType                                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -132,14 +111,16 @@ int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& sha
 	pipeline_layout_info.sType                      = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipeline_layout_info.pushConstantRangeCount     = 0;
 	pipeline_layout_info.setLayoutCount             = 1;
-	pipeline_layout_info.pSetLayouts                = &data.descriptorSetLayout[0];
+	pipeline_layout_info.pSetLayouts                = &data.descriptorSetLayout[name];
 
-	VkPipelineLayout& pipelineLayout = data.pipelineLayout.emplace_back();
+	VkPipelineLayout pipelineLayout = VkPipelineLayout();
 	if (init.disp.createPipelineLayout(&pipeline_layout_info, nullptr, &pipelineLayout) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to create pipeline layout!");
 		return -1;
 	}
+
+	data.pipelineLayout[name] = pipelineLayout;
 
 	VkGraphicsPipelineCreateInfo pipeline_info = {};
 	pipeline_info.sType                        = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -157,7 +138,7 @@ int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& sha
 	pipeline_info.basePipelineHandle           = VK_NULL_HANDLE;
 	pipeline_info.pDynamicState                = &dynamic_state; // Enable dynamic state
 
-	VkPipeline& graphicsPipeline = data.graphicsPipeline.emplace_back();
+	VkPipeline graphicsPipeline = VkPipeline();
 	if (init.disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphicsPipeline) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to create graphics pipeline!");
@@ -166,6 +147,8 @@ int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& sha
 
 	init.disp.destroyShaderModule(vert_module, nullptr);
 	init.disp.destroyShaderModule(frag_module, nullptr);
+
+	data.graphicsPipeline[name] = graphicsPipeline;
 
 	return 0;
 }

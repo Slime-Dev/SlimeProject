@@ -3,6 +3,7 @@
 
 namespace SlimeEngine
 {
+struct ShaderConfig;
 struct RenderData;
 struct Init;
 
@@ -24,12 +25,12 @@ struct ColorBlendingConfig
 	VkColorComponentFlags colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 };
 
-struct ShaderConfig
+struct VertexInputConfig
 {
-	std::string vertShaderPath;
-	std::string fragShaderPath;
+	VkVertexInputBindingDescription bindingDescriptions;
+	std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 };
 
-int CreateGraphicsPipeline(Init& init, RenderData& data, const ShaderConfig& shaderConfig, const PipelineConfig& config, const ColorBlendingConfig& blendingConfig);
+int CreateGraphicsPipeline(Init& init, RenderData& data, const char* name, const ShaderConfig& shaderConfig, const PipelineConfig& config, const ColorBlendingConfig& blendingConfig);
 
 }

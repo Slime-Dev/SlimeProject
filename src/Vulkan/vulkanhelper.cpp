@@ -381,12 +381,12 @@ int Draw(Init& init, RenderData& data, VkCommandBuffer& cmd, int imageIndex)
 
 	init.disp.cmdBeginRendering(cmd, &rendering_info);
 
-	init.disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline[0]);
+	init.disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.graphicsPipeline["basic"]); // TODO: This should be dynamic
 
 	// Draw model
 	for (auto& modelConfig : data.models)
 	{
-		SlimeEngine::drawModel(cmd, modelConfig, init);
+		SlimeEngine::drawModel(cmd, modelConfig.second, init);
 	}
 
 	init.disp.cmdDraw(cmd, 3, 1, 0, 0);
@@ -538,7 +538,7 @@ int Cleanup(Init& init, RenderData& data)
 	// Destroy models
 	for (auto& modelConfig : data.models)
 	{
-		for (auto& bufferConfig : modelConfig.buffers)
+		for (auto& bufferConfig : modelConfig.second.buffers)
 		{
 			bufferData& buffer = bufferConfig.second;
 			vmaDestroyBuffer(init.allocator, buffer.buffer, buffer.allocation);
@@ -550,15 +550,19 @@ int Cleanup(Init& init, RenderData& data)
 		init.disp.destroyImageView(image_view, nullptr);
 	}
 
-	for (size_t i = 0; i < data.graphicsPipeline.size(); i++)
+	for (auto& pipeline : data.graphicsPipeline)
 	{
-		init.disp.destroyPipeline(data.graphicsPipeline[i], nullptr);
-		init.disp.destroyPipelineLayout(data.pipelineLayout[i], nullptr);
+		init.disp.destroyPipeline(pipeline.second, nullptr);
+	}
+
+	for (auto& pipelineLayout : data.pipelineLayout)
+	{
+		init.disp.destroyPipelineLayout(pipelineLayout.second, nullptr);
 	}
 
 	for (auto& descriptorSetLayout : data.descriptorSetLayout)
 	{
-		init.disp.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		init.disp.destroyDescriptorSetLayout(descriptorSetLayout.second, nullptr);
 	}
 
 	init.disp.destroyCommandPool(data.commandPool, nullptr);

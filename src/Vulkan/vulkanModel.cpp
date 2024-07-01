@@ -147,12 +147,10 @@ void drawModel(VkCommandBuffer commandBuffer, ModelConfig& modelConfig, Init& in
 		bufferData bufferData = bufferEntry.second;
 
 		VkBuffer buffer = bufferData.buffer;
-		VkDeviceSize offsets[] = { 0 };
+		VkDeviceSize offset = 0;
 
-		// Assuming it's a vertex buffer for simplicity
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, offsets);
-
-		vkCmdDrawIndexed(commandBuffer, bufferData.indexCount, 1, bufferData.firstIndex, bufferData.vertexOffset, 0);
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, &offset);
+		vkCmdDraw(commandBuffer, bufferData.vertexCount, 1, 0, 0);
 	}
 }
 
