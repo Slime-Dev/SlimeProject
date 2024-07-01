@@ -13,7 +13,12 @@ function(compile_shaders)
     endif ()
 
     # Find glslc executable
-    find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc HINTS "${VULKAN_SDK}/bin" REQUIRED)
+    if (WIN32)
+        find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc.exe HINTS "${VULKAN_SDK}/Bin" REQUIRED)
+    else ()
+        find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc HINTS "${VULKAN_SDK}/bin" REQUIRED)
+    endif ()
+
     if(NOT Vulkan_GLSLC_EXECUTABLE)
         message(FATAL_ERROR "glslc executable not found. Set Vulkan_GLSLC_EXECUTABLE to the path of your glslc executable.")
     endif()

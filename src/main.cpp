@@ -1,19 +1,19 @@
 #include "vulkanhelper.h"
+#include "vulkanGraphicsPipeline.h"
 #include "vulkanwindow.h"
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks-inl.h"
 
 #include <filesystem>
 #include <string>
-namespace fs = std::filesystem; // For convenience
 
-// Function to get the build directory relative to the source file
-std::string getBuildDirectory() {
+std::string getBuildDirectory()
+{
 	// Get the absolute path of the current source file
-	auto srcPath = fs::absolute(__FILE__);
-
-	return fs::path(srcPath).parent_path().parent_path().string();
+	auto srcPath = std::filesystem::absolute(__FILE__);
+	return std::filesystem::path(srcPath).parent_path().parent_path().string();
 }
+
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
@@ -22,7 +22,13 @@ int main()
 
 	spdlog::info("Build directory: {}", buildDir);
 
-	const std::string shadersDir = buildDir + "/Shaders";
+	std::string shadersDir = buildDir + "/Shaders";
+
+	SlimeEngine::ShaderConfig shaderConfig =
+	{
+		.vertShaderPath = shadersDir + "/triangle.vert.spv",
+		.fragShaderPath = shadersDir + "/triangle.frag.spv"
+	 };
 
 	SlimeEngine::Init init;
 	SlimeEngine::RenderData data;
@@ -35,7 +41,7 @@ int main()
 		return -1;
 	if (SlimeEngine::CreateSwapchain(init, data) != 0)
 		return -1;
-	if (SlimeEngine::CreateGraphicsPipeline(init, data, shadersDir.c_str()) != 0)
+	if (SlimeEngine::CreateGraphicsPipeline(init, data, shaderConfig, {}, {}) != 0)
 		return -1;
 	if (SlimeEngine::RecordCommandBuffers(init, data) != 0)
 		return -1;

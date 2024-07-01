@@ -27,8 +27,8 @@ struct RenderData
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
 
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
+	std::vector<VkPipelineLayout> pipelineLayout;
+	std::vector<VkPipeline> graphicsPipeline;
 
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -47,7 +47,6 @@ int CreateImages(Init& init, RenderData& data);
 int CreateSwapchain(Init& init, RenderData& data);
 int GetQueues(Init& init, RenderData& data);
 VkShaderModule CreateShaderModule(Init& init, const std::vector<char>& code);
-int CreateGraphicsPipeline(Init& init, RenderData& data, const char* shaderDir);
 int CreateCommandPool(Init& init, RenderData& data);
 int RecordCommandBuffers(Init& init, RenderData& data);
 int InitSyncObjects(Init& init, RenderData& data);
