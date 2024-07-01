@@ -3,124 +3,249 @@
 #include "vulkanhelper.h"
 #include <spdlog/spdlog.h>
 
-#define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "vk_mem_alloc.h"
-#include "vk_mem_alloc.h"
-#include <tiny_gltf.h>
+
+#include <fastgltf/core.hpp>
+#include <fastgltf/util.hpp>
+#include <fastgltf/types.hpp>
+#include <fastgltf/tools.hpp>
+#include <fastgltf/glm_element_traits.hpp>
+#include <fastgltf/base64.hpp>
 
 namespace SlimeEngine
 {
-int loadModelInternal(tinygltf::Model& model, const char* filename)
+VkFilter extract_filter(fastgltf::Filter filter)
 {
-	tinygltf::TinyGLTF loader;
-	std::string err;
-	std::string warn;
-
-	const bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
-	if (!warn.empty())
+	switch (filter)
 	{
-		spdlog::warn("{}", warn);
+	// nearest samplers
+	case fastgltf::Filter::Nearest:
+	case fastgltf::Filter::NearestMipMapNearest:
+	case fastgltf::Filter::NearestMipMapLinear:
+		return VK_FILTER_NEAREST;
+
+	// linear samplers
+	case fastgltf::Filter::Linear:
+	case fastgltf::Filter::LinearMipMapNearest:
+	case fastgltf::Filter::LinearMipMapLinear:
+	default:
+		return VK_FILTER_LINEAR;
 	}
+}
 
-	if (!err.empty())
+VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
+{
+	switch (filter)
 	{
-		spdlog::error("{}", err);
+	case fastgltf::Filter::NearestMipMapNearest:
+	case fastgltf::Filter::LinearMipMapNearest:
+		return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+
+	case fastgltf::Filter::NearestMipMapLinear:
+	case fastgltf::Filter::LinearMipMapLinear:
+	default:
+		return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	}
+}
+
+int createBuffer(VmaAllocator& allocator, VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
+{
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size               = size;
+	bufferInfo.usage              = usage;
+	bufferInfo.sharingMode        = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage                   = memoryUsage;
+
+	if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to create buffer!");
 		return -1;
 	}
 
-	return res ? 0 : -1;
+	return 0;
 }
 
-void bindMesh(std::map<int, bufferData>& buffers, Init& init, tinygltf::Model& model, tinygltf::Mesh& mesh)
+bufferData uploadMesh(Init& init, const std::vector<uint32_t>& vector, const std::vector<Vertex>& vertices)
 {
-	for (size_t i = 0; i < model.bufferViews.size(); ++i)
+	// create index buffer
+	VkBuffer indexBuffer;
+	VmaAllocation indexBufferAllocation;
+	VkDeviceSize indexBufferSize = sizeof(vector[0]) * vector.size();
+	if (createBuffer(init.allocator, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, indexBuffer, indexBufferAllocation) != 0)
 	{
-		const tinygltf::BufferView& bufferView = model.bufferViews[i];
-		const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-
-		VkBufferUsageFlagBits usage = VK_BUFFER_USAGE_FLAG_BITS_MAX_ENUM;
-
-		// Determine the appropriate buffer usage flags based on the BufferView target
-		if (bufferView.target == TINYGLTF_TARGET_ARRAY_BUFFER)
-		{
-			usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		}
-		else if (bufferView.target == TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER)
-		{
-			usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-		}
-
-		VkBufferCreateInfo bufferInfo{};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = bufferView.byteLength;
-		bufferInfo.usage = usage;
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VmaAllocationCreateInfo allocInfo = {};
-		allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-		VkBuffer vkBuffer;
-		VmaAllocation allocation;
-		if (vmaCreateBuffer(init.allocator, &bufferInfo, &allocInfo, &vkBuffer, &allocation, nullptr) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create buffer!");
-		}
-
-		void* data;
-		vmaMapMemory(init.allocator, allocation, &data);
-		memcpy(data, buffer.data.data() + bufferView.byteOffset, (size_t)bufferView.byteLength);
-		vmaUnmapMemory(init.allocator, allocation);
-
-		uint32_t vertexCount = 0;
-		uint32_t indexCount = 0;
-		uint32_t firstIndex = 0;
-		int32_t vertexOffset = 0;
-
-		if (bufferView.target == TINYGLTF_TARGET_ARRAY_BUFFER)
-		{
-			vertexCount = bufferView.byteLength / sizeof(float) / 3;
-		}
-		else if (bufferView.target == TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER)
-		{
-			indexCount = bufferView.byteLength / sizeof(uint32_t);
-		}
-
-		buffers[i] = { vkBuffer, allocation, vertexCount, indexCount, firstIndex, vertexOffset };
+		spdlog::error("Failed to create index buffer!");
 	}
+
+	// create vertex buffer
+	VkBuffer vertexBuffer;
+	VmaAllocation vertexBufferAllocation;
+	VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
+	if (createBuffer(init.allocator, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, vertexBuffer, vertexBufferAllocation) != 0)
+	{
+		spdlog::error("Failed to create vertex buffer!");
+	}
+
+	return bufferData{ vertexBuffer, indexBuffer, vertexBufferAllocation, static_cast<uint32_t>(vertices.size()), static_cast<uint32_t>(vector.size()), 0, 0, 0 };
 }
 
-void bindModelNodes(std::map<int, bufferData>& buffers, Init& init, tinygltf::Model& model, tinygltf::Node& node)
+int loadModelInternal(Init& init, ModelConfig& modelConfig)
 {
-	if ((node.mesh >= 0) && (node.mesh < model.meshes.size()))
+	fastgltf::Parser parser;
+	fastgltf::GltfDataBuffer dataBuffer;
+
+	auto modelPath = modelConfig.modelPath;
+	auto path      = std::filesystem::path(modelPath);
+
+	constexpr auto gltfOptions = fastgltf::Options::DontRequireValidAssetMember | fastgltf::Options::AllowDouble | fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers;
+
+	fastgltf::GltfDataBuffer data;
+	data.loadFromFile(modelPath);
+
+	fastgltf::Asset asset;
+
+	auto type = fastgltf::determineGltfFileType(&data);
+	if (type == fastgltf::GltfType::glTF)
 	{
-		bindMesh(buffers, init, model, model.meshes[node.mesh]);
+		auto load = parser.loadGltf(&data, path.parent_path(), gltfOptions);
+		if (load)
+		{
+			asset = std::move(load.get());
+		}
+		else
+		{
+			spdlog::error("Failed to load glTF: {}", fastgltf::to_underlying(load.error()));
+			return -1;
+		}
+	}
+	else if (type == fastgltf::GltfType::GLB)
+	{
+		auto load = parser.loadGltfBinary(&data, path.parent_path(), gltfOptions);
+		if (load)
+		{
+			asset = std::move(load.get());
+		}
+		else
+		{
+			spdlog::error("Failed to load glTF: {}", fastgltf::to_underlying(load.error()));
+			return -1;
+		}
+	}
+	else
+	{
+		spdlog::error("Failed to determine glTF container");
+		return -1;
 	}
 
-	for (size_t i = 0; i < node.children.size(); i++)
+	// MATERIALS // -----------------------------------------------------------
+	// // load samplers
+	// std::vector<VkSampler> samplers;
+	// for (fastgltf::Sampler& sampler : asset.samplers)
+	// {
+	//
+	// 	VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .pNext = nullptr };
+	// 	sampl.maxLod              = VK_LOD_CLAMP_NONE;
+	// 	sampl.minLod              = 0;
+	//
+	// 	sampl.magFilter = extract_filter(sampler.magFilter.value_or(fastgltf::Filter::Nearest));
+	// 	sampl.minFilter = extract_filter(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
+	//
+	// 	sampl.mipmapMode = extract_mipmap_mode(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
+	//
+	// 	VkSampler newSampler;
+	// 	vkCreateSampler(init.device, &sampl, nullptr, &newSampler);
+	//
+	// 	samplers.push_back(newSampler);
+	// }
+	//
+	// todo more material stuff
+
+	std::vector<uint32_t> indices;
+	std::vector<Vertex> vertices;
+
+	for (fastgltf::Mesh& mesh : asset.meshes)
 	{
-		assert((node.children[i] >= 0) && (node.children[i] < model.nodes.size()));
-		bindModelNodes(buffers, init, model, model.nodes[node.children[i]]);
+		std::shared_ptr<MeshAsset> newmesh = std::make_shared<MeshAsset>();
+		newmesh->name                      = mesh.name;
+
+		// clear the mesh arrays each mesh, we dont want to merge them by error
+		indices.clear();
+		vertices.clear();
+
+		for (auto&& p : mesh.primitives)
+		{
+			size_t initial_vtx = vertices.size();
+
+			// load indexes
+			{
+				fastgltf::Accessor& indexaccessor = asset.accessors[p.indicesAccessor.value()];
+				indices.reserve(indices.size() + indexaccessor.count);
+
+				fastgltf::iterateAccessor<std::uint32_t>(asset, indexaccessor,
+					[&](std::uint32_t idx) {
+						indices.push_back(idx + initial_vtx);
+					});
+			}
+
+			// load vertex positions
+			{
+				fastgltf::Accessor& posAccessor = asset.accessors[p.findAttribute("POSITION")->second];
+				vertices.resize(vertices.size() + posAccessor.count);
+
+				fastgltf::iterateAccessorWithIndex<glm::vec3>(asset, posAccessor,
+					[&](glm::vec3 v, size_t index) {
+						Vertex newvtx;
+						newvtx.position               = v;
+						newvtx.normal                 = { 1, 0, 0 };
+						newvtx.color                  = glm::vec4{ 1.f };
+						newvtx.uv                     = { 0, 0 };
+						vertices[initial_vtx + index] = newvtx;
+					});
+			}
+
+			// load vertex normals
+			auto normals = p.findAttribute("NORMAL");
+			if (normals != p.attributes.end())
+			{
+
+				fastgltf::iterateAccessorWithIndex<glm::vec3>(asset, asset.accessors[(*normals).second],
+					[&](glm::vec3 v, size_t index) {
+						vertices[initial_vtx + index].normal = v;
+					});
+			}
+
+			// load UVs
+			auto uv = p.findAttribute("TEXCOORD_0");
+			if (uv != p.attributes.end())
+			{
+
+				fastgltf::iterateAccessorWithIndex<glm::vec2>(asset, asset.accessors[(*uv).second],
+					[&](glm::vec2 v, size_t index) {
+						vertices[initial_vtx + index].uv.x = v.x;
+						vertices[initial_vtx + index].uv.y = v.y;
+					});
+			}
+
+			// load vertex colors
+			auto colors = p.findAttribute("COLOR_0");
+			if (colors != p.attributes.end())
+			{
+
+				fastgltf::iterateAccessorWithIndex<glm::vec4>(asset, asset.accessors[(*colors).second],
+					[&](glm::vec4 v, size_t index) {
+						vertices[initial_vtx + index].color = v;
+					});
+			}
+		}
+
+		newmesh->meshBuffers = uploadMesh(init, indices, vertices);
 	}
-}
 
-std::pair<VkBuffer, std::map<int, bufferData>> bindModel(Init& init, tinygltf::Model& model)
-{
-	std::map<int, bufferData> buffers;
-	std::map<int, VmaAllocation> allocations;
-
-	const tinygltf::Scene& scene = model.scenes[model.defaultScene];
-	for (size_t i = 0; i < scene.nodes.size(); ++i)
-	{
-		assert((scene.nodes[i] >= 0) && (scene.nodes[i] < model.nodes.size()));
-		bindModelNodes(buffers, init, model, model.nodes[scene.nodes[i]]);
-	}
-
-	// I might need to store the allocations somewhere so I can free them later
-	// not sure just yet will see if it's necessary
-
-	return { buffers[0].buffer, buffers };
+	return 0;
 }
 
 ModelConfig loadModel(const char* filename, Init& init)
@@ -128,30 +253,35 @@ ModelConfig loadModel(const char* filename, Init& init)
 	ModelConfig modelConfig;
 	modelConfig.modelPath = filename;
 
-	if (loadModelInternal(modelConfig.model, filename) != 0)
+	if (loadModelInternal(init, modelConfig) != 0)
 	{
 		spdlog::error("Failed to load model!");
-		return modelConfig;
 	}
-
-	auto [buffer, buffers] = bindModel(init, modelConfig.model);
-	modelConfig.buffers    = buffers;
-
 	return modelConfig;
 }
 
 void drawModel(VkCommandBuffer commandBuffer, ModelConfig& modelConfig, Init& init)
 {
-	for (const auto& bufferEntry : modelConfig.buffers)
+	for (const auto& meshEntry : modelConfig.meshAssets)
 	{
-		bufferData bufferData = bufferEntry.second;
+		auto& vertexBuffer = meshEntry->meshBuffers.vertexBuffer;
+		auto& indexBuffer  = meshEntry->meshBuffers.indexBuffer;
 
-		VkBuffer buffer = bufferData.buffer;
-		VkDeviceSize offset = 0;
-
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, &offset);
-		vkCmdDraw(commandBuffer, bufferData.vertexCount, 1, 0, 0);
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &meshEntry->meshBuffers.offset);
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffer, meshEntry->meshBuffers.offset, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(commandBuffer, meshEntry->meshBuffers.indexCount, 1, meshEntry->meshBuffers.firstIndex, meshEntry->meshBuffers.vertexOffset, 0);
 	}
+}
+
+void cleanupModel(Init& init, ModelConfig& modelConfig)
+{
+	for (const auto& meshEntry : modelConfig.meshAssets)
+	{
+		vmaDestroyBuffer(init.allocator, meshEntry->meshBuffers.vertexBuffer, meshEntry->meshBuffers.allocation);
+		vmaDestroyBuffer(init.allocator, meshEntry->meshBuffers.indexBuffer, meshEntry->meshBuffers.allocation);
+	}
+
+	modelConfig.meshAssets.clear();
 }
 
 }

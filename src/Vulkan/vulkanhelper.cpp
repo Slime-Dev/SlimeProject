@@ -538,11 +538,7 @@ int Cleanup(Init& init, RenderData& data)
 	// Destroy models
 	for (auto& modelConfig : data.models)
 	{
-		for (auto& bufferConfig : modelConfig.second.buffers)
-		{
-			bufferData& buffer = bufferConfig.second;
-			vmaDestroyBuffer(init.allocator, buffer.buffer, buffer.allocation);
-		}
+		SlimeEngine::cleanupModel(init, modelConfig.second);
 	}
 
 	for (auto& image_view : data.swapchainImageViews)

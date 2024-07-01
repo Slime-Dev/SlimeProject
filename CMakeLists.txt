@@ -62,5 +62,17 @@ CPMAddPackage(
         GIT_TAG v1.14.1
 )
 
+CPMAddPackage(
+        NAME fastgltf
+        GITHUB_REPOSITORY spnda/fastgltf
+        GIT_TAG v0.7.2
+)
+
+CPMAddPackage(
+        NAME glm
+        GITHUB_REPOSITORY g-truc/glm
+        GIT_TAG 1.0.1
+)
+
 # Link libraries
-target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap spdlog::spdlog)
+target_link_libraries(SlimeOdyssey Vulkan::Loader Vulkan::Headers glfw vk-bootstrap::vk-bootstrap spdlog::spdlog fastgltf::fastgltf glm::glm)

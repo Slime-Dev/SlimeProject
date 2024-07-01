@@ -28,7 +28,7 @@ int SetupScean(SlimeEngine::Init& init, SlimeEngine::RenderData& data)
 	bindingDescription.inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
 
 	std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {};
-	attributeDescriptions.resize(2);
+	attributeDescriptions.resize(4);
 
 	attributeDescriptions[0].binding  = 0;
 	attributeDescriptions[0].location = 0;
@@ -39,6 +39,16 @@ int SetupScean(SlimeEngine::Init& init, SlimeEngine::RenderData& data)
 	attributeDescriptions[1].location = 1;
 	attributeDescriptions[1].format   = VK_FORMAT_R32G32B32_SFLOAT;
 	attributeDescriptions[1].offset   = offsetof(SlimeEngine::Vertex, normal);
+
+	attributeDescriptions[2].binding  = 0;
+	attributeDescriptions[2].location = 2;
+	attributeDescriptions[2].format   = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[2].offset   = offsetof(SlimeEngine::Vertex, uv);
+
+	attributeDescriptions[3].binding  = 0;
+	attributeDescriptions[3].location = 3;
+	attributeDescriptions[3].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
+	attributeDescriptions[3].offset   = offsetof(SlimeEngine::Vertex, color);
 
 	vertexInputConfig.bindingDescriptions   = bindingDescription;
 	vertexInputConfig.attributeDescriptions = attributeDescriptions;
