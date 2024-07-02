@@ -7,7 +7,10 @@ function(compile_shaders)
 
     # get search dir for glslc
     if (WIN32)
-        set(VULKAN_SDK "$ENV{VULKAN_SDK}")
+        get_env(VULKAN_SDK "" ENVIRONMENT_VARIABLES)
+        if(NOT VULKAN_SDK)
+            message(FATAL_ERROR "VULKAN_SDK environment variable not found.")
+        endif()
     else ()
         set(VULKAN_SDK "/usr")
     endif ()
