@@ -19,10 +19,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 //
-
-#ifndef AMD_VULKAN_MEMORY_ALLOCATOR_H
-#define AMD_VULKAN_MEMORY_ALLOCATOR_H
-
 #ifdef _MSC_VER // Microsoft Visual Studio
 #pragma warning(push)
 #pragma warning(disable: 4100) // Example: disabling specific warning 4100
@@ -30,6 +26,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wall" // Example: ignoring all warnings
 #endif
+
+#ifndef AMD_VULKAN_MEMORY_ALLOCATOR_H
+#define AMD_VULKAN_MEMORY_ALLOCATOR_H
 
 /** \mainpage Vulkan Memory Allocator
 
