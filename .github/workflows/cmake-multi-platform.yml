@@ -55,19 +55,16 @@ jobs:
       run: |
           curl -L -o VulkanSDK-1.2.183-Installer.exe https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe
           .\VulkanSDK-1.2.183-Installer.exe  --accept-licenses --default-answer --confirm-command install
-
+          
     - name: WINDOWS - Set Vulkan SDK environment variables
       if: matrix.os == 'windows-latest'
-      # Grab the first version in the VulkanSDK directory
-      # VULKAN_SDK is the path/bin directory
-      # VK_SDK_PATH is the path
-      # print all the paths
       run: |
-          $vulkan_sdk = Get-ChildItem -Path "C:\VulkanSDK" | Select-Object -First 1
-          $env:VK_SDK_PATH = $vulkan_sdk.FullName
-          $env:VULKAN_SDK = "$env:VK_SDK_PATH\bin"
-          echo "VK_SDK_PATH=$env:VK_SDK_PATH"
-          echo "VULKAN_SDK=$env:VULKAN_SDK"
+        $vulkan_sdk_path = "C:\VulkanSDK"
+        $vulkan_sdk_version = Get-ChildItem -Path $vulkan_sdk_path | Select-Object -First 1
+        $env:VK_SDK_PATH = $vulkan_sdk_version.FullName
+        $env:VULKAN_SDK = Join-Path -Path $env:VK_SDK_PATH -ChildPath "bin"
+        Write-Host "export VK_SDK_PATH=$env:VK_SDK_PATH"
+        Write-Host "export VULKAN_SDK=$env:VULKAN_SDK"
 
     - name: Set reusable strings
       id: strings
