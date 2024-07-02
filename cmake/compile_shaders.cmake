@@ -1,24 +1,13 @@
+find_program(Vulkan_GLSLC_EXECUTABLE glslc
+  HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/bin/ $ENV{VULKAN_SDK}/bin32/
+)
+
 # Function to compile Vulkan shaders to SPIR-V
 function(compile_shaders)
     message(STATUS "Compiling shaders to SPIR-V")
 
     set(shader_dir "${CMAKE_SOURCE_DIR}/shaders")
     message(STATUS "Shader directory: ${shader_dir}")
-
-    # get search dir for glslc
-    if (WIN32)
-        set(VULKAN_SDK "$ENV{VULKAN_SDK}")
-        message(STATUS "VULKAN_SDK: ${VULKAN_SDK}")
-    else ()
-        set(VULKAN_SDK "/usr")
-    endif ()
-
-    # Find glslc executable
-    if (WIN32)
-        find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc.exe HINTS "C:/VulkanSDK/1.3.283.0/bin" REQUIRED)
-    else ()
-        find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc HINTS "${VULKAN_SDK}/bin" REQUIRED)
-    endif ()
 
     if(NOT Vulkan_GLSLC_EXECUTABLE)
         message(FATAL_ERROR "glslc executable not found. Set Vulkan_GLSLC_EXECUTABLE to the path of your glslc executable.")
