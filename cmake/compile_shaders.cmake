@@ -15,7 +15,7 @@ function(compile_shaders)
 
     # Find glslc executable
     if (WIN32)
-        find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc.exe HINTS "${VULKAN_SDK}/Bin" REQUIRED)
+        find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc.exe HINTS "C:/VulkanSDK/1.3.283.0/bin" REQUIRED)
     else ()
         find_program(Vulkan_GLSLC_EXECUTABLE NAMES glslc HINTS "${VULKAN_SDK}/bin" REQUIRED)
     endif ()
