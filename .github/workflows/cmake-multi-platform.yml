@@ -38,6 +38,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+      # Test caching to improve build times
+    - name: Caching
+      uses: actions/cache@v4
+      with:
+          path: ${{ github.workspace }}/build
+          key: build-${{ matrix.os }}
+          restore-keys: |
+            build-${{ matrix.os }}
+
     - name: UBUNTU - Install dependencies
       if: matrix.os == 'ubuntu-latest'
       run: sudo apt-get install -y libglfw3-dev xorg-dev libegl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
@@ -49,22 +58,12 @@ jobs:
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt update
           sudo apt install vulkan-sdk
-      
+
     - name: WINDOWS - Install Vulkan SDK
       if: matrix.os == 'windows-latest'
       run: |
           curl -L -o VulkanSDK-1.2.183-Installer.exe https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe
           .\VulkanSDK-1.2.183-Installer.exe  --accept-licenses --default-answer --confirm-command install
-          
-    - name: WINDOWS - Set Vulkan SDK environment variables
-      if: matrix.os == 'windows-latest'
-      run: |
-        $vulkan_sdk_path = "C:\VulkanSDK"
-        $vulkan_sdk_version = Get-ChildItem -Path $vulkan_sdk_path | Select-Object -First 1
-        $env:VK_SDK_PATH = $vulkan_sdk_version.FullName
-        $env:VULKAN_SDK = Join-Path -Path $env:VK_SDK_PATH -ChildPath "bin"
-        Write-Host "export VK_SDK_PATH=$env:VK_SDK_PATH"
-        Write-Host "export VULKAN_SDK=$env:VULKAN_SDK"
 
     - name: Set reusable strings
       id: strings
@@ -86,4 +85,15 @@ jobs:
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       run: |
-        ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV
+        ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --output-junit ${{ github.workspace }}/scripts/junitout.xml
+
+    - name: Convert XML to CTRF
+      if: success()
+      run: |
+          python ${{ github.workspace }}/scripts/ConvertXMLtoJson.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --output ${{ github.workspace }}/scripts/finalresult.json
+
+    - name: Post results
+      if: success()
+      run: |
+          npm install github-actions-ctrf@0.0.20
+          npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
