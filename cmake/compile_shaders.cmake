@@ -8,6 +8,7 @@ function(compile_shaders)
     # get search dir for glslc
     if (WIN32)
         set(VULKAN_SDK "$ENV{VULKAN_SDK}")
+        message(STATUS "VULKAN_SDK: ${VULKAN_SDK}")
     else ()
         set(VULKAN_SDK "/usr")
     endif ()
