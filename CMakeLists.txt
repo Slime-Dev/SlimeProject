@@ -31,53 +31,60 @@ endif ()
 # CPM setup for external libraries (example with Vulkan, GLFW, etc.)
 include(cmake/CPM.cmake)
 
+# Define warning suppression flags for MSVC
+if(MSVC)
+    set(MSVC_WARNING_SUPPRESSION "/W0")
+else()
+    set(WARNING_SUPPRESSION "-w")
+endif()
+
 CPMAddPackage(
         NAME Vulkan-Headers
         GITHUB_REPOSITORY KhronosGroup/Vulkan-Headers
         GIT_TAG v1.3.286
-        OPTIONS "-w"
+        OPTIONS "${WARNING_SUPPRESSION}" # Suppress warnings for Vulkan-Headers
 )
 
 CPMAddPackage(
         NAME Vulkan-Loader
         GITHUB_REPOSITORY KhronosGroup/Vulkan-Loader
         GIT_TAG v1.3.285
-        OPTIONS "-w"
+        OPTIONS "${WARNING_SUPPRESSION}" # Suppress warnings for Vulkan-Loader
 )
 
 CPMAddPackage(
         NAME glfw
         GITHUB_REPOSITORY glfw/glfw
         GIT_TAG 3.4
-        OPTIONS "GLFW_BUILD_DOCS OFF" "GLFW_BUILD_TESTS OFF" "GLFW_BUILD_EXAMPLES OFF" "-w"
+        OPTIONS "GLFW_BUILD_DOCS OFF" "GLFW_BUILD_TESTS OFF" "GLFW_BUILD_EXAMPLES OFF" "${WARNING_SUPPRESSION}" # Suppress warnings for glfw
 )
 
 CPMAddPackage(
         NAME vk-bootstrap
         GITHUB_REPOSITORY charles-lunarg/vk-bootstrap
         GIT_TAG v1.3.285
-        OPTIONS "-w"
+        OPTIONS "${WARNING_SUPPRESSION}" # Suppress warnings for vk-bootstrap
 )
 
 CPMAddPackage(
         NAME spdlog
         GITHUB_REPOSITORY gabime/spdlog
         GIT_TAG v1.14.1
-        OPTIONS "-w"
+        OPTIONS "${WARNING_SUPPRESSION}" # Suppress warnings for spdlog
 )
 
 CPMAddPackage(
         NAME fastgltf
         GITHUB_REPOSITORY spnda/fastgltf
         GIT_TAG v0.7.2
-        OPTIONS "-w"
+        OPTIONS "${WARNING_SUPPRESSION}" # Suppress warnings for fastgltf
 )
 
 CPMAddPackage(
         NAME glm
         GITHUB_REPOSITORY g-truc/glm
         GIT_TAG 1.0.1
-        OPTIONS "-w"
+        OPTIONS "${WARNING_SUPPRESSION}" # Suppress warnings for glm
 )
 
 # Link libraries
