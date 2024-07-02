@@ -43,9 +43,9 @@ jobs:
       uses: actions/cache@v4
       with:
           path: ${{ github.workspace }}/build
-          key: build-${{ matrix.os }}
+          key: build
           restore-keys: |
-            build-${{ matrix.os }}
+            build
 
     - name: UBUNTU - Install dependencies
       if: matrix.os == 'ubuntu-latest'
@@ -90,6 +90,7 @@ jobs:
     - name: Convert XML to CTRF
       if: success()
       run: |
+          pip install defusedxml
           python ${{ github.workspace }}/scripts/ConvertXMLtoJson.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --output ${{ github.workspace }}/scripts/finalresult.json
 
     - name: Post results
