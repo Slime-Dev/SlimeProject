@@ -59,13 +59,15 @@ jobs:
     - name: WINDOWS - Set Vulkan SDK environment variables
       if: matrix.os == 'windows-latest'
       # Grab the first version in the VulkanSDK directory
+      # VULKAN_SDK is the path/bin directory
+      # VK_SDK_PATH is the path
+      # print all the paths
       run: |
           $vulkan_sdk = Get-ChildItem -Path "C:\VulkanSDK" | Select-Object -First 1
-          $env:VULKAN_SDK = $vulkan_sdk.FullName
           $env:VK_SDK_PATH = $vulkan_sdk.FullName
-          $env:VK_LAYER_PATH = "$env:VULKAN_SDK\Bin; $env:VULKAN_SDK\Bin\glslang\Release; $env:VULKAN_SDK\Bin\spirv-tools\Release; $env:VULKAN_SDK\Bin\spirv-cross\Release; $env:VULKAN_SDK\Bin\spirv-headers\Release; $env:VULKAN_SDK\Bin\spirv-val\Release; $env:VULKAN_SDK\Bin\spirv-tools\Release; $env:VULKAN_SDK\Bin\spirv-cross\Release; $env:VULKAN_SDK\Bin\spirv-headers\Release; $env:VULKAN_SDK\Bin\spirv-val\Release"
-          $env:VK_ICD_FILENAMES = "$env:VULKAN_SDK\Bin\vk_swiftshader_icd.json"
-          $env:VK_LAYER_PATH = "$env:VULKAN_SDK\Bin; $env:VULKAN_SDK\Bin\glslang\Release; $env:VULKAN_SDK\Bin\spirv-tools\Release; $env:VULKAN_SDK\Bin\spirv-cross\Release; $env:VULKAN_SDK\Bin\spirv-headers\Release; $env:VULKAN_SDK\Bin\spirv-val\Release; $env:VULKAN_SDK\Bin\spirv-tools\Release; $env:VULKAN_SDK\Bin\spirv-cross\Release; $env:VULKAN_SDK\Bin\spirv-headers\Release; $env:VULKAN_SDK\Bin\spirv-val\Release"
+          $env:VULKAN_SDK = "$env:VK_SDK_PATH\bin"
+          echo "VK_SDK_PATH=$env:VK_SDK_PATH"
+          echo "VULKAN_SDK=$env:VULKAN_SDK"
 
     - name: Set reusable strings
       id: strings
