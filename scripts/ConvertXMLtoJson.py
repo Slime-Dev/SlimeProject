@@ -1,4 +1,4 @@
-import xml.etree.ElementTree as ET
+import defusedxml.etree.ElementTree as ET
 import json
 import time
 import argparse
