@@ -1,5 +1,5 @@
 find_program(Vulkan_GLSLC_EXECUTABLE glslc
-  HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/bin/ $ENV{VULKAN_SDK}/bin32/ C:/
+  HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/bin/ $ENV{VULKAN_SDK}/bin32/ C:/VulkanSDK/1.3.283.0/bin
 )
 
 # Function to compile Vulkan shaders to SPIR-V
