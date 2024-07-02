@@ -1,4 +1,4 @@
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 import json
 import time
 import argparse
@@ -9,7 +9,7 @@ def xml_to_json(xml_file, tool_name):
     if not os.path.exists(xml_file):
         raise FileNotFoundError(f"The file {xml_file} does not exist.")
 
-    # Parse the XML file
+    # Parse the XML file securely
     tree = ET.parse(xml_file)
     root = tree.getroot()
 
