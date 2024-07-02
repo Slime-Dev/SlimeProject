@@ -23,6 +23,14 @@
 #ifndef AMD_VULKAN_MEMORY_ALLOCATOR_H
 #define AMD_VULKAN_MEMORY_ALLOCATOR_H
 
+#ifdef _MSC_VER // Microsoft Visual Studio
+#pragma warning(push)
+#pragma warning(disable: 4100) // Example: disabling specific warning 4100
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wall" // Example: ignoring all warnings
+#endif
+
 /** \mainpage Vulkan Memory Allocator
 
 <b>Version 3.1.0</b>
@@ -16439,6 +16447,13 @@ VMA_CALL_PRE void VMA_CALL_POST vmaFreeVirtualBlockStatsString(VmaVirtualBlock V
 #endif // VMA_STATS_STRING_ENABLED
 #endif // _VMA_PUBLIC_INTERFACE
 #endif // VMA_IMPLEMENTATION
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 
 /**
 \page quick_start Quick start
