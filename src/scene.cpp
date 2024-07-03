@@ -1,8 +1,8 @@
 #include "scene.h"
 
-#include "vulkanShader.h"
-#include "vulkanhelper.h"
 #include "spdlog/spdlog.h"
+#include "ShaderManager.h"
+#include "PipelineGenerator.h"
 
 #include <filesystem>
 
@@ -13,63 +13,28 @@ std::string getBuildDirectory()
 	return std::filesystem::path(srcPath).parent_path().parent_path().string();
 }
 
-int SetupScean(SlimeEngine::Init& init, SlimeEngine::RenderData& data)
+int SetupScean(Engine& engine)
 {
 	std::string buildDir = getBuildDirectory();
 	spdlog::info("Build directory: {}", buildDir);
 
 	// CREATING THE SHADDER MODULES
+	ShaderManager& shaderManager = engine.GetShaderManager();
 	std::string shadersDir = buildDir + "/shaders";
+	std::string vertShaderPath = shadersDir + "/basic.vert.spv";
+	std::string fragShaderPath = shadersDir + "/basic.frag.spv";
+	auto [vertShaderModule, vertShaderCode] = shaderManager.loadShader(vertShaderPath);
+	auto [fragShaderModule, fragShaderCode] = shaderManager.loadShader(fragShaderPath);
 
-	SlimeEngine::VertexInputConfig vertexInputConfig   = {};
-	VkVertexInputBindingDescription bindingDescription = {};
-	bindingDescription.binding                         = 0;
-	bindingDescription.stride                          = sizeof(SlimeEngine::Vertex);
-	bindingDescription.inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
+	std::unique_ptr<PipelineGenerator> pipelineGenerator = std::make_unique<PipelineGenerator>(engine.GetDevice(), vertShaderCode, fragShaderCode);
+	pipelineGenerator->setShaderModules(vertShaderModule, fragShaderModule);
+	pipelineGenerator->generate();
 
-	std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {};
-	attributeDescriptions.resize(4);
+	engine.GetPipelines()["basic"] = std::move(pipelineGenerator);
 
-	attributeDescriptions[0].binding  = 0;
-	attributeDescriptions[0].location = 0;
-	attributeDescriptions[0].format   = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[0].offset   = offsetof(SlimeEngine::Vertex, position);
-
-	attributeDescriptions[1].binding  = 0;
-	attributeDescriptions[1].location = 1;
-	attributeDescriptions[1].format   = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDescriptions[1].offset   = offsetof(SlimeEngine::Vertex, normal);
-
-	attributeDescriptions[2].binding  = 0;
-	attributeDescriptions[2].location = 2;
-	attributeDescriptions[2].format   = VK_FORMAT_R32G32_SFLOAT;
-	attributeDescriptions[2].offset   = offsetof(SlimeEngine::Vertex, uv);
-
-	attributeDescriptions[3].binding  = 0;
-	attributeDescriptions[3].location = 3;
-	attributeDescriptions[3].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
-	attributeDescriptions[3].offset   = offsetof(SlimeEngine::Vertex, color);
-
-	vertexInputConfig.bindingDescriptions   = bindingDescription;
-	vertexInputConfig.attributeDescriptions = attributeDescriptions;
-
-	SlimeEngine::ShaderConfig shaderConfig =
-	{
-		.vertShaderPath = shadersDir + "/basic.vert.spv",
-		.fragShaderPath = shadersDir + "/basic.frag.spv",
-		.vertexInputConfig = vertexInputConfig
-	};
-
-	// MODEL LOADING
-	SlimeEngine::ModelConfig modelConfig =
-	{
-		.modelPath = buildDir + "/models/Cube/Cube.gltf"
-	};
-	data.models["cube"] = SlimeEngine::loadModel(modelConfig.modelPath.c_str(), init);
-
-	// CREATING THE GRAPHICS PIPELINE
-	if (SlimeEngine::CreateGraphicsPipeline(init, data, "basic", shaderConfig, {}, {}) != 0)
-		return -1;
+	// MODEL LOADING TODO Implement model loading
+	// std::string modelPath = buildDir + "/models/Cube/Cube.gltf";
+	// engine.GetModels()["cube"] = SlimeEngine::loadModel(modelPath.c_str(), engine);
 
 	return 0;
 }

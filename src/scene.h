@@ -1,9 +1,11 @@
 #pragma once
+#include "Engine.h"
+
 namespace SlimeEngine
 {
 struct Init;
 struct RenderData;
 }
 
-int SetupScean(SlimeEngine::Init& init, SlimeEngine::RenderData& data);
+int SetupScean(Engine& engine);
 
