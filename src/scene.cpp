@@ -3,6 +3,7 @@
 #include "spdlog/spdlog.h"
 #include "ShaderManager.h"
 #include "PipelineGenerator.h"
+#include "ResourcePathManager.h"
 
 #include <filesystem>
 
@@ -15,14 +16,14 @@ std::string getBuildDirectory()
 
 int SetupScean(Engine& engine)
 {
-	std::string buildDir = getBuildDirectory();
-	spdlog::info("Build directory: {}", buildDir);
+	ResourcePathManager resourcePaths;
+	spdlog::info("Root directory: {}", resourcePaths.GetRootDirectory());
 
 	// CREATING THE SHADDER MODULES
 	ShaderManager& shaderManager = engine.GetShaderManager();
-	std::string shadersDir = buildDir + "/shaders";
-	std::string vertShaderPath = shadersDir + "/triangle.vert.spv";
-	std::string fragShaderPath = shadersDir + "/triangle.frag.spv";
+	std::string vertShaderPath   = resourcePaths.GetShaderPath("triangle.vert.spv");
+	std::string fragShaderPath   = resourcePaths.GetShaderPath("triangle.frag.spv");
+
 	auto [vertShaderModule, vertShaderCode] = shaderManager.loadShader(vertShaderPath);
 	auto [fragShaderModule, fragShaderCode] = shaderManager.loadShader(fragShaderPath);
 
