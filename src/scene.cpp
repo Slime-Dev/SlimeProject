@@ -21,8 +21,8 @@ int SetupScean(Engine& engine)
 	// CREATING THE SHADDER MODULES
 	ShaderManager& shaderManager = engine.GetShaderManager();
 	std::string shadersDir = buildDir + "/shaders";
-	std::string vertShaderPath = shadersDir + "/basic.vert.spv";
-	std::string fragShaderPath = shadersDir + "/basic.frag.spv";
+	std::string vertShaderPath = shadersDir + "/triangle.vert.spv";
+	std::string fragShaderPath = shadersDir + "/triangle.frag.spv";
 	auto [vertShaderModule, vertShaderCode] = shaderManager.loadShader(vertShaderPath);
 	auto [fragShaderModule, fragShaderCode] = shaderManager.loadShader(fragShaderPath);
 

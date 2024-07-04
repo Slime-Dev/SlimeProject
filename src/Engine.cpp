@@ -30,7 +30,6 @@ Engine::Engine(const char* name, int width, int height, bool resizable) : m_wind
 Engine::~Engine()
 {
 	Cleanup();
-	spdlog::debug("I know the descriptorsetlayout is leaking Ill fix it soon.");
 }
 
 VkCommandBuffer Engine::BeginSingleTimeCommands()
@@ -398,7 +397,7 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	m_disp.cmdBeginRendering(cmd, &rendering_info);
 
 	// TODO Implement this
-	// m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.pipelines.at("basic")->getPipeline()); // TODO: This should be dynamic
+	m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.pipelines.at("basic")->getPipeline()); // TODO: This should be dynamic
 	//
 	// // Draw model
 	// for (auto& modelConfig : data.models)
@@ -406,7 +405,7 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	// 	SlimeEngine::drawModel(cmd, modelConfig.second, this);
 	// }
 	//
-	// m_disp.cmdDraw(cmd, 3, 1, 0, 0);
+	m_disp.cmdDraw(cmd, 3, 1, 0, 0);
 
 	m_disp.cmdEndRendering(cmd);
 

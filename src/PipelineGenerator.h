@@ -32,6 +32,8 @@ private:
 	VkShaderModule m_fragmentShaderModule = VK_NULL_HANDLE;
 	std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
 
+	VkDescriptorSetLayout m_descriptorSetLayout; // TODO: Store this in a resource manager or something !it is leaking atm
+
 	VkVertexInputBindingDescription m_vertexInputBindingDescription{};
 	VkPipelineShaderStageCreateInfo m_vertexShaderStageInfo{};
 	VkPipelineShaderStageCreateInfo m_fragmentShaderStageInfo{};
