@@ -5,15 +5,6 @@
 #include "PipelineGenerator.h"
 #include "ResourcePathManager.h"
 
-#include <filesystem>
-
-std::string getBuildDirectory()
-{
-	// Get the absolute path of the current source file
-	auto srcPath = std::filesystem::absolute(__FILE__);
-	return std::filesystem::path(srcPath).parent_path().parent_path().string();
-}
-
 int SetupScean(Engine& engine)
 {
 	ResourcePathManager resourcePaths;
