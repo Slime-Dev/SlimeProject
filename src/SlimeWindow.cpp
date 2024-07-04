@@ -1,7 +1,6 @@
 #include "SlimeWindow.h"
-#include <../cmake-build-debug/_deps/glfw-src/include/GLFW/glfw3.h>
-#include <../cmake-build-debug/_deps/spdlog-src/include/spdlog/spdlog.h>
-
+#include <GLFW/glfw3.h>
+#include <spdlog/spdlog.h>
 
 // Global variables to store the last known window size
 int lastWidth  = -1;

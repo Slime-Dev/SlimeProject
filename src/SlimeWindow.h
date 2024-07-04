@@ -1,6 +1,6 @@
 #pragma once
 
-#include <../cmake-build-debug/_deps/vulkan-headers-src/include/vulkan/vulkan.h>
+#include <vulkan/vulkan.h>
 
 struct GLFWwindow;
 
