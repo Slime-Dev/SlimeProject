@@ -4,54 +4,53 @@
 
 #pragma once
 
+#pragma once
+
 #include <string>
 #include <vulkan/vulkan.h>
 #include <vector>
-
-namespace spirv_cross
-{
-struct SPIRType;
-}
+#include "ShaderManager.h"
 
 class PipelineGenerator
 {
 public:
-	PipelineGenerator(VkDevice device, const std::vector<uint32_t>& vertexShaderCode, const std::vector<uint32_t>& fragmentShaderCode);
-	~PipelineGenerator();
+    PipelineGenerator(VkDevice device);
+    ~PipelineGenerator();
 
-	void setShaderModules(VkShaderModule vertexShaderModule, VkShaderModule fragmentShaderModule);
-	void generate();
-	[[nodiscard]] VkPipeline getPipeline() const { return m_graphicsPipeline; }
-	[[nodiscard]] VkPipelineLayout getPipelineLayout() const { return m_pipelineLayout; }
+    void SetShaderModules(const ShaderModule& vertexShader, const ShaderModule& fragmentShader);
+    void SetVertexInputState(const std::vector<VkVertexInputAttributeDescription>& attributeDescriptions,
+                             const VkVertexInputBindingDescription& bindingDescription);
+    void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
+    void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
+    void Generate();
+    [[nodiscard]] VkPipeline getPipeline() const { return m_graphicsPipeline; }
+    [[nodiscard]] VkPipelineLayout getPipelineLayout() const { return m_pipelineLayout; }
 
 private:
-	VkDevice m_device;
-	const std::vector<uint32_t>& m_vertexShaderCode;
-	const std::vector<uint32_t>& m_fragmentShaderCode;
-	VkShaderModule m_vertexShaderModule = VK_NULL_HANDLE;
-	VkShaderModule m_fragmentShaderModule = VK_NULL_HANDLE;
-	std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
+    VkDevice m_device;
+    ShaderModule m_vertexShader;
+    ShaderModule m_fragmentShader;
 
-	VkDescriptorSetLayout m_descriptorSetLayout; // TODO: Store this in a resource manager or something !it is leaking atm
+    std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
+    VkVertexInputBindingDescription m_vertexInputBindingDescription{};
+    std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
+    std::vector<VkPushConstantRange> m_pushConstantRanges;
 
-	VkVertexInputBindingDescription m_vertexInputBindingDescription{};
-	VkPipelineShaderStageCreateInfo m_vertexShaderStageInfo{};
-	VkPipelineShaderStageCreateInfo m_fragmentShaderStageInfo{};
-	VkPipelineVertexInputStateCreateInfo m_vertexInputInfo{};
-	VkPipelineInputAssemblyStateCreateInfo m_inputAssembly{};
-	VkPipelineViewportStateCreateInfo m_viewportState{};
-	VkPipelineRasterizationStateCreateInfo m_rasterizer{};
-	VkPipelineMultisampleStateCreateInfo m_multisampling{};
-	VkPipelineColorBlendAttachmentState m_colorBlendAttachment{};
-	VkPipelineColorBlendStateCreateInfo m_colorBlending{};
-	VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
+    VkPipelineShaderStageCreateInfo m_vertexShaderStageInfo{};
+    VkPipelineShaderStageCreateInfo m_fragmentShaderStageInfo{};
+    VkPipelineVertexInputStateCreateInfo m_vertexInputInfo{};
+    VkPipelineInputAssemblyStateCreateInfo m_inputAssembly{};
+    VkPipelineViewportStateCreateInfo m_viewportState{};
+    VkPipelineRasterizationStateCreateInfo m_rasterizer{};
+    VkPipelineMultisampleStateCreateInfo m_multisampling{};
+    VkPipelineColorBlendAttachmentState m_colorBlendAttachment{};
+    VkPipelineColorBlendStateCreateInfo m_colorBlending{};
+    VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
 
-	VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
-	VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
 
-	void extractShaderInfo();
-	VkFormat getVkFormat(const spirv_cross::SPIRType& type);
-	uint32_t getSizeOfFormat(VkFormat format);
-	void createPipeline();
-	void cleanup();
+    void CreatePipelineLayout();
+    void CreatePipeline();
+    void Cleanup();
 };

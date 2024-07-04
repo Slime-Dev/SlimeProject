@@ -556,6 +556,7 @@ int Engine::Cleanup()
 		m_disp.destroyImageView(image_view, nullptr);
 	}
 
+	m_shaderManager.CleanupDescriptorSetLayouts();
 	data.pipelines.clear();
 
 	for (auto& descriptorSetLayout : data.descriptorSetLayout)
@@ -563,7 +564,7 @@ int Engine::Cleanup()
 		m_disp.destroyDescriptorSetLayout(descriptorSetLayout.second, nullptr);
 	}
 
-	m_shaderManager.cleanup();
+	m_shaderManager.CleanupShaderModules();
 
 	m_disp.destroyCommandPool(data.commandPool, nullptr);
 
