@@ -1,3 +1,4 @@
+# Improved Vulkan detection with additional hints
 include(FindPackageHandleStandardArgs)
 
 # Try to find Vulkan SDK
@@ -11,6 +12,8 @@ if(NOT Vulkan_FOUND)
                 PATHS
                 "$ENV{VULKAN_SDK}/Include"
                 "$ENV{VK_SDK_PATH}/Include"
+                HINTS
+                "C:/VulkanSDK/1.3.283.0/Include"
         )
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
             find_library(Vulkan_LIBRARY
@@ -18,6 +21,8 @@ if(NOT Vulkan_FOUND)
                     PATHS
                     "$ENV{VULKAN_SDK}/Lib"
                     "$ENV{VK_SDK_PATH}/Lib"
+                    HINTS
+                    "C:/VulkanSDK/1.3.283.0/Lib"
             )
         elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
             find_library(Vulkan_LIBRARY
@@ -25,6 +30,8 @@ if(NOT Vulkan_FOUND)
                     PATHS
                     "$ENV{VULKAN_SDK}/Lib32"
                     "$ENV{VK_SDK_PATH}/Lib32"
+                    HINTS
+                    "C:/VulkanSDK/1.3.283.0/Lib32"
             )
         endif()
     else()
@@ -44,13 +51,26 @@ if(NOT Vulkan_FOUND)
         )
     endif()
 
+    # Find Vulkan binary directory
+    find_path(Vulkan_BINARY_DIR
+            NAMES vulkan-1.dll vulkan-1.so libvulkan.so.1
+            PATHS
+            "$ENV{VULKAN_SDK}/bin"
+            "$ENV{VULKAN_SDK}/bin32"
+            "/usr/bin"
+            "/usr/local/bin"
+            HINTS
+            "C:/VulkanSDK/1.3.283.0/bin"
+            "C:/VulkanSDK/1.3.283.0/bin32"
+    )
+
     if(Vulkan_INCLUDE_DIR AND Vulkan_LIBRARY)
         set(Vulkan_FOUND TRUE)
         set(Vulkan_INCLUDE_DIRS ${Vulkan_INCLUDE_DIR})
         set(Vulkan_LIBRARIES ${Vulkan_LIBRARY})
     endif()
 
-    mark_as_advanced(Vulkan_INCLUDE_DIR Vulkan_LIBRARY)
+    mark_as_advanced(Vulkan_INCLUDE_DIR Vulkan_LIBRARY Vulkan_BINARY_DIR)
 endif()
 
 # Handle the QUIETLY and REQUIRED arguments and set VULKAN_FOUND to TRUE if all listed variables are TRUE
@@ -69,6 +89,9 @@ if(Vulkan_FOUND)
     message(STATUS "Vulkan SDK found: ${VULKAN_PATH}")
     message(STATUS "Vulkan include directory: ${Vulkan_INCLUDE_DIRS}")
     message(STATUS "Vulkan library: ${Vulkan_LIBRARIES}")
+    if(Vulkan_BINARY_DIR)
+        message(STATUS "Vulkan binary directory: ${Vulkan_BINARY_DIR}")
+    endif()
 else()
     message(FATAL_ERROR "
         Unable to locate Vulkan SDK. Please ensure that:
@@ -79,6 +102,7 @@ else()
         If Vulkan is installed in a non-standard location, you can specify it manually:
         -DVulkan_INCLUDE_DIR=/path/to/vulkan/include
         -DVulkan_LIBRARY=/path/to/vulkan/lib/libvulkan.so (or vulkan-1.lib on Windows)
+        -DVulkan_BINARY_DIR=/path/to/vulkan/bin
     ")
 endif()
 
@@ -89,4 +113,9 @@ if(NOT TARGET Vulkan::Vulkan)
             IMPORTED_LOCATION "${Vulkan_LIBRARIES}"
             INTERFACE_INCLUDE_DIRECTORIES "${Vulkan_INCLUDE_DIRS}"
     )
+    if(Vulkan_BINARY_DIR)
+        set_target_properties(Vulkan::Vulkan PROPERTIES
+                IMPORTED_LOCATION "${Vulkan_BINARY_DIR}"
+        )
+    endif()
 endif()
