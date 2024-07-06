@@ -11,18 +11,23 @@
 #include <vector>
 #include "ShaderManager.h"
 
-class PipelineGenerator
-{
+class PipelineGenerator {
 public:
     PipelineGenerator(VkDevice device);
+
     ~PipelineGenerator();
 
-    void SetShaderModules(const ShaderModule& vertexShader, const ShaderModule& fragmentShader);
-    void SetVertexInputState(const std::vector<VkVertexInputAttributeDescription>& attributeDescriptions,
-                             const VkVertexInputBindingDescription& bindingDescription);
-    void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
-    void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
+    void SetShaderModules(const ShaderModule &vertexShader, const ShaderModule &fragmentShader);
+
+    void SetVertexInputState(const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions,
+                             const std::vector<VkVertexInputBindingDescription> &bindingDescription);
+
+    void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts);
+
+    void SetPushConstantRanges(const std::vector<VkPushConstantRange> &pushConstantRanges);
+
     void Generate();
+
     [[nodiscard]] VkPipeline getPipeline() const { return m_graphicsPipeline; }
     [[nodiscard]] VkPipelineLayout getPipelineLayout() const { return m_pipelineLayout; }
 
@@ -32,7 +37,7 @@ private:
     ShaderModule m_fragmentShader;
 
     std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
-    VkVertexInputBindingDescription m_vertexInputBindingDescription{};
+    std::vector<VkVertexInputBindingDescription> m_vertexInputBindingDescriptions;
     std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
     std::vector<VkPushConstantRange> m_pushConstantRanges;
 
@@ -51,6 +56,8 @@ private:
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
 
     void CreatePipelineLayout();
+
     void CreatePipeline();
+
     void Cleanup();
 };

@@ -8,4 +8,3 @@ struct RenderData;
 }
 
 int SetupScean(Engine& engine);
-

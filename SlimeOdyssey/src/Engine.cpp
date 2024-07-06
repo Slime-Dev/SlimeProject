@@ -19,6 +19,10 @@ spdlog::debug(format, ##__VA_ARGS__); \
 
 #include <vk_mem_alloc.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
+
 #define MAX_FRAMES_IN_FLIGHT 2
 
 Engine::Engine(const char* name, int width, int height, bool resizable) : m_window(name, width, height, resizable)
@@ -102,7 +106,9 @@ int Engine::DeviceInit()
 	spdlog::info("Initializing Vulkan...");
 
 	// set up the debug messenger to use spdlog
-	auto debugCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) -> VkBool32 {
+	auto debugCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+		VkDebugUtilsMessageTypeFlagsEXT messageType,
+		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) -> VkBool32 {
 		switch (messageSeverity)
 		{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
@@ -128,11 +134,12 @@ int Engine::DeviceInit()
 	spdlog::info("Creating Vulkan instance...");
 	vkb::InstanceBuilder instance_builder;
 	auto instance_ret = instance_builder
-	                    .request_validation_layers(true)
-	                    .set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-	                    .set_debug_callback(debugCallback)
-	                    .require_api_version(1, 3, 0)
-	                    .build();
+		.request_validation_layers(true)
+		.set_debug_messenger_severity(
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+		.set_debug_callback(debugCallback)
+		.require_api_version(1, 3, 0)
+		.build();
 
 	if (!instance_ret)
 	{
@@ -148,22 +155,24 @@ int Engine::DeviceInit()
 
 	// Select physical device //
 	spdlog::info("Selecting physical device...");
-	VkPhysicalDeviceVulkan13Features features{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
-	features.dynamicRendering = true;
-	features.synchronization2 = true;
+	VkPhysicalDeviceVulkan13Features features13 = {};
+	features13.sType                            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	features13.dynamicRendering                 = VK_TRUE;
+	features13.synchronization2                 = VK_TRUE;
 
-	VkPhysicalDeviceVulkan12Features features12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
-	features12.bufferDeviceAddress = true;
-	features12.descriptorIndexing  = true;
+	VkPhysicalDeviceVulkan12Features features12 = {};
+	features12.sType                            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	features12.bufferDeviceAddress              = VK_TRUE;
+	features12.descriptorIndexing               = VK_TRUE;
 
 	vkb::PhysicalDeviceSelector phys_device_selector(m_instance);
 
 	auto phys_device_ret = phys_device_selector
-	                       .set_minimum_version(1, 3)
-	                       .set_required_features_13(features)
-	                       .set_required_features_12(features12)
-	                       .set_surface(m_surface)
-	                       .select();
+		.set_minimum_version(1, 3)
+		.set_required_features_13(features13)
+		.set_required_features_12(features12)
+		.set_surface(m_surface)
+		.select();
 
 	if (!phys_device_ret)
 	{
@@ -214,12 +223,14 @@ int Engine::CreateSwapchain()
 	vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
 
 	auto swap_ret = swapchain_builder
-	                .use_default_format_selection()
-	                .set_desired_format(VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_UNORM, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-	                .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
-	                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-	                .set_old_swapchain(m_swapchain)
-	                .build();
+		.use_default_format_selection()
+		.set_desired_format(VkSurfaceFormatKHR{
+			.format = VK_FORMAT_B8G8R8A8_UNORM, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+		})
+		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
+		.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+		.set_old_swapchain(m_swapchain)
+		.build();
 
 	if (!swap_ret)
 	{
@@ -284,8 +295,9 @@ int Engine::CreateCommandPool()
 	spdlog::info("Creating command pool...");
 	VkCommandPoolCreateInfo pool_info = {};
 	pool_info.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	pool_info.queueFamilyIndex        = m_device.get_queue_index(vkb::QueueType::graphics).value(); // Assuming graphics queue family
-	pool_info.flags                   = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	pool_info.queueFamilyIndex        = m_device.get_queue_index(vkb::QueueType::graphics).value();
+	// Assuming graphics queue family
+	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
 	if (m_disp.createCommandPool(&pool_info, nullptr, &data.commandPool) != VK_SUCCESS)
 	{
@@ -329,7 +341,9 @@ void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLa
 	imageBarrier.oldLayout = currentLayout;
 	imageBarrier.newLayout = newLayout;
 
-	VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+	VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+		                                ? VK_IMAGE_ASPECT_DEPTH_BIT
+		                                : VK_IMAGE_ASPECT_COLOR_BIT;
 	imageBarrier.subresourceRange = { aspectMask, 0, 1, 0, 1 };
 	imageBarrier.image            = image;
 
@@ -369,10 +383,13 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 		.extent = m_swapchain.extent
 	};
 
-	m_disp.cmdSetViewport(cmd, 0, 1, &viewport); // Set dynamic viewport
+	// Set dynamic scissor ans viewport
+	m_disp.cmdSetViewport(cmd, 0, 1, &viewport);
+	m_disp.cmdSetScissor(cmd, 0, 1, &scissor);
 
-	// Set dynamic scissor state
-	m_disp.cmdSetScissor(cmd, 0, 1, &scissor); // Set dynamic scissor
+	m_disp.cmdSetDepthTestEnable(cmd, VK_TRUE);
+	m_disp.cmdSetDepthWriteEnable(cmd, VK_TRUE);
+	m_disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 	TransitionImage(cmd, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
@@ -396,8 +413,50 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 
 	m_disp.cmdBeginRendering(cmd, &rendering_info);
 
-	// TODO Implement this
-	m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.pipelines.at("basic")->getPipeline()); // TODO: This should be dynamic
+	// TODO: This should be dynamic
+	m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.pipelines.at("basic")->getPipeline());
+
+	// Get current time for rotation
+	static auto startTime = std::chrono::high_resolution_clock::now();
+	auto currentTime      = std::chrono::high_resolution_clock::now();
+	float time            = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+	// Create model matrix with rotation and translation
+	glm::mat4 model = glm::mat4(1.0f);
+
+	model = glm::translate(model, glm::vec3(0.0f, 0.0f, -3.0f));                         // Move 3 units away from the camera
+	model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.5f)); // Rotate around Y-axis
+	model = glm::scale(model, glm::vec3(0.5f));                                          // Scale down the cube to half its size
+
+	// Create view matrix (camera looking at origin)
+	glm::mat4 view = glm::lookAt(
+		glm::vec3(0.0f, 0.0f, 0.25f), // Camera position
+		glm::vec3(0.0f, 0.0f, 0.0f),  // Look at point (origin)
+		glm::vec3(0.0f, 1.0f, 0.0f)   // Up vector
+		);
+
+	// Create projection matrix
+	glm::mat4 proj = glm::perspective(glm::radians(45.0f),
+		static_cast<float>(m_swapchain.extent.width) / static_cast<float>(m_swapchain.
+			extent.height),
+		0.1f, 10.0f);
+
+	struct tempMVP
+	{
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 proj;
+	} mvp;
+
+	mvp.model = model;
+	mvp.view  = view;
+	mvp.proj  = proj;
+
+	vkCmdPushConstants(cmd, data.pipelines.at("basic")->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp),
+		&mvp);
+
+	m_disp.cmdDraw(cmd, 36, 1, 0, 0);
+
 	//
 	// // Draw model
 	// for (auto& modelConfig : data.models)
@@ -405,7 +464,6 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	// 	SlimeEngine::drawModel(cmd, modelConfig.second, this);
 	// }
 	//
-	m_disp.cmdDraw(cmd, 3, 1, 0, 0);
 
 	m_disp.cmdEndRendering(cmd);
 

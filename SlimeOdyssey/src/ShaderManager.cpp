@@ -42,49 +42,125 @@ ShaderManager::ShaderResources ShaderManager::ParseShader(const ShaderModule& sh
 	// Parse vertex input attributes
 	if (shaderModule.stage == VK_SHADER_STAGE_VERTEX_BIT)
 	{
-		uint32_t location = 0;
+		std::map<uint32_t, uint32_t> bindingOffsets;
 		for (const auto& resource : shaderResources.stage_inputs)
 		{
 			const auto& type = compiler.get_type(resource.base_type_id);
 			VkFormat format  = GetVkFormat(type);
 
+			uint32_t location = compiler.get_decoration(resource.id, spv::DecorationLocation);
+			uint32_t binding  = compiler.get_decoration(resource.id, spv::DecorationBinding);
+
 			VkVertexInputAttributeDescription attributeDescription{};
-			attributeDescription.location = location++;
-			attributeDescription.binding  = 0;
+			attributeDescription.location = location;
+			attributeDescription.binding  = binding;
 			attributeDescription.format   = format;
-			attributeDescription.offset   = 0; // Will be calculated later
+			attributeDescription.offset   = bindingOffsets[binding];
 
 			resources.attributeDescriptions.push_back(attributeDescription);
+
+			// Update offset for this binding
+			bindingOffsets[binding] += GetFormatSize(format);
 		}
 
-		// Set up vertex input binding
-		resources.bindingDescription.binding   = 0;
-		resources.bindingDescription.stride    = 0; // Will be calculated later
-		resources.bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		// Set up vertex input bindings
+		for (const auto& [binding, offset] : bindingOffsets)
+		{
+			VkVertexInputBindingDescription bindingDescription{};
+			bindingDescription.binding   = binding;
+			bindingDescription.stride    = offset;                      // Total size of attributes for this binding
+			bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // Assume vertex rate, modify if needed
+
+			resources.bindingDescriptions.push_back(bindingDescription);
+		}
 	}
 
 	// Parse uniform buffers
 	for (const auto& resource : shaderResources.uniform_buffers)
 	{
-		VkDescriptorSetLayoutBinding layoutBinding{};
-		layoutBinding.binding         = compiler.get_decoration(resource.id, spv::DecorationBinding);
-		layoutBinding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags      = shaderModule.stage;
+		uint32_t binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
+		uint32_t set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
 
-		resources.descriptorSetLayoutBindings.push_back(layoutBinding);
+		// Check if we already have a binding for this set and binding number
+		auto it = std::find_if(resources.descriptorSetLayoutBindings.begin(), resources.descriptorSetLayoutBindings.end(),
+			[binding, set](const VkDescriptorSetLayoutBinding& existingBinding) {
+				return existingBinding.binding == binding && existingBinding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			});
+
+		if (it != resources.descriptorSetLayoutBindings.end())
+		{
+			// We found an existing binding, update its stage flags
+			it->stageFlags |= shaderModule.stage;
+		}
+		else
+		{
+			// Create a new binding
+			VkDescriptorSetLayoutBinding layoutBinding{};
+			layoutBinding.binding            = binding;
+			layoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			layoutBinding.descriptorCount    = 1;
+			layoutBinding.stageFlags         = shaderModule.stage;
+			layoutBinding.pImmutableSamplers = nullptr; // Only relevant for samplers
+
+			resources.descriptorSetLayoutBindings.push_back(layoutBinding);
+		}
 	}
 
 	// Parse push constants
+	uint32_t currentOffset = 0;
 	for (const auto& resource : shaderResources.push_constant_buffers)
 	{
 		const auto& bufferType = compiler.get_type(resource.base_type_id);
-		VkPushConstantRange range{};
-		range.stageFlags = shaderModule.stage;
-		range.offset     = 0;
-		range.size       = compiler.get_declared_struct_size(bufferType);
+		uint32_t size          = compiler.get_declared_struct_size(bufferType);
 
-		resources.pushConstantRanges.push_back(range);
+		// Check if we already have a range for this offset
+		auto it = std::find_if(resources.pushConstantRanges.begin(), resources.pushConstantRanges.end(),
+			[currentOffset](const VkPushConstantRange& range) {
+				return range.offset == currentOffset;
+			});
+
+		if (it != resources.pushConstantRanges.end())
+		{
+			// We found an existing range at this offset, update its stage flags and size
+			it->stageFlags |= shaderModule.stage;
+			it->size = std::max(it->size, size);
+		}
+		else
+		{
+			// Create a new range
+			VkPushConstantRange range{};
+			range.stageFlags = shaderModule.stage;
+			range.offset     = currentOffset;
+			range.size       = size;
+			resources.pushConstantRanges.push_back(range);
+		}
+
+		currentOffset += size;
+	}
+
+	// Sort ranges by offset to ensure they're in the correct order
+	std::sort(resources.pushConstantRanges.begin(), resources.pushConstantRanges.end(),
+		[](const VkPushConstantRange& a, const VkPushConstantRange& b) {
+			return a.offset < b.offset;
+		});
+
+	// Merge overlapping or adjacent ranges
+	for (size_t i = 1; i < resources.pushConstantRanges.size(); /* no increment */)
+	{
+		auto& prev = resources.pushConstantRanges[i - 1];
+		auto& curr = resources.pushConstantRanges[i];
+
+		if (prev.offset + prev.size >= curr.offset)
+		{
+			// Ranges overlap or are adjacent, merge them
+			prev.size = std::max(prev.size, curr.offset + curr.size - prev.offset);
+			prev.stageFlags |= curr.stageFlags;
+			resources.pushConstantRanges.erase(resources.pushConstantRanges.begin() + i);
+		}
+		else
+		{
+			++i;
+		}
 	}
 
 	return resources;
@@ -95,12 +171,14 @@ std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindin
 	std::string hash = "descriptor_set_layout";
 	for (const auto& binding : bindings)
 	{
-		hash += std::to_string(binding.binding) + std::to_string(binding.descriptorType) + std::to_string(binding.descriptorCount) + std::to_string(binding.stageFlags);
+		hash += std::to_string(binding.binding) + std::to_string(binding.descriptorType) +
+			std::to_string(binding.descriptorCount) + std::to_string(binding.stageFlags);
 	}
 	return hash;
 }
 
-VkDescriptorSetLayout ShaderManager::CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding>& bindings)
+VkDescriptorSetLayout ShaderManager::CreateDescriptorSetLayout(
+	const std::vector<VkDescriptorSetLayoutBinding>& bindings)
 {
 	std::string hash = HashBindings(bindings);
 
@@ -192,4 +270,22 @@ VkFormat ShaderManager::GetVkFormat(const spirv_cross::SPIRType& type)
 			return VK_FORMAT_R32G32B32A32_SFLOAT;
 	}
 	throw std::runtime_error("Unsupported format in shader");
+}
+
+uint32_t ShaderManager::GetFormatSize(VkFormat format)
+{
+	switch (format)
+	{
+	case VK_FORMAT_R32G32B32A32_SFLOAT:
+		return 16;
+	case VK_FORMAT_R32G32B32_SFLOAT:
+		return 12;
+	case VK_FORMAT_R32G32_SFLOAT:
+		return 8;
+	case VK_FORMAT_R32_SFLOAT:
+		return 4;
+	// Add more cases as needed
+	default:
+		return 0; // Unknown format
+	}
 }

@@ -6,7 +6,7 @@ find_program(Vulkan_GLSLC_EXECUTABLE glslc
 function(compile_shaders)
     message(STATUS "Compiling shaders to SPIR-V")
 
-    set(shader_dir "${CMAKE_SOURCE_DIR}/shaders")
+    set(shader_dir "${CMAKE_SOURCE_DIR}/resources/shaders")
     message(STATUS "Shader directory: ${shader_dir}")
 
     if(NOT Vulkan_GLSLC_EXECUTABLE)
@@ -45,6 +45,8 @@ function(compile_shaders)
 
         # Append compiled shader output to the list
         list(APPEND shader_outputs ${shader_output})
+
+        message(STATUS "Adding shader: ${shader_source}")
     endforeach()
 
     # Add a custom target to trigger shader compilation
