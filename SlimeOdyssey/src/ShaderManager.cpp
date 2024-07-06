@@ -42,37 +42,55 @@ ShaderManager::ShaderResources ShaderManager::ParseShader(const ShaderModule& sh
 	// Parse vertex input attributes
 	if (shaderModule.stage == VK_SHADER_STAGE_VERTEX_BIT)
 	{
-		std::map<uint32_t, uint32_t> bindingOffsets;
+		std::unordered_map<uint32_t, uint32_t> bindingOffsets;
+		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		attributeDescriptions.reserve(shaderResources.stage_inputs.size());
+
+		// First pass: collect all attributes
 		for (const auto& resource : shaderResources.stage_inputs)
 		{
 			const auto& type = compiler.get_type(resource.base_type_id);
-			VkFormat format  = GetVkFormat(type);
+			VkFormat format = GetVkFormat(type);
 
 			uint32_t location = compiler.get_decoration(resource.id, spv::DecorationLocation);
-			uint32_t binding  = compiler.get_decoration(resource.id, spv::DecorationBinding);
+			uint32_t binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
 
-			VkVertexInputAttributeDescription attributeDescription{};
-			attributeDescription.location = location;
-			attributeDescription.binding  = binding;
-			attributeDescription.format   = format;
-			attributeDescription.offset   = bindingOffsets[binding];
+			attributeDescriptions.push_back({
+				.location = location,
+				.binding = binding,
+				.format = format,
+				.offset = 0  // We'll set this correctly in the second pass
+			});
+		}
 
-			resources.attributeDescriptions.push_back(attributeDescription);
+		// Sort attribute descriptions
+		std::sort(attributeDescriptions.begin(), attributeDescriptions.end(),
+			[](const auto& a, const auto& b) {
+				return std::tie(a.binding, a.location) < std::tie(b.binding, b.location);
+			});
 
-			// Update offset for this binding
-			bindingOffsets[binding] += GetFormatSize(format);
+		// Second pass: calculate correct offsets
+		for (auto& attr : attributeDescriptions)
+		{
+			attr.offset = bindingOffsets[attr.binding];
+			bindingOffsets[attr.binding] += GetFormatSize(attr.format);
 		}
 
 		// Set up vertex input bindings
+		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
+		bindingDescriptions.reserve(bindingOffsets.size());
+
 		for (const auto& [binding, offset] : bindingOffsets)
 		{
-			VkVertexInputBindingDescription bindingDescription{};
-			bindingDescription.binding   = binding;
-			bindingDescription.stride    = offset;                      // Total size of attributes for this binding
-			bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // Assume vertex rate, modify if needed
-
-			resources.bindingDescriptions.push_back(bindingDescription);
+			bindingDescriptions.push_back({
+				.binding = binding,
+				.stride = offset,
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			});
 		}
+
+		resources.attributeDescriptions = std::move(attributeDescriptions);
+		resources.bindingDescriptions = std::move(bindingDescriptions);
 	}
 
 	// Parse uniform buffers

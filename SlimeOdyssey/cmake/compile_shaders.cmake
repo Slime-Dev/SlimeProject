@@ -6,7 +6,7 @@ find_program(Vulkan_GLSLC_EXECUTABLE glslc
 function(compile_shaders)
     message(STATUS "Compiling shaders to SPIR-V")
 
-    set(shader_dir "${CMAKE_SOURCE_DIR}/resources/shaders")
+    set(shader_dir "${CMAKE_SOURCE_DIR}/SlimeOdyssey/resources/shaders")
     message(STATUS "Shader directory: ${shader_dir}")
 
     if(NOT Vulkan_GLSLC_EXECUTABLE)

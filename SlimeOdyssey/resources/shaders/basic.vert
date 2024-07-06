@@ -3,24 +3,27 @@
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aTexCoord;
-layout(location = 3) in vec4 aColor;
 
 layout(location = 0) out vec3 vNormal;
 layout(location = 1) out vec3 vPosition;
-layout(location = 2) out vec3 vColor;
+layout(location = 2) out vec2 vTexCoord;
+layout(location = 3) out vec4 vColor;
 
-//layout(std140, binding = 0) uniform UniformBufferObject {
-//	mat4 modelMatrix;
-//	mat4 viewMatrix;
-//	mat4 projectionMatrix;
-//};
+layout(push_constant) uniform PushConstants {
+	mat4 model;
+	mat4 view;
+	mat4 proj;
+} ubo;
 
 void main() {
-	mat4 modelMatrix = mat4(1.0);
-	mat4 viewMatrix = mat4(1.0);
-	mat4 projectionMatrix = mat4(1.0);
-	gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(aPosition, 1.0);
-	vNormal = aNormal;
-	vPosition = aPosition;
-	vColor = vec3(1.0, 0.7, 0.5);
+	vNormal = mat3(ubo.model) * aNormal;
+	vPosition = vec3(ubo.model * vec4(aPosition, 1.0));
+	vTexCoord = aTexCoord;
+
+	float R = 0.5 + 0.5 * sin(aPosition.x);
+	float G = 0.5 + 0.5 * sin(aPosition.y);
+	float B = 0.5 + 0.5 * sin(aPosition.z);
+
+	vColor = vec4(R, G, B, 1.0);
+	gl_Position = ubo.proj * ubo.view * ubo.model * vec4(aPosition, 1.0);
 }

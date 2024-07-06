@@ -2,7 +2,7 @@
 
 int main()
 {
-	Engine engine("Slime Odyssey", 800, 600);
+	Engine engine("Slime Odyssey", 1920, 1080, true);
 
 	if (engine.DeviceInit() != 0)
 		return -1;

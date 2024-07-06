@@ -35,9 +35,9 @@ CPMAddPackage(
 )
 
 CPMAddPackage(
-        NAME fastgltf
-        GITHUB_REPOSITORY spnda/fastgltf
-        GIT_TAG v0.7.2
+        NAME tinyobj
+        GITHUB_REPOSITORY tinyobjloader/tinyobjloader
+        GIT_TAG v2.0.0rc13
 )
 
 CPMAddPackage(
@@ -64,12 +64,12 @@ target_link_libraries(${PROJECT_NAME}
         glfw
         vk-bootstrap::vk-bootstrap
         spdlog::spdlog
-        fastgltf::fastgltf
         glm::glm
         Microsoft.GSL::GSL
         Vulkan::Vulkan
         spirv-cross-glsl
         VulkanMemoryAllocator
+        tinyobjloader
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${SPIRV_CROSS_INCLUDE_DIRS})

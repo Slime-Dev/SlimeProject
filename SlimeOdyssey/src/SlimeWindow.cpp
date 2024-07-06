@@ -69,6 +69,12 @@ void Window::PollEvents()
 
 bool Window::ShouldClose()
 {
+	// Check for escape key press
+	if (glfwGetKey(m_window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	{
+		return true;
+	}
+
 	return glfwWindowShouldClose(m_window);
 }
 
@@ -82,4 +88,23 @@ bool Window::ShouldRecreateSwapchain()
 bool Window::WindowSuspended()
 {
 	return glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) || !glfwGetWindowAttrib(m_window, GLFW_VISIBLE);
+}
+
+bool Window::MouseMoved()
+{
+	// Get the current mouse position
+	double x, y;
+	glfwGetCursorPos(m_window, &x, &y);
+
+	// Check if the mouse has moved
+	if (x != m_mouseX || y != m_mouseY)
+	{
+		// Update the last known mouse position
+		m_mouseX = x;
+		m_mouseY = y;
+
+		return true;
+	}
+
+	return false;
 }

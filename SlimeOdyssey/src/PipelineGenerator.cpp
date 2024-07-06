@@ -93,7 +93,8 @@ void PipelineGenerator::CreatePipeline()
 		VK_DYNAMIC_STATE_SCISSOR,
 		VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT,
 		VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT,
-		VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT
+		VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT,
+		VK_DYNAMIC_STATE_LINE_WIDTH
 	};
 
 	VkPipelineDynamicStateCreateInfo dynamicState = {};
@@ -109,9 +110,9 @@ void PipelineGenerator::CreatePipeline()
 	m_rasterizer.depthClampEnable        = VK_FALSE;
 	m_rasterizer.rasterizerDiscardEnable = VK_FALSE;
 	m_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
-	m_rasterizer.lineWidth               = 1.0f;
-	m_rasterizer.cullMode                = VK_CULL_MODE_NONE;
-	m_rasterizer.frontFace               = VK_FRONT_FACE_CLOCKWISE;
+	m_rasterizer.lineWidth               = 1.0f; // Set later dynamically
+	m_rasterizer.cullMode                = VK_CULL_MODE_BACK_BIT;
+	m_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	m_rasterizer.depthBiasEnable         = VK_FALSE;
 
 	m_multisampling.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -131,7 +132,7 @@ void PipelineGenerator::CreatePipeline()
 	depthStencil.sType                                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	depthStencil.depthTestEnable                       = VK_TRUE;              // Enable depth test
 	depthStencil.depthWriteEnable                      = VK_TRUE;              // Enable writing to depth buffer
-	depthStencil.depthCompareOp                        = VK_COMPARE_OP_ALWAYS; // Specify comparison operation
+	depthStencil.depthCompareOp                        = VK_COMPARE_OP_LESS;  // Less depth = closer
 	depthStencil.depthBoundsTestEnable                 = VK_FALSE;
 	depthStencil.stencilTestEnable                     = VK_FALSE;
 

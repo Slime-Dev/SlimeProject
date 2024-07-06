@@ -4,6 +4,7 @@
 #include "ShaderManager.h"
 #include "PipelineGenerator.h"
 #include "ResourcePathManager.h"
+#include "ModelManager.h"
 
 int SetupScean(Engine& engine)
 {
@@ -12,8 +13,8 @@ int SetupScean(Engine& engine)
 
 	// Load and parse shaders
 	ShaderManager& shaderManager = engine.GetShaderManager();
-	std::string vertShaderPath   = resourcePaths.GetShaderPath("triangle.vert.spv");
-	std::string fragShaderPath   = resourcePaths.GetShaderPath("triangle.frag.spv");
+	std::string vertShaderPath   = resourcePaths.GetShaderPath("basic.vert.spv");
+	std::string fragShaderPath   = resourcePaths.GetShaderPath("basic.frag.spv");
 
 	auto vertexShaderModule   = shaderManager.LoadShader(vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
 	auto fragmentShaderModule = shaderManager.LoadShader(fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -32,9 +33,9 @@ int SetupScean(Engine& engine)
 
 	engine.GetPipelines()["basic"] = std::move(pipelineGenerator);
 
-	// MODEL LOADING TODO Implement model loading
-	// std::string modelPath = buildDir + "/models/Cube/Cube.gltf";
-	// engine.GetModels()["cube"] = SlimeEngine::loadModel(modelPath.c_str(), engine);
+	// MODEL LOADING
+	ModelManager& modelManager = engine.GetModelManager();
+	modelManager.LoadModel("cube.obj");
 
 	return 0;
 }

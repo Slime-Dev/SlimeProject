@@ -11,6 +11,8 @@
 #include <VkBootstrap.h>
 #include <map>
 #include <memory>
+#include <ModelManager.h>
+#include <ResourcePathManager.h>
 #include <vk_mem_alloc.h>
 
 struct GLFWwindow;
@@ -60,6 +62,7 @@ public:
 
 	Window& GetWindow() { return m_window; }
 	ShaderManager& GetShaderManager() { return m_shaderManager; }
+	ModelManager& GetModelManager() { return m_modelManager; }
 	std::map<const char*, std::unique_ptr<PipelineGenerator>>& GetPipelines() { return data.pipelines; }
 	std::map<const char*, VkPipelineLayout>& GetPipelineLayouts() { return data.pipelineLayout; }
 	std::map<const char*, VkDescriptorSetLayout>& GetDescriptorSetLayouts() { return data.descriptorSetLayout; }
@@ -67,6 +70,7 @@ public:
 	VkQueue GetGraphicsQueue() { return data.graphicsQueue; }
 	VkQueue GetPresentQueue() { return data.presentQueue; }
 	VkCommandPool GetCommandPool() { return data.commandPool; }
+	VmaAllocator GetAllocator() { return m_allocator; }
 
 	RenderData data; // Needs to be removed from here
 
@@ -81,4 +85,6 @@ private:
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
 	ShaderManager m_shaderManager;
+	ModelManager m_modelManager;
+	ResourcePathManager m_pathManager;
 };

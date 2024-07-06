@@ -165,12 +165,17 @@ int Engine::DeviceInit()
 	features12.bufferDeviceAddress              = VK_TRUE;
 	features12.descriptorIndexing               = VK_TRUE;
 
+	VkPhysicalDeviceFeatures features = {};
+	features.fillModeNonSolid         = VK_TRUE;
+	features.wideLines                = VK_TRUE;
+
 	vkb::PhysicalDeviceSelector phys_device_selector(m_instance);
 
 	auto phys_device_ret = phys_device_selector
 		.set_minimum_version(1, 3)
 		.set_required_features_13(features13)
 		.set_required_features_12(features12)
+		.set_required_features(features)
 		.set_surface(m_surface)
 		.select();
 
@@ -211,6 +216,7 @@ int Engine::DeviceInit()
 	}
 
 	m_shaderManager = ShaderManager(m_device); // TODO Fins a better place to set this up maybe a setup managers func
+	m_modelManager  = ModelManager(this, m_device, m_allocator, m_pathManager);
 
 	return 0;
 }
@@ -328,35 +334,6 @@ int Engine::CreateRenderCommandBuffers()
 	return 0;
 }
 
-void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
-{
-	VkImageMemoryBarrier2 imageBarrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-	imageBarrier.pNext = nullptr;
-
-	imageBarrier.srcStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-	imageBarrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
-	imageBarrier.dstStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-	imageBarrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
-
-	imageBarrier.oldLayout = currentLayout;
-	imageBarrier.newLayout = newLayout;
-
-	VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
-		                                ? VK_IMAGE_ASPECT_DEPTH_BIT
-		                                : VK_IMAGE_ASPECT_COLOR_BIT;
-	imageBarrier.subresourceRange = { aspectMask, 0, 1, 0, 1 };
-	imageBarrier.image            = image;
-
-	VkDependencyInfo depInfo{};
-	depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	depInfo.pNext = nullptr;
-
-	depInfo.imageMemoryBarrierCount = 1;
-	depInfo.pImageMemoryBarriers    = &imageBarrier;
-
-	vkCmdPipelineBarrier2(cmd, &depInfo);
-}
-
 int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 {
 	VkCommandBufferBeginInfo begin_info = {};
@@ -391,7 +368,9 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	m_disp.cmdSetDepthWriteEnable(cmd, VK_TRUE);
 	m_disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
-	TransitionImage(cmd, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	m_disp.cmdSetLineWidth(cmd, 10.0f);
+
+	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	// Setup rendering info
 	VkRenderingAttachmentInfo color_attachment_info = {
@@ -426,11 +405,11 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 
 	model = glm::translate(model, glm::vec3(0.0f, 0.0f, -3.0f));                         // Move 3 units away from the camera
 	model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.5f)); // Rotate around Y-axis
-	model = glm::scale(model, glm::vec3(0.5f));                                          // Scale down the cube to half its size
+	model = glm::scale(model, glm::vec3(1.0f));                                          // Scale down the cube to half its size
 
 	// Create view matrix (camera looking at origin)
 	glm::mat4 view = glm::lookAt(
-		glm::vec3(0.0f, 0.0f, 0.25f), // Camera position
+		glm::vec3(0.0f, 0.0f, 3.0f), // Camera position
 		glm::vec3(0.0f, 0.0f, 0.0f),  // Look at point (origin)
 		glm::vec3(0.0f, 1.0f, 0.0f)   // Up vector
 		);
@@ -440,6 +419,9 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 		static_cast<float>(m_swapchain.extent.width) / static_cast<float>(m_swapchain.
 			extent.height),
 		0.1f, 10.0f);
+
+	// Adjust for clip space (This fixes the depth buffer?)
+	proj[1][1] *= -1;
 
 	struct tempMVP
 	{
@@ -455,15 +437,8 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	vkCmdPushConstants(cmd, data.pipelines.at("basic")->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp),
 		&mvp);
 
-	m_disp.cmdDraw(cmd, 36, 1, 0, 0);
-
-	//
-	// // Draw model
-	// for (auto& modelConfig : data.models)
-	// {
-	// 	SlimeEngine::drawModel(cmd, modelConfig.second, this);
-	// }
-	//
+	// Draw model
+	m_modelManager.DrawModel(cmd, "cube.obj");
 
 	m_disp.cmdEndRendering(cmd);
 
@@ -613,6 +588,8 @@ int Engine::Cleanup()
 	{
 		m_disp.destroyImageView(image_view, nullptr);
 	}
+
+	m_modelManager.UnloadAllResources();
 
 	m_shaderManager.CleanupDescriptorSetLayouts();
 	data.pipelines.clear();
