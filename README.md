@@ -8,6 +8,7 @@ SlimeProject is a game development project consisting of two main components: Sl
 SlimeProject/
 ├── SlimeOdyssey/  # Game engine library
 ├── SlimeGame/     # Game implementation
+└── CMakeLists.txt # Top-level CMake file
 ```
 
 ## Prerequisites
