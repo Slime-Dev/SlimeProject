@@ -24,6 +24,12 @@ file(GLOB_RECURSE SOURCES
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
 
 # Call shader compilation function
+
+# check if ${SHADER_DIR} is set
+if(NOT DEFINED SHADER_DIR)
+    set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")
+endif()
+
 include(cmake/compile_shaders.cmake)
 compile_shaders()
 

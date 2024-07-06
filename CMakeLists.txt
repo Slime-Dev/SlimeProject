@@ -6,5 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(SHADER_DIR "${CMAKE_SOURCE_DIR}/SlimeOdyssey/resources/shaders")
+
 add_subdirectory(SlimeOdyssey)
 add_subdirectory(SlimeGame)

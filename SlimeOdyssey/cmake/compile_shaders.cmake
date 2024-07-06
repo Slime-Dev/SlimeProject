@@ -4,10 +4,18 @@ find_program(Vulkan_GLSLC_EXECUTABLE glslc
 
 # Function to compile Vulkan shaders to SPIR-V
 function(compile_shaders)
-    message(STATUS "Compiling shaders to SPIR-V")
+    # check if ShadersTarget is already defined
+    if(TARGET ShadersTarget)
+        return()
+    endif()
 
-    set(shader_dir "${CMAKE_SOURCE_DIR}/SlimeOdyssey/resources/shaders")
-    message(STATUS "Shader directory: ${shader_dir}")
+    # Get the shader directory that is set by the user in the CMakeLists.txt
+    set(shader_dir ${SHADER_DIR})
+    if(NOT shader_dir)
+        message(FATAL_ERROR "SHADER_DIR not set. Set SHADER_DIR to the path of your shader directory.")
+    else ()
+        message(STATUS "Shader directory: ${shader_dir}")
+    endif()
 
     if(NOT Vulkan_GLSLC_EXECUTABLE)
         message(FATAL_ERROR "glslc executable not found. Set Vulkan_GLSLC_EXECUTABLE to the path of your glslc executable.")

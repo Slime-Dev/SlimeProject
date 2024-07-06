@@ -6,7 +6,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Add the SlimeOdyssey library
-# add_subdirectory(../SlimeOdyssey ${CMAKE_BINARY_DIR}/SlimeOdyssey)
+if(NOT DEFINED SHADER_DIR)
+    set(SHADER_DIR "${CMAKE_SOURCE_DIR}/../SlimeOdyssey/resources/shaders")
+endif()
+
+# check if SlimeOdyssey is already defined
+if(NOT TARGET SlimeOdyssey)
+    message(STATUS "Adding SlimeOdyssey library")
+    add_subdirectory(../SlimeOdyssey ${CMAKE_BINARY_DIR}/SlimeOdyssey)
+endif()
 
 # Source files for SlimeGame
 file(GLOB_RECURSE SOURCES
