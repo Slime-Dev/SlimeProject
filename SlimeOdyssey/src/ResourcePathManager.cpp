@@ -58,7 +58,7 @@ std::string ResourcePathManager::GetConfigPath(const std::string& configName) co
 std::string ResourcePathManager::SetRootDirectory()
 {
 	auto srcPath = std::filesystem::absolute(__FILE__);
-	return std::filesystem::path(srcPath).parent_path().parent_path().string();
+	return std::filesystem::path(srcPath).parent_path().parent_path().string() + "/resources";
 }
 
 void ResourcePathManager::InitializeDirectories()
