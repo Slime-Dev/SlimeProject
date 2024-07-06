@@ -31,9 +31,7 @@ public:
 		std::vector<VkImage> swapchainImages;
 		std::vector<VkImageView> swapchainImageViews;
 
-		std::map<const char*, VkPipelineLayout> pipelineLayout;
 		std::map<const char*, std::unique_ptr<PipelineGenerator>> pipelines;
-		std::map<const char*, VkDescriptorSetLayout> descriptorSetLayout;
 
 		VkCommandPool commandPool;
 		std::vector<VkCommandBuffer> renderCommandBuffers;
@@ -64,8 +62,6 @@ public:
 	ShaderManager& GetShaderManager() { return m_shaderManager; }
 	ModelManager& GetModelManager() { return m_modelManager; }
 	std::map<const char*, std::unique_ptr<PipelineGenerator>>& GetPipelines() { return data.pipelines; }
-	std::map<const char*, VkPipelineLayout>& GetPipelineLayouts() { return data.pipelineLayout; }
-	std::map<const char*, VkDescriptorSetLayout>& GetDescriptorSetLayouts() { return data.descriptorSetLayout; }
 	VkDevice GetDevice() { return m_device.device; }
 	VkQueue GetGraphicsQueue() { return data.graphicsQueue; }
 	VkQueue GetPresentQueue() { return data.presentQueue; }

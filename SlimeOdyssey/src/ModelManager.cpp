@@ -81,6 +81,44 @@ bool ModelManager::LoadModel(const std::string& name)
         }
     }
 
+	// Check if we need to calculate normals
+	if (model.vertices[0].normal == glm::vec3(0.0f))
+	{
+		// Calculate normals
+		std::vector<glm::vec3> faceNormals(model.indices.size() / 3);
+		std::vector<std::vector<uint32_t>> vertexFaces(model.vertices.size());
+
+		// Calculate face normals and store vertex-face associations
+		for (size_t i = 0; i < model.indices.size(); i += 3)
+		{
+			uint32_t idx0 = model.indices[i];
+			uint32_t idx1 = model.indices[i + 1];
+			uint32_t idx2 = model.indices[i + 2];
+
+			glm::vec3 v0 = model.vertices[idx0].pos;
+			glm::vec3 v1 = model.vertices[idx1].pos;
+			glm::vec3 v2 = model.vertices[idx2].pos;
+
+			glm::vec3 faceNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+			faceNormals[i / 3] = faceNormal;
+
+			vertexFaces[idx0].push_back(i / 3);
+			vertexFaces[idx1].push_back(i / 3);
+			vertexFaces[idx2].push_back(i / 3);
+		}
+
+		// Calculate vertex normals by averaging face normals
+		for (size_t i = 0; i < model.vertices.size(); ++i)
+		{
+			glm::vec3 vertexNormal(0.0f);
+			for (uint32_t faceIndex : vertexFaces[i])
+			{
+				vertexNormal += faceNormals[faceIndex];
+			}
+			model.vertices[i].normal = glm::normalize(vertexNormal);
+		}
+	}
+
     // Create vertex and index buffers
     CreateBuffer(model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
     CreateBuffer(model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);

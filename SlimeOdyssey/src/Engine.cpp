@@ -403,9 +403,9 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	// Create model matrix with rotation and translation
 	glm::mat4 model = glm::mat4(1.0f);
 
-	model = glm::translate(model, glm::vec3(0.0f, 0.0f, -3.0f));                         // Move 3 units away from the camera
-	model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.5f)); // Rotate around Y-axis
-	model = glm::scale(model, glm::vec3(1.0f));                                          // Scale down the cube to half its size
+	model = glm::translate(model, glm::vec3(0.0f, -1.0f, -1.0f));                         // Move 3 units away from the camera
+	model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // Rotate around Y-axis
+	model = glm::scale(model, glm::vec3(8.0f));                                          // Scale down the cube to half its size
 
 	// Create view matrix (camera looking at origin)
 	glm::mat4 view = glm::lookAt(
@@ -438,7 +438,7 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 		&mvp);
 
 	// Draw model
-	m_modelManager.DrawModel(cmd, "cube.obj");
+	m_modelManager.DrawModel(cmd, "stanford-bunny.obj");
 
 	m_disp.cmdEndRendering(cmd);
 
@@ -593,11 +593,6 @@ int Engine::Cleanup()
 
 	m_shaderManager.CleanupDescriptorSetLayouts();
 	data.pipelines.clear();
-
-	for (auto& descriptorSetLayout : data.descriptorSetLayout)
-	{
-		m_disp.destroyDescriptorSetLayout(descriptorSetLayout.second, nullptr);
-	}
 
 	m_shaderManager.CleanupShaderModules();
 

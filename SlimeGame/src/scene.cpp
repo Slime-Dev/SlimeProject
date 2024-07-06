@@ -35,7 +35,7 @@ int SetupScean(Engine& engine)
 
 	// MODEL LOADING
 	ModelManager& modelManager = engine.GetModelManager();
-	modelManager.LoadModel("cube.obj");
+	modelManager.LoadModel("stanford-bunny.obj");
 
 	return 0;
 }
