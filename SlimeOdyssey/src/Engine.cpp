@@ -17,7 +17,7 @@
 spdlog::debug(format, ##__VA_ARGS__); \
 } while(0)
 
-#include <../external/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 

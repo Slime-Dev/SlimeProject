@@ -11,7 +11,7 @@
 #include <VkBootstrap.h>
 #include <map>
 #include <memory>
-#include <../external/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 
 struct GLFWwindow;
 

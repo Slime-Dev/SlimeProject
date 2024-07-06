@@ -7,7 +7,6 @@
 #include <string>
 #include <filesystem>
 #include <unordered_map>
-#include <stdexcept>
 
 class ResourcePathManager
 {
