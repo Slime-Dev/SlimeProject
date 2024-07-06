@@ -45,13 +45,13 @@ jobs:
           key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
             ${{ runner.os }}-cpm-
-  
+
       - name: Cache build outputs
         uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}SlimeGame/build/bin
-            ${{ github.workspace }}SlimeGame/build/lib
+            ${{ github.workspace }}/build/bin
+            ${{ github.workspace }}/build/lib
           key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
             ${{ runner.os }}-build-
@@ -69,7 +69,7 @@ jobs:
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt update
           sudo apt install vulkan-sdk
-      
+
       - name: WINDOWS - Install Vulkan SDK
         if: matrix.os == 'windows-latest'
         run: |
@@ -85,7 +85,6 @@ jobs:
 
       - name: Configure CMake
         run: >
-          cd SlimeGame
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
@@ -95,18 +94,14 @@ jobs:
           -DCMAKE_CXX_FLAGS="${{ matrix.os == 'windows-latest' && '/WX- /W3' || '-Wno-error' }}"
           -S ${{ github.workspace }}
           -DCPM_SOURCE_CACHE=~/.cpm
-          -DVULKAN_SDK=C:/VulkanSDK/1.3.283.0
+          -DVULKAN_SDK=${{ matrix.os == 'windows-latest' && 'C:/VulkanSDK/1.3.283.0' || '/usr' }}
 
       - name: Build
-        run: |
-          cd SlimeGame
-          cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: |
-          cd SlimeGame
-          ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --output-junit ${{ github.workspace }}/scripts/junitout.xml
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --output-junit ${{ github.workspace }}/scripts/junitout.xml
 
       - name: Convert XML to CTRF
         if: success()
