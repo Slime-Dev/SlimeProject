@@ -17,6 +17,7 @@ int main()
 	while (!window.ShouldClose())
 	{
 		window.PollEvents();
+		engine.GetInputManager().Update();
 		scene.Update(window.GetDeltaTime());
 		scene.Render();
 		engine.RenderFrame();

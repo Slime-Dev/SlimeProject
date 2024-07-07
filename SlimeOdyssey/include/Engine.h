@@ -12,6 +12,7 @@
 #include <vector>
 #include "Light.h" // TODO Find better place
 #include "VulkanDebugUtils.h"
+#include "InputManager.h"
 
 #include <VkBootstrap.h>
 #include <map>
@@ -34,6 +35,10 @@ public:
 
 		std::vector<VkImage> swapchainImages;
 		std::vector<VkImageView> swapchainImageViews;
+
+		VmaAllocation depthImageAllocation;
+		VkImage depthImage;
+		VkImageView depthImageView;
 
 		std::map<std::string, std::unique_ptr<PipelineGenerator>> pipelines;
 
@@ -79,6 +84,7 @@ public:
 	DescriptorManager& GetDescriptorManager() { return m_descriptorManager; }
 	VulkanDebugUtils& GetDebugUtils() { return m_debugUtils; }
 	Camera& GetCamera() { return m_camera; }
+	InputManager& GetInputManager() { return m_inputManager; }
 
 	std::map<std::string, std::unique_ptr<PipelineGenerator>>& GetPipelines() { return data.pipelines; }
 	VkDevice GetDevice() const { return m_device.device; }
@@ -108,6 +114,7 @@ private:
 	ModelManager m_modelManager;
 	ResourcePathManager m_pathManager;
 	DescriptorManager m_descriptorManager;
+	InputManager m_inputManager;
 
 	VulkanDebugUtils m_debugUtils;
 

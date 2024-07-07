@@ -76,6 +76,10 @@ public:
     int DrawModel(VkCommandBuffer &cmd, const std::string &name);
 	int DrawModel(VkCommandBuffer &cmd, const ModelResource &model);
 
+	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+					 VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage &image,
+					 VmaAllocation &allocation);
+
 	// Iterator for models
 	std::unordered_map<std::string, ModelResource>::iterator begin() { return m_models.begin(); }
 	std::unordered_map<std::string, ModelResource>::iterator end() { return m_models.end(); }
@@ -95,9 +99,7 @@ private:
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
                       VkBuffer &buffer, VmaAllocation &allocation);
 
-    void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
-                     VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage &image,
-                     VmaAllocation &allocation);
+
 
     VkImageView CreateImageView(VkImage image, VkFormat format);
 

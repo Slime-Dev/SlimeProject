@@ -24,6 +24,7 @@ private:
 
 	ModelManager::ModelResource* m_bunny;
 	ModelManager::ModelResource* m_cube;
+	ModelManager::ModelResource* m_suzanne;
 
 	float m_time = 0.0f;
 };

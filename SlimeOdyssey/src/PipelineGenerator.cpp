@@ -118,32 +118,41 @@ void PipelineGenerator::CreatePipeline()
 	m_rasterizer.lineWidth               = 1.0f; // Set later dynamically
 	m_rasterizer.cullMode                = VK_CULL_MODE_BACK_BIT;
 	m_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	m_rasterizer.depthBiasEnable = VK_FALSE;
+	m_rasterizer.depthBiasEnable         = VK_FALSE;
 
 	m_multisampling.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	m_multisampling.sampleShadingEnable  = VK_FALSE;
 	m_multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-	m_colorBlendAttachment.blendEnable = VK_TRUE;
+	m_colorBlendAttachment.blendEnable         = VK_TRUE;
 	m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
 	m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	m_colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	m_colorBlendAttachment.colorBlendOp        = VK_BLEND_OP_ADD;
 	m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 	m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	m_colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	m_colorBlendAttachment.alphaBlendOp        = VK_BLEND_OP_ADD;
 
 	m_colorBlending.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	m_colorBlending.logicOpEnable   = VK_FALSE;
 	m_colorBlending.attachmentCount = 1;
 	m_colorBlending.pAttachments    = &m_colorBlendAttachment;
 
-	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-	depthStencil.sType                                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencil.depthTestEnable                       = VK_TRUE;              // Enable depth test
-	depthStencil.depthWriteEnable                      = VK_TRUE;              // Enable writing to depth buffer
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-	depthStencil.depthBoundsTestEnable                 = VK_FALSE;
-	depthStencil.stencilTestEnable                     = VK_FALSE;
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_GREATER; // For reverse depth testing
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+
+	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM; // Your swapchain image format
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &colorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat;
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -160,7 +169,8 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.renderPass          = VK_NULL_HANDLE;
 	pipelineInfo.subpass             = 0;
 	pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
-	pipelineInfo.pDepthStencilState  = &depthStencil;
+	pipelineInfo.pDepthStencilState  = &depthStencilStateCreateInfo;
+	pipelineInfo.pNext = &pipelineRenderingCreateInfo;
 
 	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) !=
 	    VK_SUCCESS)

@@ -8,7 +8,7 @@
 
 Scene::Scene(Engine& engine) : m_engine(engine), m_camera(engine.GetCamera()), m_window(m_engine.GetWindow())
 {
-	m_window.LockMouse(true);
+	m_window.LockMouse(false);
 }
 
 int Scene::Setup() {
@@ -47,6 +47,10 @@ int Scene::Setup() {
     m_cube = modelManager.LoadModel("cube.obj", "basic");
     m_cube->model = glm::translate(m_cube->model, glm::vec3(-4.0f, 0.0f, -5.0f));
 
+	m_suzanne = modelManager.LoadModel("suzanne.obj", "basic");
+	m_suzanne->model = glm::translate(m_cube->model, glm::vec3(0.0f, 0.0f, -5.0f));
+
+
     // Descriptor set layout
     DescriptorManager& descriptorManager = m_engine.GetDescriptorManager();
     m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayout(descriptorSetLayout);
@@ -60,7 +64,7 @@ int Scene::Setup() {
 
 void Scene::Update(float dt) {
 	m_time += dt;
-	m_bunny->model = glm::rotate(m_bunny->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
+	//m_bunny->model = glm::rotate(m_bunny->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
 	m_cube->model = glm::rotate(m_cube->model, dt, glm::vec3(0.0f, -1.0f, 0.0f));
 
 	if (m_window.MouseMoved())
@@ -69,6 +73,37 @@ void Scene::Update(float dt) {
 		float yaw = mouseX * 0.1f;
 		float pitch = (mouseY * 0.1f) * -1.0f;
 		m_camera.rotate(yaw, pitch);
+	}
+
+	InputManager& inputManager = m_engine.GetInputManager();
+	float speed = 2.0f;
+	if (inputManager.IsKeyPressed(GLFW_KEY_LEFT_SHIFT))
+	{
+		speed = 5.0f;
+	}
+	if (inputManager.IsKeyPressed(GLFW_KEY_W))
+	{
+		m_camera.moveForward(dt * speed);
+	}
+	if (inputManager.IsKeyPressed(GLFW_KEY_S))
+	{
+		m_camera.moveForward(-(dt * speed));
+	}
+	if (inputManager.IsKeyPressed(GLFW_KEY_A))
+	{
+		m_camera.moveRight(-(dt * speed));
+	}
+	if (inputManager.IsKeyPressed(GLFW_KEY_D))
+	{
+		m_camera.moveRight(dt * speed);
+	}
+	if (inputManager.IsKeyPressed(GLFW_KEY_SPACE))
+	{
+		m_camera.moveUp(dt * speed);
+	}
+	if (inputManager.IsKeyPressed(GLFW_KEY_LEFT_CONTROL))
+	{
+		m_camera.moveUp(-(dt * speed));
 	}
 }
 
