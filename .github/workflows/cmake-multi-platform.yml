@@ -89,12 +89,8 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DSPIRV_SKIP_TESTS=ON
-          -DSPIRV_SKIP_EXECUTABLES=ON
-          -DCMAKE_CXX_FLAGS="${{ matrix.os == 'windows-latest' && '/WX- /W3' || '-Wno-error' }}"
           -S ${{ github.workspace }}
           -DCPM_SOURCE_CACHE=~/.cpm
-          -DVULKAN_SDK=${{ matrix.os == 'windows-latest' && 'C:/VulkanSDK/1.3.283.0' || '/usr' }}
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
