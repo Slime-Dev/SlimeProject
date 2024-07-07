@@ -21,23 +21,17 @@ SlimeProject/
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/SlimeProject.git
-   cd SlimeProject/SlimeGame
+   git clone https://github.com/AlexMollard/SlimeOdyssey.git
+   ```
+   
+2. Navigate to the project directory:
+   ```
+   cd SlimeOdyssey
    ```
 
-2. Create a build directory:
+2. Build the project:
    ```
-   mkdir build && cd build
-   ```
-
-3. Configure the project with CMake:
-   ```
-   cmake ..
-   ```
-
-4. Build the project:
-   ```
-   cmake --build .
+   cmake -S .  -B build
    ```
 
 ## Running the Game
