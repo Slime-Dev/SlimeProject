@@ -96,6 +96,10 @@ bool Window::MouseMoved()
 	double x, y;
 	glfwGetCursorPos(m_window, &x, &y);
 
+	// Calculate the mouse delta
+	m_mouseDeltaX = x - m_mouseX;
+	m_mouseDeltaY = y - m_mouseY;
+
 	// Check if the mouse has moved
 	if (x != m_mouseX || y != m_mouseY)
 	{
@@ -107,4 +111,35 @@ bool Window::MouseMoved()
 	}
 
 	return false;
+}
+
+float Window::GetDeltaTime()
+{
+	float currentFrame = static_cast<float>(glfwGetTime());
+	m_deltaTime        = currentFrame - m_lastFrame;
+	m_lastFrame        = currentFrame;
+
+	return m_deltaTime;
+}
+
+std::pair<float, float> Window::GetMouseDelta()
+{
+	return { m_mouseDeltaX, m_mouseDeltaY };
+}
+
+std::pair<int, int> Window::GetWindowSize()
+{
+	return { lastWidth, lastHeight };
+}
+
+void Window::LockMouse(bool lock)
+{
+	if (lock)
+	{
+		glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	}
+	else
+	{
+		glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
 }

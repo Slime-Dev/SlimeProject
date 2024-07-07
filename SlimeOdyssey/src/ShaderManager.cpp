@@ -184,6 +184,52 @@ ShaderManager::ShaderResources ShaderManager::ParseShader(const ShaderModule& sh
 	return resources;
 }
 
+ShaderManager::ShaderResources ShaderManager::CombineResources(const std::vector<ShaderModule>& shaderModules)
+{
+	ShaderResources combinedResources;
+
+	for (const auto& shaderModule : shaderModules)
+	{
+		auto resources = ParseShader(shaderModule);
+
+		// Merge attribute descriptions
+		combinedResources.attributeDescriptions.insert(combinedResources.attributeDescriptions.end(),
+			resources.attributeDescriptions.begin(), resources.attributeDescriptions.end());
+
+		// Merge binding descriptions
+		combinedResources.bindingDescriptions.insert(combinedResources.bindingDescriptions.end(),
+			resources.bindingDescriptions.begin(), resources.bindingDescriptions.end());
+
+		// Merge descriptor set layout bindings
+		for (const auto& binding : resources.descriptorSetLayoutBindings)
+		{
+			auto it = std::find_if(combinedResources.descriptorSetLayoutBindings.begin(),
+				combinedResources.descriptorSetLayoutBindings.end(),
+				[&binding](const VkDescriptorSetLayoutBinding& existingBinding) {
+					return existingBinding.binding == binding.binding &&
+						existingBinding.descriptorType == binding.descriptorType;
+				});
+
+			if (it != combinedResources.descriptorSetLayoutBindings.end())
+			{
+				// We found an existing binding, update its stage flags
+				it->stageFlags |= binding.stageFlags;
+			}
+			else
+			{
+				// Create a new binding
+				combinedResources.descriptorSetLayoutBindings.push_back(binding);
+			}
+		}
+
+		// Merge push constant ranges
+		combinedResources.pushConstantRanges.insert(combinedResources.pushConstantRanges.end(),
+			resources.pushConstantRanges.begin(), resources.pushConstantRanges.end());
+	}
+
+	return combinedResources;
+}
+
 std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindings)
 {
 	std::string hash = "descriptor_set_layout";

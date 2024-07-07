@@ -38,6 +38,7 @@ public:
 
     ShaderModule LoadShader(const std::string &path, VkShaderStageFlagBits stage);
     ShaderResources ParseShader(const ShaderModule &shaderModule);
+	ShaderResources CombineResources(const std::vector<ShaderModule>& shaderModules);
     VkDescriptorSetLayout CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding> &bindings);
 
     void CleanupShaderModules();

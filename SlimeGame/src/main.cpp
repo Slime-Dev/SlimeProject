@@ -4,21 +4,11 @@ int main()
 {
 	Engine engine("Slime Odyssey", 1920, 1080, true);
 
-	if (engine.DeviceInit() != 0)
-		return -1;
-	if (engine.CreateCommandPool() != 0)
-		return -1;
-	if (engine.GetQueues() != 0)
-		return -1;
-	if (engine.CreateSwapchain() != 0)
+	if (engine.CreateEngine() != 0)
 		return -1;
 
-	if (SetupScean(engine) != 0)
-		return -1;
-
-	if (engine.CreateRenderCommandBuffers() != 0)
-		return -1;
-	if (engine.InitSyncObjects() != 0)
+	Scene scene(engine);
+	if (scene.Setup() != 0)
 		return -1;
 
 	Window& window = engine.GetWindow();
@@ -27,6 +17,8 @@ int main()
 	while (!window.ShouldClose())
 	{
 		window.PollEvents();
+		scene.Update(window.GetDeltaTime());
+		scene.Render();
 		engine.RenderFrame();
 	}
 

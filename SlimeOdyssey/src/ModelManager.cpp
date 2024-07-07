@@ -23,7 +23,7 @@ ModelManager::~ModelManager()
 	UnloadAllResources();
 }
 
-bool ModelManager::LoadModel(const std::string& name)
+ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
 {
     std::string fullPath = m_pathManager.GetModelPath(name);
 
@@ -35,7 +35,7 @@ bool ModelManager::LoadModel(const std::string& name)
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str()))
     {
         spdlog::error("Failed to load model '{}': {}", name, err);
-        return false;
+		return nullptr;
     }
 
     ModelResource model;
@@ -119,9 +119,34 @@ bool ModelManager::LoadModel(const std::string& name)
 		}
 	}
 
+	// Calculate tangents
+	for (size_t i = 0; i < model.indices.size(); i += 3)
+	{
+		Vertex& v0 = model.vertices[model.indices[i]];
+		Vertex& v1 = model.vertices[model.indices[i + 1]];
+		Vertex& v2 = model.vertices[model.indices[i + 2]];
+
+		glm::vec3 edge1 = v1.pos - v0.pos;
+		glm::vec3 edge2 = v2.pos - v0.pos;
+
+		glm::vec2 deltaUV1 = v1.texCoord - v0.texCoord;
+		glm::vec2 deltaUV2 = v2.texCoord - v0.texCoord;
+
+		float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+		glm::vec3 tangent;
+		tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+		tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+		tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+		v0.tangent += tangent;
+		v1.tangent += tangent;
+		v2.tangent += tangent;
+	}
+
     // Create vertex and index buffers
-    CreateBuffer(model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
-    CreateBuffer(model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
+    m_engine->CreateBuffer(model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
+    m_engine->CreateBuffer(model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
 
     // Copy vertex and index data to buffers
     void* data;
@@ -133,9 +158,12 @@ bool ModelManager::LoadModel(const std::string& name)
     memcpy(data, model.indices.data(), model.indices.size() * sizeof(uint32_t));
     vmaUnmapMemory(m_allocator, model.indexAllocation);
 
+	model.pipeLineName = pipelineName.c_str();
+
     m_models[name] = std::move(model);
     spdlog::info("Model '{}' loaded successfully", name);
-    return true;
+
+	return &m_models[name];
 }
 
 bool ModelManager::LoadTexture(const std::string& name)
@@ -160,7 +188,7 @@ bool ModelManager::LoadTexture(const std::string& name)
 	// Create staging buffer
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
-	CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
+	m_engine->CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
 		stagingBuffer, stagingAllocation);
 
 	// Copy pixel data to staging buffer
@@ -253,24 +281,6 @@ void ModelManager::UnloadAllResources()
 	m_textures.clear();
 
 	spdlog::info("All resources unloaded");
-}
-
-void ModelManager::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
-	VkBuffer& buffer, VmaAllocation& allocation)
-{
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size        = size;
-	bufferInfo.usage       = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = memoryUsage;
-
-	if (vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create buffer!");
-	}
 }
 
 void ModelManager::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
@@ -470,5 +480,16 @@ int ModelManager::DrawModel(VkCommandBuffer& cmd, const std::string& name)
 	vkCmdBindVertexBuffers(cmd, 0, 1, &model->vertexBuffer, offsets);
 	vkCmdBindIndexBuffer(cmd, model->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model->indices.size()), 1, 0, 0, 0);
+	return 0;
+}
+
+int ModelManager::DrawModel(VkCommandBuffer& cmd, const ModelResource& model)
+{
+	m_engine->GetDebugUtils().BeginDebugMarker(cmd, "Draw Mesh", debugUtil_DrawModelColour);
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(cmd, 0, 1, &model.vertexBuffer, offsets);
+	vkCmdBindIndexBuffer(cmd, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
+	m_engine->GetDebugUtils().EndDebugMarker(cmd);
 	return 0;
 }

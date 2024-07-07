@@ -28,8 +28,11 @@ public:
 
     void Generate();
 
-    [[nodiscard]] VkPipeline getPipeline() const { return m_graphicsPipeline; }
-    [[nodiscard]] VkPipelineLayout getPipelineLayout() const { return m_pipelineLayout; }
+	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
+
+    [[nodiscard]] VkPipeline GetPipeline() const { return m_graphicsPipeline; }
+    [[nodiscard]] VkPipelineLayout GetPipelineLayout() const { return m_pipelineLayout; }
+	[[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_descriptorSets; }
 
 private:
     VkDevice m_device;
@@ -39,6 +42,7 @@ private:
     std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
     std::vector<VkVertexInputBindingDescription> m_vertexInputBindingDescriptions;
     std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
+    std::vector<VkDescriptorSet> m_descriptorSets;
     std::vector<VkPushConstantRange> m_pushConstantRanges;
 
     VkPipelineShaderStageCreateInfo m_vertexShaderStageInfo{};

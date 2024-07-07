@@ -42,6 +42,11 @@ void PipelineGenerator::Generate()
 	CreatePipeline();
 }
 
+void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets)
+{
+	m_descriptorSets = descriptorSets;
+}
+
 void PipelineGenerator::CreatePipelineLayout()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};

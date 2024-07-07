@@ -1,62 +1,68 @@
 #version 450
+#extension GL_EXT_scalar_block_layout : enable
 
 layout(location = 0) in vec3 vNormal;
 layout(location = 1) in vec3 vPosition;
 layout(location = 2) in vec2 vTexCoord;
+layout(location = 3) in vec3 vTangent;
+layout(location = 4) in vec3 vBitangent;
 
 layout(location = 0) out vec4 FragColor;
 
-vec3 lightPos = vec3(0.0, 0.0, 2.0);
-vec3 viewPos = vec3(0.0, 0.0, 3.0);
-vec3 lightColor = vec3(1.0, 1.0, 1.0);
-float ambientStrength = 0.1;
-float specularStrength = 0.5;
-float shininess = 32.0;
+// Lighting uniform block
+layout(scalar, binding = 0) uniform LightBlock {
+    vec3 lightPos;
+    vec3 lightColor;
+    vec3 viewPos;
+    float ambientStrength;
+    float specularStrength;
+    float shininess;
+} Light;
 
-void main() {
-    // Normalize the input normal
+// Material properties
+const vec3 diffuseColor = vec3(0.8, 0.5, 0.31);
+float specularIntensity = 0.5;
+
+// Calculate the lighting
+vec3 calculateLighting(vec3 normal, vec3 fragPos) {
+    // Ambient
+    vec3 ambient = Light.ambientStrength * Light.lightColor;
+
+    // Diffuse
+    vec3 lightDir = normalize(Light.lightPos - fragPos);
+    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = diff * Light.lightColor * diffuseColor;
+
+    // Specular
+    vec3 viewDir = normalize(Light.viewPos - fragPos);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), Light.shininess);
+    vec3 specular = Light.specularStrength * spec * Light.lightColor * specularIntensity;
+
+    return (ambient + diffuse + specular);
+}
+
+// Calculate the normal in tangent space
+vec3 calculateNormal() {
+    vec3 tangent = normalize(vTangent);
+    vec3 bitangent = normalize(vBitangent);
     vec3 normal = normalize(vNormal);
 
-    // Calculate the light direction
-    vec3 lightDir = normalize(lightPos - vPosition);
+    // Gram-Schmidt process to re-orthogonalize the TBN matrix
+    tangent = normalize(tangent - dot(tangent, normal) * normal);
+    bitangent = cross(normal, tangent);
 
-    // Calculate the view direction
-    vec3 viewDir = normalize(viewPos - vPosition);
+    mat3 TBN = mat3(tangent, bitangent, normal);
+    return normalize(TBN * vec3(0.0, 0.0, 1.0)); // Assuming a flat normal for now
+}
 
-    // Calculate the reflect direction
-    vec3 reflectDir = reflect(-lightDir, normal);
+void main() {
+    // Calculate the normal
+    vec3 normal = calculateNormal();
 
-    // Ambient light
-    vec3 ambient = ambientStrength * lightColor;
+    // Calculate the lighting
+    vec3 lighting = calculateLighting(normal, vPosition);
 
-    // Diffuse light
-    float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * lightColor;
-
-    // Specular light (Blinn-Phong)
-    vec3 halfwayDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfwayDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * lightColor;
-
-    // Attenuation (distance-based falloff)
-    float distance = length(lightPos - vPosition);
-    float attenuation = 1.0 / (1.0 + 0.09 * distance + 0.032 * (distance * distance));
-
-    // Combine all lighting components
-    vec3 lighting = (ambient + diffuse + specular) * attenuation;
-
-    // Apply a warm color tint
-    vec3 warmTint = vec3(1.0, 0.9, 0.8);
-    vec3 color = lighting * warmTint;
-
-    // Tone mapping (optional, helps with bright highlights)
-    color = color / (color + vec3(1.0));
-
-    // Gamma correction
-    color = pow(color, vec3(1.0/2.2));
-
-    // Ensure the color doesn't exceed 1.0 for any channel
-    color = clamp(color, 0.0, 1.0);
-
-    FragColor = vec4(color, 1.0);
+    // Output the color
+    FragColor = vec4(lighting, 1.0);
 }

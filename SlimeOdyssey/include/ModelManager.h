@@ -22,6 +22,7 @@ public:
         glm::vec3 pos;
         glm::vec3 normal;
         glm::vec2 texCoord;
+    	glm::vec3 tangent;
 
         bool operator==(const Vertex& other) const {
             return pos == other.pos && texCoord == other.texCoord && normal == other.normal;
@@ -35,6 +36,9 @@ public:
         VmaAllocation vertexAllocation;
         VkBuffer indexBuffer;
         VmaAllocation indexAllocation;
+    	glm::mat4 model = glm::mat4(1.0f);
+    	std::string pipeLineName;
+    	bool isActive = true;
     };
 
     struct TextureResource {
@@ -51,13 +55,13 @@ public:
 
     ~ModelManager();
 
-    bool LoadModel(const std::string &name);
+    ModelResource* LoadModel(const std::string &name, const std::string& pipelineName);
 
     bool LoadTexture(const std::string &name);
 
-    const ModelResource *GetModel(const std::string &name) const;
+    const ModelResource* GetModel(const std::string &name) const;
 
-    const TextureResource *GetTexture(const std::string &name) const;
+    const TextureResource* GetTexture(const std::string &name) const;
 
     void UnloadResource(const std::string &name);
 
@@ -70,6 +74,14 @@ public:
     void TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 
     int DrawModel(VkCommandBuffer &cmd, const std::string &name);
+	int DrawModel(VkCommandBuffer &cmd, const ModelResource &model);
+
+	// Iterator for models
+	std::unordered_map<std::string, ModelResource>::iterator begin() { return m_models.begin(); }
+	std::unordered_map<std::string, ModelResource>::iterator end() { return m_models.end(); }
+
+	std::unordered_map<std::string, ModelResource>::const_iterator begin() const { return m_models.begin(); }
+	std::unordered_map<std::string, ModelResource>::const_iterator end() const { return m_models.end(); }
 
 private:
     VkDevice m_device;

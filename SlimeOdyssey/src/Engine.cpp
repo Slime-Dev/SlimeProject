@@ -20,7 +20,6 @@ spdlog::debug(format, ##__VA_ARGS__); \
 #include <vk_mem_alloc.h>
 
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
 
 #define MAX_FRAMES_IN_FLIGHT 2
@@ -34,6 +33,53 @@ Engine::Engine(const char* name, int width, int height, bool resizable) : m_wind
 Engine::~Engine()
 {
 	Cleanup();
+}
+
+int Engine::CreateEngine()
+{
+	if (DeviceInit() != 0)
+		return -1;
+	if (CreateCommandPool() != 0)
+		return -1;
+	if (GetQueues() != 0)
+		return -1;
+	if (CreateSwapchain() != 0)
+		return -1;
+	if (CreateRenderCommandBuffers() != 0)
+		return -1;
+	if (InitSyncObjects() != 0)
+		return -1;
+	if (SetupManagers() != 0)
+		return -1;
+
+	return 0;
+}
+
+int Engine::SetupManagers()
+{
+	m_shaderManager     = ShaderManager(m_device); // TODO Fins a better place to set this up maybe a setup managers func
+	m_modelManager      = ModelManager(this, m_device, m_allocator, m_pathManager);
+	m_descriptorManager = DescriptorManager(m_device);
+
+	// TODO move lights outta here
+	for (int i = 0; i < MAX_LIGHTS; i++)
+	{
+		LightObject& lightObject = m_lights.emplace_back();
+
+		Light& light           = lightObject.light;
+		light.lightPos         = glm::vec3(0.0f, 0.0f, 3.0f);
+		light.lightColor       = glm::vec3(1.0f, 0.85f, 0.9f);
+		light.viewPos          = glm::vec3(0.0f, 0.0f, 3.0f);
+		light.ambientStrength  = 0.1f;
+		light.specularStrength = 0.5f;
+		light.shininess        = 10.0f;
+
+		// Create buffer for light
+		CreateBuffer(sizeof(Light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, lightObject.buffer, lightObject.allocation);
+		CopyStructToBuffer(light, lightObject.buffer, lightObject.allocation);
+	}
+
+	return 0;
 }
 
 VkCommandBuffer Engine::BeginSingleTimeCommands()
@@ -215,8 +261,7 @@ int Engine::DeviceInit()
 		throw std::runtime_error("Failed to create VMA allocator");
 	}
 
-	m_shaderManager = ShaderManager(m_device); // TODO Fins a better place to set this up maybe a setup managers func
-	m_modelManager  = ModelManager(this, m_device, m_allocator, m_pathManager);
+	m_debugUtils = VulkanDebugUtils(m_instance, m_device);
 
 	return 0;
 }
@@ -334,23 +379,38 @@ int Engine::CreateRenderCommandBuffers()
 	return 0;
 }
 
-int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
+void Engine::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
 {
-	VkCommandBufferBeginInfo begin_info = {};
-	begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size        = size;
+	bufferInfo.usage       = usage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (m_disp.beginCommandBuffer(cmd, &begin_info) != VK_SUCCESS)
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.usage = memoryUsage;
+
+	if (vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS)
 	{
-		spdlog::error("Failed to begin recording command buffer!");
-		return -1;
+		throw std::runtime_error("failed to create buffer!");
 	}
+}
 
-	// Set dynamic viewport state
+template <typename T> void Engine::CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation)
+{
+	void* mappedData;
+	vmaMapMemory(m_allocator, allocation, &mappedData);
+	memcpy(mappedData, &data, sizeof(T));
+	vmaUnmapMemory(m_allocator, allocation);
+}
+
+void Engine::SetupViewportAndScissor(VkCommandBuffer& cmd)
+{
 	VkViewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
-		.width = (float)m_swapchain.extent.width,
-		.height = (float)m_swapchain.extent.height,
+		.width = static_cast<float>(m_swapchain.extent.width),
+		.height = static_cast<float>(m_swapchain.extent.height),
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f
 	};
@@ -360,95 +420,147 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 		.extent = m_swapchain.extent
 	};
 
-	// Set dynamic scissor ans viewport
 	m_disp.cmdSetViewport(cmd, 0, 1, &viewport);
 	m_disp.cmdSetScissor(cmd, 0, 1, &scissor);
+}
 
+void Engine::SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd)
+{
 	m_disp.cmdSetDepthTestEnable(cmd, VK_TRUE);
 	m_disp.cmdSetDepthWriteEnable(cmd, VK_TRUE);
 	m_disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_GREATER_OR_EQUAL);
-
 	m_disp.cmdSetLineWidth(cmd, 10.0f);
+}
 
-	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+void Engine::DrawModels(VkCommandBuffer& cmd)
+{
+	m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
 
-	// Setup rendering info
-	VkRenderingAttachmentInfo color_attachment_info = {
-		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.imageView = data.swapchainImageViews[imageIndex],
-		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-		.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } },
-	};
+	// Update light buffer once
+	m_debugUtils.InsertDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
+	CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
 
-	VkRenderingInfo rendering_info = {
-		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-		.renderArea = { .extent = m_swapchain.extent },
-		.layerCount = 1,
-		.colorAttachmentCount = 1,
-		.pColorAttachments = &color_attachment_info
-	};
+	// Store the currently bound descriptor set
+	VkDescriptorSet boundDescriptorSet = VK_NULL_HANDLE;
 
-	m_disp.cmdBeginRendering(cmd, &rendering_info);
-
-	// TODO: This should be dynamic
-	m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, data.pipelines.at("basic")->getPipeline());
-
-	// Get current time for rotation
-	static auto startTime = std::chrono::high_resolution_clock::now();
-	auto currentTime      = std::chrono::high_resolution_clock::now();
-	float time            = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-	// Create model matrix with rotation and translation
-	glm::mat4 model = glm::mat4(1.0f);
-
-	model = glm::translate(model, glm::vec3(0.0f, -1.0f, -1.0f));                         // Move 3 units away from the camera
-	model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // Rotate around Y-axis
-	model = glm::scale(model, glm::vec3(8.0f));                                          // Scale down the cube to half its size
-
-	// Create view matrix (camera looking at origin)
-	glm::mat4 view = glm::lookAt(
-		glm::vec3(0.0f, 0.0f, 3.0f), // Camera position
-		glm::vec3(0.0f, 0.0f, 0.0f),  // Look at point (origin)
-		glm::vec3(0.0f, 1.0f, 0.0f)   // Up vector
-		);
-
-	// Create projection matrix
-	glm::mat4 proj = glm::perspective(glm::radians(45.0f),
-		static_cast<float>(m_swapchain.extent.width) / static_cast<float>(m_swapchain.
-			extent.height),
-		0.1f, 10.0f);
-
-	// Adjust for clip space (This fixes the depth buffer?)
-	proj[1][1] *= -1;
-
-	struct tempMVP
+	for (const auto& [name, model] : m_modelManager)
 	{
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 proj;
-	} mvp;
+		if (!model.isActive)
+			continue;
 
-	mvp.model = model;
-	mvp.view  = view;
-	mvp.proj  = proj;
+		std::string pipelineName = model.pipeLineName;
+		auto pipelineIt          = data.pipelines.find(pipelineName);
 
-	vkCmdPushConstants(cmd, data.pipelines.at("basic")->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp),
-		&mvp);
+		if (pipelineIt == data.pipelines.end())
+		{
+			spdlog::error("Pipeline not found: {}", pipelineName);
+			continue;
+		}
 
-	// Draw model
-	m_modelManager.DrawModel(cmd, "stanford-bunny.obj");
+		m_debugUtils.BeginDebugMarker(cmd, ("Draw Model: " + name).c_str(), debugUtil_StartDrawColour);
 
-	m_disp.cmdEndRendering(cmd);
+		PipelineGenerator* pipeline = pipelineIt->second.get();
+		m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipeline());
 
+		auto descSets = pipeline->GetDescriptorSets();
+		if (descSets.empty() || descSets[0] == VK_NULL_HANDLE)
+		{
+			spdlog::error("Invalid descriptor set for pipeline: {}", pipelineName);
+			m_debugUtils.EndDebugMarker(cmd);
+			continue;
+		}
+
+		// Bind descriptor set
+		if (descSets[0] != boundDescriptorSet)
+		{
+			boundDescriptorSet = descSets[0];
+			m_debugUtils.InsertDebugMarker(cmd, "Bind Descriptor Set", debugUtil_BindDescriptorSetColour);
+			m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipelineLayout(), 0, 1, descSets.data(), 0, nullptr);
+
+			// Bind light buffer only when descriptor set changes
+			m_descriptorManager.BindBuffer(descSets[0], 0, m_lights.at(0).buffer, 0, sizeof(Light));
+		}
+
+		// Push Constants
+		m_mvp.view  = m_camera.getViewMatrix();
+		m_mvp.proj  = m_camera.getProjectionMatrix();
+		m_mvp.model = model.model;
+
+		m_debugUtils.InsertDebugMarker(cmd, "Push Constant MVP", debugUtil_PushConstantsColour);
+		m_disp.cmdPushConstants(cmd, pipeline->GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
+
+		m_modelManager.DrawModel(cmd, model);
+
+		m_debugUtils.EndDebugMarker(cmd);
+	}
+
+	m_debugUtils.EndDebugMarker(cmd);
+}
+
+int Engine::BeginCommandBuffer(VkCommandBuffer& cmd)
+{
+	VkCommandBufferBeginInfo beginInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+	};
+
+	if (m_disp.beginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to begin recording command buffer!");
+		return -1;
+	}
+	return 0;
+}
+
+int Engine::EndCommandBuffer(VkCommandBuffer& cmd)
+{
 	if (m_disp.endCommandBuffer(cmd) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to record command buffer!");
 		return -1;
 	}
-
 	return 0;
+}
+
+int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
+{
+	if (BeginCommandBuffer(cmd) != 0)
+		return -1;
+
+	SetupViewportAndScissor(cmd);
+	SetupDepthTestingAndLineWidth(cmd);
+
+	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+	VkRenderingAttachmentInfo colorAttachmentInfo = {};
+	colorAttachmentInfo.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	colorAttachmentInfo.pNext                     = nullptr;
+	colorAttachmentInfo.imageView                 = data.swapchainImageViews[imageIndex];
+	colorAttachmentInfo.imageLayout               = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachmentInfo.resolveMode               = VK_RESOLVE_MODE_NONE;
+	colorAttachmentInfo.resolveImageView          = VK_NULL_HANDLE;
+	colorAttachmentInfo.resolveImageLayout        = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachmentInfo.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachmentInfo.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachmentInfo.clearValue                = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
+
+	VkRenderingInfo renderingInfo;
+	renderingInfo.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.pNext                = nullptr;
+	renderingInfo.renderArea           = { .offset = { 0, 0 }, .extent = m_swapchain.extent };
+	renderingInfo.layerCount           = 1;
+	renderingInfo.viewMask             = 0;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments    = &colorAttachmentInfo;
+	renderingInfo.pDepthAttachment     = nullptr;
+	renderingInfo.pStencilAttachment   = nullptr;
+
+	m_disp.cmdBeginRendering(cmd, &renderingInfo);
+
+	DrawModels(cmd);
+
+	m_disp.cmdEndRendering(cmd);
+
+	return EndCommandBuffer(cmd);
 }
 
 int Engine::RenderFrame()
@@ -593,6 +705,14 @@ int Engine::Cleanup()
 
 	m_shaderManager.CleanupDescriptorSetLayouts();
 	data.pipelines.clear();
+
+	m_descriptorManager.Cleanup();
+
+	// TODO REMOVE THIS Clean up the lights
+	for (auto& light : m_lights)
+	{
+		vmaDestroyBuffer(m_allocator, light.buffer, light.allocation);
+	}
 
 	m_shaderManager.CleanupShaderModules();
 
