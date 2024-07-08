@@ -10,13 +10,13 @@ public:
 	~Scene() = default;
 
 	int Setup();
-	void Update(float dt);
+	void Update(float dt, InputManager* inputManager);
 	void Render();
 
 private:
 	Engine& m_engine;
 	Camera& m_camera;
-	Window& m_window;
+	SlimeWindow* m_window = nullptr;
 
 	std::unique_ptr<PipelineGenerator> m_pipelineGenerator;
 	size_t m_descriptorSetLayoutIndex;

@@ -1,42 +1,57 @@
 #pragma once
+#include "InputManager.h"
+#include <GLFW/glfw3.h>
+#include <string>
+#include <chrono>
+#include <functional>
+#include <thread>
 
-#include <utility>
-#include <vulkan/vulkan.h>
-
-struct GLFWwindow;
-
-class Window
-{
+class SlimeWindow {
 public:
-	Window(const char* name, int width, int height, bool resizable = false);
-	~Window();
+	struct WindowProps {
+		std::string title;
+		int width;
+		int height;
+		bool resizable;
+		bool decorated;
+		bool fullscreen;
+	};
 
-	VkSurfaceKHR CreateSurface(const VkInstance& instance, const VkAllocationCallbacks* allocator = nullptr);
-	void PollEvents();
-	bool ShouldClose();
-	bool ShouldRecreateSwapchain();
-	bool WindowSuspended();
-	bool MouseMoved();
+	SlimeWindow(const WindowProps& props);
+	~SlimeWindow();
 
-	float GetDeltaTime();
+	bool ShouldClose() const;
+	void Close() { m_closeNow = true; }
 
-	std::pair<float, float> GetMousePos() { return { m_mouseX, m_mouseY }; }
-	std::pair<float, float> GetMouseDelta();
-	std::pair<int, int> GetWindowSize();
+	float Update();
 
-	void LockMouse(bool lock);
+	GLFWwindow* GetGLFWWindow() const { return m_Window; }
+	int GetWidth() const { return m_Width; }
+	int GetHeight() const { return m_Height; }
 
-	GLFWwindow* GetWindow() { return m_window; }
+	void SetFullscreen(bool fullscreen);
+	void SetTitle(const std::string& title);
+	void SetCursorMode(int mode) { glfwSetInputMode(m_Window, GLFW_CURSOR, mode); }
+
+	void SetResizeCallback(std::function<void(int, int)> callback) { m_ResizeCallback = std::move(callback); }
+
+	InputManager* GetInputManager() { return &m_InputManager; }
+
+	SlimeWindow(const SlimeWindow&) = delete;
+	SlimeWindow& operator=(const SlimeWindow&) = delete;
+	SlimeWindow(SlimeWindow&&) = delete;
+	SlimeWindow& operator=(SlimeWindow&&) = delete;
+
 private:
-	GLFWwindow* m_window = nullptr;
+	GLFWwindow* m_Window = nullptr;
+	int m_Width;
+	int m_Height;
+	bool m_closeNow = false;
+	WindowProps m_Props;
+	std::chrono::steady_clock::time_point m_LastFrameTime;
+	std::function<void(int, int)> m_ResizeCallback;
+	InputManager m_InputManager;
 
-	// Time
-	float m_lastFrame = 0.0f;
-	float m_deltaTime = 0.0f;
-
-	// Mouse position
-	double m_mouseX = 0.0;
-	double m_mouseY = 0.0;
-	double m_mouseDeltaX = 0.0;
-	double m_mouseDeltaY = 0.0;
+	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+	GLFWmonitor* GetPrimaryMonitor() const;
 };

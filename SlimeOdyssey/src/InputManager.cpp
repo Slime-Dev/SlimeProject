@@ -1,4 +1,6 @@
 #include "InputManager.h"
+
+#include "SlimeWindow.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
@@ -17,10 +19,8 @@ InputManager::InputManager(GLFWwindow* window) : m_window(window)
 	}
 
 	// Set up GLFW callbacks
-	glfwSetWindowUserPointer(window, this);
 	glfwSetKeyCallback(window, KeyCallback);
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
-	glfwSetCursorPosCallback(window, CursorPositionCallback);
 	glfwSetScrollCallback(window, ScrollCallback);
 }
 
@@ -140,23 +140,32 @@ double InputManager::GetScrollDelta() const
 
 void InputManager::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	InputManager* inputManager = static_cast<InputManager*>(glfwGetWindowUserPointer(window));
+	InputManager* inputManager = static_cast<SlimeWindow*>(glfwGetWindowUserPointer(window))->GetInputManager();
 	if (inputManager)
 	{
-		if (action == GLFW_PRESS)
+		// Check if the key is within valid range
+		if (key >= 0 && key < GLFW_KEY_LAST)
 		{
-			inputManager->m_keyStates[key] = KeyState::JustPressed;
+			if (action == GLFW_PRESS)
+			{
+				inputManager->m_keyStates[key] = KeyState::JustPressed;
+			}
+			else if (action == GLFW_RELEASE)
+			{
+				inputManager->m_keyStates[key] = KeyState::JustReleased;
+			}
 		}
-		else if (action == GLFW_RELEASE)
+		else
 		{
-			inputManager->m_keyStates[key] = KeyState::JustReleased;
+			// Log an error or handle the invalid key in some way
+			spdlog::warn("Invalid key code received: {}", key);
 		}
 	}
 }
 
 void InputManager::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-	InputManager* inputManager = static_cast<InputManager*>(glfwGetWindowUserPointer(window));
+	InputManager* inputManager = static_cast<SlimeWindow*>(glfwGetWindowUserPointer(window))->GetInputManager();
 	if (inputManager)
 	{
 		if (action == GLFW_PRESS)
@@ -170,21 +179,9 @@ void InputManager::MouseButtonCallback(GLFWwindow* window, int button, int actio
 	}
 }
 
-void InputManager::CursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
-{
-	InputManager* inputManager = static_cast<InputManager*>(glfwGetWindowUserPointer(window));
-	if (inputManager)
-	{
-		inputManager->m_mouseDeltaX = xpos - inputManager->m_lastMouseX;
-		inputManager->m_mouseDeltaY = ypos - inputManager->m_lastMouseY;
-		inputManager->m_lastMouseX  = xpos;
-		inputManager->m_lastMouseY  = ypos;
-	}
-}
-
 void InputManager::ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	InputManager* inputManager = static_cast<InputManager*>(glfwGetWindowUserPointer(window));
+	InputManager* inputManager = static_cast<SlimeWindow*>(glfwGetWindowUserPointer(window))->GetInputManager();
 	if (inputManager)
 	{
 		inputManager->m_scrollDelta = yoffset;

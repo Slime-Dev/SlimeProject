@@ -169,8 +169,8 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.renderPass          = VK_NULL_HANDLE;
 	pipelineInfo.subpass             = 0;
 	pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
-	pipelineInfo.pDepthStencilState  = &depthStencilStateCreateInfo;
-	pipelineInfo.pNext = &pipelineRenderingCreateInfo;
+	//pipelineInfo.pDepthStencilState  = &depthStencilStateCreateInfo;
+	//pipelineInfo.pNext = &pipelineRenderingCreateInfo;
 
 	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) !=
 	    VK_SUCCESS)

@@ -2,6 +2,8 @@
 #include <GLFW/glfw3.h>
 #include <array>
 
+class SlimeWindow;
+
 class InputManager
 {
 public:
@@ -30,7 +32,7 @@ private:
 		JustReleased
 	};
 
-	GLFWwindow* m_window;
+	GLFWwindow* m_window = nullptr;
 	std::array<KeyState, GLFW_KEY_LAST> m_keyStates;
 	std::array<KeyState, GLFW_MOUSE_BUTTON_LAST> m_mouseButtonStates;
 
@@ -42,6 +44,5 @@ private:
 
 	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 	static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-	static void CursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
 	static void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 };

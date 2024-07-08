@@ -25,7 +25,7 @@ struct GLFWwindow;
 class Engine
 {
 public:
-	Engine(const char* name, int width, int height, bool resizable = false);
+	Engine(SlimeWindow* window);
 	~Engine();
 
 	struct RenderData
@@ -76,7 +76,7 @@ public:
 
 	int Cleanup();
 
-	Window& GetWindow() { return m_window; }
+	SlimeWindow* GetWindow() { return m_window; }
 
 	ShaderManager& GetShaderManager() { return m_shaderManager; }
 	ModelManager& GetModelManager() { return m_modelManager; }
@@ -84,7 +84,7 @@ public:
 	DescriptorManager& GetDescriptorManager() { return m_descriptorManager; }
 	VulkanDebugUtils& GetDebugUtils() { return m_debugUtils; }
 	Camera& GetCamera() { return m_camera; }
-	InputManager& GetInputManager() { return m_inputManager; }
+	InputManager* GetInputManager() { return m_inputManager; }
 
 	std::map<std::string, std::unique_ptr<PipelineGenerator>>& GetPipelines() { return data.pipelines; }
 	VkDevice GetDevice() const { return m_device.device; }
@@ -93,15 +93,15 @@ public:
 	VkCommandPool GetCommandPool() const { return data.commandPool; }
 	VmaAllocator GetAllocator() const { return m_allocator; }
 
-	RenderData data; // Needs to be removed from here
-
 private:
 	void SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd);
 	void DrawModels(VkCommandBuffer& cmd);
 	int BeginCommandBuffer(VkCommandBuffer& cmd);
 	int EndCommandBuffer(VkCommandBuffer& cmd);
 
-	Window m_window;
+	SlimeWindow* m_window = nullptr;
+
+	RenderData data; // Needs to be removed from here
 
 	vkb::Instance m_instance;
 	vkb::InstanceDispatchTable m_instDisp;
@@ -114,7 +114,7 @@ private:
 	ModelManager m_modelManager;
 	ResourcePathManager m_pathManager;
 	DescriptorManager m_descriptorManager;
-	InputManager m_inputManager;
+	InputManager* m_inputManager = nullptr;
 
 	VulkanDebugUtils m_debugUtils;
 

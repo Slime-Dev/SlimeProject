@@ -8,7 +8,6 @@
 
 Scene::Scene(Engine& engine) : m_engine(engine), m_camera(engine.GetCamera()), m_window(m_engine.GetWindow())
 {
-	m_window.LockMouse(false);
 }
 
 int Scene::Setup() {
@@ -62,48 +61,59 @@ int Scene::Setup() {
     return 0;
 }
 
-void Scene::Update(float dt) {
+void Scene::Update(float dt, InputManager* inputManager) {
 	m_time += dt;
 	//m_bunny->model = glm::rotate(m_bunny->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
 	m_cube->model = glm::rotate(m_cube->model, dt, glm::vec3(0.0f, -1.0f, 0.0f));
 
-	if (m_window.MouseMoved())
+	// If right mouse button is pressed, disable the cursor and rotate the camera
+	if (inputManager->IsMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT))
 	{
-		auto [mouseX, mouseY] = m_window.GetMouseDelta();
+		m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
+		auto [mouseX, mouseY] = inputManager->GetMouseDelta();
 		float yaw = mouseX * 0.1f;
 		float pitch = (mouseY * 0.1f) * -1.0f;
 		m_camera.rotate(yaw, pitch);
 	}
+	else
+	{
+		m_window->SetCursorMode(GLFW_CURSOR_NORMAL);
+	}
 
-	InputManager& inputManager = m_engine.GetInputManager();
 	float speed = 2.0f;
-	if (inputManager.IsKeyPressed(GLFW_KEY_LEFT_SHIFT))
+	if (inputManager->IsKeyPressed(GLFW_KEY_LEFT_SHIFT))
 	{
 		speed = 5.0f;
 	}
-	if (inputManager.IsKeyPressed(GLFW_KEY_W))
+	if (inputManager->IsKeyPressed(GLFW_KEY_W))
 	{
 		m_camera.moveForward(dt * speed);
 	}
-	if (inputManager.IsKeyPressed(GLFW_KEY_S))
+	if (inputManager->IsKeyPressed(GLFW_KEY_S))
 	{
 		m_camera.moveForward(-(dt * speed));
 	}
-	if (inputManager.IsKeyPressed(GLFW_KEY_A))
+	if (inputManager->IsKeyPressed(GLFW_KEY_A))
 	{
 		m_camera.moveRight(-(dt * speed));
 	}
-	if (inputManager.IsKeyPressed(GLFW_KEY_D))
+	if (inputManager->IsKeyPressed(GLFW_KEY_D))
 	{
 		m_camera.moveRight(dt * speed);
 	}
-	if (inputManager.IsKeyPressed(GLFW_KEY_SPACE))
+	if (inputManager->IsKeyPressed(GLFW_KEY_SPACE))
 	{
 		m_camera.moveUp(dt * speed);
 	}
-	if (inputManager.IsKeyPressed(GLFW_KEY_LEFT_CONTROL))
+	if (inputManager->IsKeyPressed(GLFW_KEY_LEFT_CONTROL))
 	{
 		m_camera.moveUp(-(dt * speed));
+	}
+
+	// Escape key
+	if (inputManager->IsKeyJustPressed(GLFW_KEY_ESCAPE))
+	{
+		m_window->Close();
 	}
 }
 

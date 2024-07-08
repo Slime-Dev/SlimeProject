@@ -24,10 +24,12 @@ spdlog::debug(format, ##__VA_ARGS__); \
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
-Engine::Engine(const char* name, int width, int height, bool resizable) : m_window(name, width, height, resizable)
+Engine::Engine(SlimeWindow* window) : m_window(window)
 {
 	spdlog::set_level(spdlog::level::trace);
 	spdlog::stdout_color_mt("console");
+
+	m_inputManager = m_window->GetInputManager();
 }
 
 Engine::~Engine()
@@ -60,7 +62,6 @@ int Engine::SetupManagers()
 	m_shaderManager     = ShaderManager(m_device); // TODO Fins a better place to set this up maybe a setup managers func
 	m_modelManager      = ModelManager(this, m_device, m_allocator, m_pathManager);
 	m_descriptorManager = DescriptorManager(m_device);
-	m_inputManager	  = InputManager(m_window.GetWindow());
 
 	// TODO move lights outta here
 	for (int i = 0; i < MAX_LIGHTS; i++)
@@ -198,7 +199,18 @@ int Engine::DeviceInit()
 	m_instance = instance_ret.value();
 	m_instDisp = m_instance.make_table();
 
-	m_surface = m_window.CreateSurface(m_instance.instance);
+	// Create the window surface
+	if (VkResult err = glfwCreateWindowSurface(m_instance.instance, m_window->GetGLFWWindow(), nullptr, &m_surface))
+	{
+		const char* error_msg;
+		int ret = glfwGetError(&error_msg);
+		if (ret != 0)
+		{
+			spdlog::error("GLFW error: {}", error_msg);
+		}
+
+		throw std::runtime_error("Failed to create window surface");
+	}
 
 	// Select physical device //
 	spdlog::info("Selecting physical device...");
@@ -307,7 +319,7 @@ int Engine::CreateSwapchain()
 	m_disp.destroyImageView(data.depthImageView, nullptr);
 
 	// Create the depth image
-	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+	VkFormat depthFormat             = VK_FORMAT_D32_SFLOAT;
 	VkImageCreateInfo depthImageInfo = {};
 	depthImageInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	depthImageInfo.imageType         = VK_IMAGE_TYPE_2D;
@@ -324,16 +336,16 @@ int Engine::CreateSwapchain()
 	depthImageInfo.sharingMode       = VK_SHARING_MODE_EXCLUSIVE;
 
 	VmaAllocationCreateInfo depthAllocInfo = {};
-	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	depthAllocInfo.usage                   = VMA_MEMORY_USAGE_GPU_ONLY;
 
 	vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &data.depthImage, &data.depthImageAllocation, nullptr);
 
 	// Create the depth image view
-	VkImageViewCreateInfo depthImageViewInfo = {};
-	depthImageViewInfo.sType                 = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	depthImageViewInfo.image                 = data.depthImage;
-	depthImageViewInfo.viewType              = VK_IMAGE_VIEW_TYPE_2D;
-	depthImageViewInfo.format                = depthFormat;
+	VkImageViewCreateInfo depthImageViewInfo           = {};
+	depthImageViewInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	depthImageViewInfo.image                           = data.depthImage;
+	depthImageViewInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+	depthImageViewInfo.format                          = depthFormat;
 	depthImageViewInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
 	depthImageViewInfo.subresourceRange.baseMipLevel   = 0;
 	depthImageViewInfo.subresourceRange.levelCount     = 1;
@@ -564,60 +576,55 @@ int Engine::EndCommandBuffer(VkCommandBuffer& cmd)
 
 int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 {
-    if (BeginCommandBuffer(cmd) != 0)
-        return -1;
+	if (BeginCommandBuffer(cmd) != 0)
+		return -1;
 
-    SetupViewportAndScissor(cmd);
-    SetupDepthTestingAndLineWidth(cmd);
+	SetupViewportAndScissor(cmd);
+	SetupDepthTestingAndLineWidth(cmd);
 
-    // Transition color image to color attachment optimal
-    m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    // Transition depth image to depth attachment optimal
-    m_modelManager.TransitionImageLayout(data.depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	// Transition color image to color attachment optimal
+	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	// Transition depth image to depth attachment optimal
+	m_modelManager.TransitionImageLayout(data.depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-    VkRenderingAttachmentInfo colorAttachmentInfo = {};
-    colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachmentInfo.imageView = data.swapchainImageViews[imageIndex];
-    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
+	VkRenderingAttachmentInfo colorAttachmentInfo = {};
+	colorAttachmentInfo.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	colorAttachmentInfo.imageView                 = data.swapchainImageViews[imageIndex];
+	colorAttachmentInfo.imageLayout               = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachmentInfo.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachmentInfo.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachmentInfo.clearValue                = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
 
-    VkRenderingAttachmentInfo depthAttachmentInfo = {};
-    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = data.depthImageView;
-    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    depthAttachmentInfo.clearValue = { .depthStencil = { 1.0f, 0 } };  // Clear to 0 for reverse depth
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+	depthAttachmentInfo.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachmentInfo.imageView                 = data.depthImageView;
+	depthAttachmentInfo.imageLayout               = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachmentInfo.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachmentInfo.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentInfo.clearValue                = { .depthStencil = { 0.0f, 0 } }; // Clear to 0 for reverse depth
 
-    VkRenderingInfo renderingInfo = {};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea = { .offset = { 0, 0 }, .extent = m_swapchain.extent };
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachmentInfo;
-    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+	VkRenderingInfo renderingInfo      = {};
+	renderingInfo.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea           = { .offset = { 0, 0 }, .extent = m_swapchain.extent };
+	renderingInfo.layerCount           = 1;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments    = &colorAttachmentInfo;
+	//renderingInfo.pDepthAttachment     = &depthAttachmentInfo;
 
-    m_disp.cmdBeginRendering(cmd, &renderingInfo);
+	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-    DrawModels(cmd);
+	DrawModels(cmd);
 
-    m_disp.cmdEndRendering(cmd);
+	m_disp.cmdEndRendering(cmd);
 
-    // Transition color image to present src layout
-    m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	// Transition color image to present src layout
+	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    return EndCommandBuffer(cmd);
+	return EndCommandBuffer(cmd);
 }
 
 int Engine::RenderFrame()
 {
-	if (m_window.WindowSuspended())
-	{
-		return 0;
-	}
-
 	// Wait for the frame to be finished
 	if (m_disp.waitForFences(1, &data.inFlightFences[data.currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
 	{
@@ -685,7 +692,7 @@ int Engine::RenderFrame()
 
 	result = m_disp.queuePresentKHR(data.presentQueue, &present_info);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_window.ShouldRecreateSwapchain())
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
 		if (CreateSwapchain() != 0)
 			return -1;

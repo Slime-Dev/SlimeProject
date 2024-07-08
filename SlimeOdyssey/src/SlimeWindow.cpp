@@ -1,145 +1,99 @@
 #include "SlimeWindow.h"
-#include <GLFW/glfw3.h>
-#include <spdlog/spdlog.h>
 
-// Global variables to store the last known window size
-int lastWidth  = -1;
-int lastHeight = -1;
+#include "spdlog/spdlog.h"
 
-// Callback function for window size change
-void windowSizeCallback(GLFWwindow* window, int width, int height)
+SlimeWindow::SlimeWindow(const WindowProps& props) : m_Width(props.width), m_Height(props.height), m_Props(props)
 {
-	// Check if the window has been resized
-	if (lastWidth != width || lastHeight != height)
+	if (!glfwInit())
 	{
-		// Window has been resized
-		spdlog::info("Window resized to {}x{}", width, height);
-
-		// Update the last known window size
-		lastWidth  = width;
-		lastHeight = height;
+		throw std::runtime_error("Failed to initialize GLFW");
 	}
-}
 
-Window::Window(const char* name, int width, int height, bool resizable)
-{
-	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	if (!resizable)
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, props.resizable ? GLFW_TRUE : GLFW_FALSE);
+	glfwWindowHint(GLFW_DECORATED, props.decorated ? GLFW_TRUE : GLFW_FALSE);
 
-	m_window = glfwCreateWindow(width, height, name, nullptr, nullptr);
+	GLFWmonitor* monitor = props.fullscreen ? GetPrimaryMonitor() : nullptr;
+
+	m_Window = glfwCreateWindow(props.width, props.height, props.title.c_str(), monitor, nullptr);
+
+	if (!m_Window)
+	{
+		glfwTerminate();
+		throw std::runtime_error("Failed to create GLFW window");
+	}
+
+	glfwSetWindowUserPointer(m_Window, this);
+	glfwSetFramebufferSizeCallback(m_Window, framebufferResizeCallback);
+
+	m_LastFrameTime = std::chrono::steady_clock::now();
+	m_InputManager = InputManager(m_Window);
 }
 
-Window::~Window()
+SlimeWindow::~SlimeWindow()
 {
-	glfwDestroyWindow(m_window);
+	if (m_Window)
+	{
+		glfwDestroyWindow(m_Window);
+	}
 	glfwTerminate();
 }
 
-VkSurfaceKHR Window::CreateSurface(const VkInstance& instance, const VkAllocationCallbacks* allocator)
+bool SlimeWindow::ShouldClose() const
 {
-	VkSurfaceKHR surface = VK_NULL_HANDLE;
-	VkResult err         = glfwCreateWindowSurface(instance, m_window, allocator, &surface);
-	if (err)
-	{
-		const char* error_msg;
-		int ret = glfwGetError(&error_msg);
-		if (ret != 0)
-		{
-			spdlog::error("GLFW error: {}", error_msg);
-		}
-		else
-		{
-			spdlog::error("Failed to create window surface");
-		}
-		surface = VK_NULL_HANDLE;
-	}
-
-	// Register the window size callback
-	glfwSetWindowSizeCallback(m_window, windowSizeCallback);
-
-	return surface;
+	return glfwWindowShouldClose(m_Window) || m_closeNow;
 }
 
-void Window::PollEvents()
-{
+float SlimeWindow::Update() {
+	m_InputManager.Update();
+
 	glfwPollEvents();
+
+	auto currentTime = std::chrono::steady_clock::now();
+	float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - m_LastFrameTime).count();
+	m_LastFrameTime = currentTime;
+
+	return dt;
 }
 
-bool Window::ShouldClose()
+void SlimeWindow::SetFullscreen(bool fullscreen)
 {
-	// Check for escape key press
-	if (glfwGetKey(m_window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	if (fullscreen == m_Props.fullscreen)
+		return;
+
+	m_Props.fullscreen = fullscreen;
+	if (fullscreen)
 	{
-		return true;
-	}
-
-	return glfwWindowShouldClose(m_window);
-}
-
-bool Window::ShouldRecreateSwapchain()
-{
-	int width, height;
-	glfwGetFramebufferSize(m_window, &width, &height);
-	return width == 0 || height == 0;
-}
-
-bool Window::WindowSuspended()
-{
-	return glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) || !glfwGetWindowAttrib(m_window, GLFW_VISIBLE);
-}
-
-bool Window::MouseMoved()
-{
-	// Get the current mouse position
-	double x, y;
-	glfwGetCursorPos(m_window, &x, &y);
-
-	// Calculate the mouse delta
-	m_mouseDeltaX = x - m_mouseX;
-	m_mouseDeltaY = y - m_mouseY;
-
-	// Check if the mouse has moved
-	if (x != m_mouseX || y != m_mouseY)
-	{
-		// Update the last known mouse position
-		m_mouseX = x;
-		m_mouseY = y;
-
-		return true;
-	}
-
-	return false;
-}
-
-float Window::GetDeltaTime()
-{
-	float currentFrame = static_cast<float>(glfwGetTime());
-	m_deltaTime        = currentFrame - m_lastFrame;
-	m_lastFrame        = currentFrame;
-
-	return m_deltaTime;
-}
-
-std::pair<float, float> Window::GetMouseDelta()
-{
-	return { m_mouseDeltaX, m_mouseDeltaY };
-}
-
-std::pair<int, int> Window::GetWindowSize()
-{
-	return { lastWidth, lastHeight };
-}
-
-void Window::LockMouse(bool lock)
-{
-	if (lock)
-	{
-		glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		GLFWmonitor* monitor    = GetPrimaryMonitor();
+		const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+		glfwSetWindowMonitor(m_Window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 	}
 	else
 	{
-		glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		glfwSetWindowMonitor(m_Window, nullptr, 100, 100, m_Props.width, m_Props.height, 0);
 	}
+}
+
+void SlimeWindow::SetTitle(const std::string& title)
+{
+	m_Props.title = title;
+	glfwSetWindowTitle(m_Window, title.c_str());
+}
+
+void SlimeWindow::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+	auto* windowInstance     = static_cast<SlimeWindow*>(glfwGetWindowUserPointer(window));
+	windowInstance->m_Width  = width;
+	windowInstance->m_Height = height;
+	if (windowInstance->m_ResizeCallback)
+	{
+		windowInstance->m_ResizeCallback(width, height);
+	}
+}
+
+GLFWmonitor* SlimeWindow::GetPrimaryMonitor() const
+{
+	int monitorCount;
+	GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+	return monitorCount > 0 ? monitors[0] : nullptr;
 }
