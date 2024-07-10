@@ -3,6 +3,7 @@ import json
 import time
 import argparse
 import os
+from datetime import datetime, timezone
 
 def xml_to_json(xml_file, tool_name):
     # Check if the file exists
@@ -28,22 +29,39 @@ def xml_to_json(xml_file, tool_name):
         status = testcase.get('status', 'unknown')
         if status == 'run':
             passed_tests += 1
-        elif status == 'failed':
+            # Rename to correctly post
+            status = 'passed'
+        elif status == 'fail':
             failed_tests += 1
+            status = 'failed'
         elif status == 'skipped':
             skipped_tests += 1
         else:
             other_tests += 1
 
+        # Getting a message if there is one
+        system_out = testcase.find('system-out')
+        message = system_out.text if system_out is not None else ''
+
         test_case = {
             "name": testcase.get('name'),
             "status": status,
-            "duration": int(float(testcase.get('time')) * 1000)  # Convert to milliseconds
+            "duration": int(float(testcase.get('time')) * 1000),  # Convert to milliseconds
+            "message": message
         }
         test_cases.append(test_case)
 
-    # Get current time for start and stop (example purposes, should be replaced with actual test times)
-    current_time = int(time.time())
+    # Get the 'timestamp' attribute of the 'testsuite' element
+    timestamp_str = root.get('timestamp')
+
+    # Convert the timestamp string to a datetime object
+    timestamp_dt = datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S')
+
+    # Convert the datetime object to seconds since the epoch
+    timestamp_seconds = int(timestamp_dt.replace(tzinfo=timezone.utc).timestamp())
+
+    # Get the current time in seconds since the epoch
+    current_time_seconds = int(datetime.now(timezone.utc).timestamp())
 
     # Construct the summary
     summary = {
@@ -53,8 +71,8 @@ def xml_to_json(xml_file, tool_name):
         "pending": pending_tests,
         "skipped": skipped_tests,
         "other": other_tests,
-        "start": current_time - 20,  # Example start time
-        "stop": current_time  # Example stop time
+        "start": timestamp_seconds,
+        "stop": current_time_seconds
     }
 
     # Construct the JSON structure
@@ -85,3 +103,5 @@ if __name__ == "__main__":
         print(f"JSON output has been written to {args.output}")
     except FileNotFoundError as e:
         print(e)
+
+#xml_to_json(r"C:\Users\c_you\Downloads\junit-test-results\junitout.xml", 'Test')
