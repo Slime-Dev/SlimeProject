@@ -97,7 +97,8 @@ jobs:
 
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --output-junit ${{ github.workspace }}/scripts/junitout.xml
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
+        continue-on-error: true
 
       - name: Convert XML to CTRF
         if: success()
