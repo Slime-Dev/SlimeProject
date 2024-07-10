@@ -2,9 +2,10 @@
 include(cmake/link_vulkan.cmake)
 
 # CPM setup for external libraries
-include(cmake/CPM.cmake)
+include(cmake/get_cpm.cmake)
+include(${CPM_DOWNLOAD_LOCATION})
 
-CPMAddPackage(
+CPMFindPackage(
         NAME SPIRV-Cross
         GITHUB_REPOSITORY KhronosGroup/SPIRV-Cross
         GIT_TAG vulkan-sdk-1.3.283.0
@@ -12,7 +13,7 @@ CPMAddPackage(
         "SPIRV_CROSS_ENABLE_TESTS OFF"
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME glfw
         GITHUB_REPOSITORY glfw/glfw
         GIT_TAG 3.4
@@ -22,37 +23,37 @@ CPMAddPackage(
         "GLFW_BUILD_EXAMPLES OFF"
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME vk-bootstrap
         GITHUB_REPOSITORY charles-lunarg/vk-bootstrap
         GIT_TAG v1.3.285
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME spdlog
         GITHUB_REPOSITORY gabime/spdlog
         GIT_TAG v1.14.1
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME tinyobj
         GITHUB_REPOSITORY tinyobjloader/tinyobjloader
         GIT_TAG v2.0.0rc13
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME glm
         GITHUB_REPOSITORY g-truc/glm
         GIT_TAG 1.0.1
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME GSL
         GITHUB_REPOSITORY microsoft/GSL
         GIT_TAG v4.0.0
 )
 
-CPMAddPackage(
+CPMFindPackage(
         NAME VulkanMemoryAllocator
         GITHUB_REPOSITORY GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
         VERSION 3.1.0
