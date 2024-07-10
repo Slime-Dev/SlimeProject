@@ -15,6 +15,7 @@ private:
     PFN_vkQueueBeginDebugUtilsLabelEXT fp_vkQueueBeginDebugUtilsLabelEXT = nullptr;
     PFN_vkQueueEndDebugUtilsLabelEXT fp_vkQueueEndDebugUtilsLabelEXT = nullptr;
     PFN_vkQueueInsertDebugUtilsLabelEXT fp_vkQueueInsertDebugUtilsLabelEXT = nullptr;
+    PFN_vkSetDebugUtilsObjectNameEXT fp_vkSetDebugUtilsObjectNameEXT_instance = nullptr;
 
 public:
     struct Colour
@@ -157,19 +158,57 @@ public:
 #endif
     }
 
-    void SetObjectName(uint64_t object, VkObjectType objectType, const std::string& name)
-    {
+    template <typename T>
+    void SetObjectName(T vkObject, VkObjectType objectType, const std::string& name)
+	{
 #if defined(VK_EXT_debug_utils)
-        if (fp_vkSetDebugUtilsObjectNameEXT)
-        {
-            VkDebugUtilsObjectNameInfoEXT nameInfo = {};
-            nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-            nameInfo.objectType = objectType;
-            nameInfo.objectHandle = object;
-            nameInfo.pObjectName = name.c_str();
-            setDebugUtilsObjectNameEXT(&nameInfo);
-        }
+		if (fp_vkSetDebugUtilsObjectNameEXT)
+		{
+			VkDebugUtilsObjectNameInfoEXT nameInfo = {};
+			nameInfo.sType                         = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+			nameInfo.objectType                    = objectType;
+			nameInfo.objectHandle                  = (uint64_t)vkObject;
+			nameInfo.pObjectName                   = name.c_str();
+
+			VkResult result = fp_vkSetDebugUtilsObjectNameEXT(m_device, &nameInfo);
+			if (result != VK_SUCCESS)
+			{
+				// Handle error, perhaps log it
+				// For example: spdlog::error("Failed to set debug name for instance. Error: {}", result);
+			}
+		}
 #endif
+	}
+
+	// Helper function to get the correct object type for common Vulkan handles
+	template <typename T>
+    VkObjectType GetObjectType()
+	{
+		if constexpr (std::is_same_v<T, VkInstance>)
+			return VK_OBJECT_TYPE_INSTANCE;
+		else if constexpr (std::is_same_v<T, VkPhysicalDevice>)
+			return VK_OBJECT_TYPE_PHYSICAL_DEVICE;
+		else if constexpr (std::is_same_v<T, VkDevice>)
+			return VK_OBJECT_TYPE_DEVICE;
+		else if constexpr (std::is_same_v<T, VkQueue>)
+			return VK_OBJECT_TYPE_QUEUE;
+		else if constexpr (std::is_same_v<T, VkCommandBuffer>)
+			return VK_OBJECT_TYPE_COMMAND_BUFFER;
+		else if constexpr (std::is_same_v<T, VkBuffer>)
+			return VK_OBJECT_TYPE_BUFFER;
+		else if constexpr (std::is_same_v<T, VkImage>)
+			return VK_OBJECT_TYPE_IMAGE;
+        else if constexpr (std::is_same_v<T, VkImageView>)
+            return VK_OBJECT_TYPE_IMAGE_VIEW;
+		else
+			return VK_OBJECT_TYPE_UNKNOWN;
+	}
+
+	// Convenience function to set object name with automatic type deduction
+	template <typename T>
+    void SetObjectName(T object, const std::string& name) 
+    {
+        SetObjectName(object, GetObjectType<T>(), name); 
     }
 
     void SetObjectTag(uint64_t object, VkObjectType objectType, uint64_t tagName, size_t tagSize, const void* tagData)

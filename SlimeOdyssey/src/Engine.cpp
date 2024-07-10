@@ -276,9 +276,7 @@ int Engine::DeviceInit()
 
 	m_debugUtils = VulkanDebugUtils(m_instance, m_device);
 
-	m_debugUtils.SetObjectName(m_device.device, VK_OBJECT_TYPE_DEVICE, "MainDevice");
-	m_debugUtils.SetObjectName(data.graphicsQueue, VK_OBJECT_TYPE_QUEUE, "GraphicsQueue");
-	m_debugUtils.SetObjectName(data.presentQueue, VK_OBJECT_TYPE_QUEUE, "PresentQueue");
+	m_debugUtils.SetObjectName(m_device.device, "MainDevice");
 
 	return 0;
 }
@@ -320,13 +318,16 @@ int Engine::CreateSwapchain()
 
 	for (size_t i = 0; i < data.swapchainImages.size(); i++)
 	{
-		m_debugUtils.SetObjectName(data.swapchainImages[i], VK_OBJECT_TYPE_IMAGE, "SwapchainImage_" + std::to_string(i));
-		m_debugUtils.SetObjectName(data.swapchainImageViews[i], VK_OBJECT_TYPE_IMAGE_VIEW, "SwapchainImageView_" + std::to_string(i));
+		m_debugUtils.SetObjectName(data.swapchainImages[i], "SwapchainImage_" + std::to_string(i));
+		m_debugUtils.SetObjectName(data.swapchainImageViews[i], "SwapchainImageView_" + std::to_string(i));
 	}
 
 	// Clean up old depth image and image view
-	vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
-	m_disp.destroyImageView(data.depthImageView, nullptr);
+	if (data.depthImage)
+	{
+		vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
+		m_disp.destroyImageView(data.depthImageView, nullptr);
+	}
 
 	// Create the depth image
 	VkFormat depthFormat             = VK_FORMAT_D32_SFLOAT;
@@ -384,6 +385,9 @@ int Engine::GetQueues()
 		return -1;
 	}
 	data.presentQueue = pq.value();
+
+	m_debugUtils.SetObjectName(data.graphicsQueue, "GraphicsQueue");
+	m_debugUtils.SetObjectName(data.presentQueue, "PresentQueue");
 	return 0;
 }
 

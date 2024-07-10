@@ -30,19 +30,19 @@ public:
 
 	struct RenderData
 	{
-		VkQueue graphicsQueue;
-		VkQueue presentQueue;
+		VkQueue graphicsQueue = VK_NULL_HANDLE;
+		VkQueue presentQueue = VK_NULL_HANDLE;
 
 		std::vector<VkImage> swapchainImages;
 		std::vector<VkImageView> swapchainImageViews;
 
 		VmaAllocation depthImageAllocation;
-		VkImage depthImage;
-		VkImageView depthImageView;
+		VkImage depthImage = VK_NULL_HANDLE;
+		VkImageView depthImageView = VK_NULL_HANDLE;
 
 		std::map<std::string, std::unique_ptr<PipelineGenerator>> pipelines;
 
-		VkCommandPool commandPool;
+		VkCommandPool commandPool = VK_NULL_HANDLE;
 		std::vector<VkCommandBuffer> renderCommandBuffers;
 
 		std::vector<VkSemaphore> availableSemaphores;
