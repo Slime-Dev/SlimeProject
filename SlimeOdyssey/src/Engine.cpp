@@ -276,6 +276,10 @@ int Engine::DeviceInit()
 
 	m_debugUtils = VulkanDebugUtils(m_instance, m_device);
 
+	m_debugUtils.SetObjectName(m_device.device, VK_OBJECT_TYPE_DEVICE, "MainDevice");
+	m_debugUtils.SetObjectName(data.graphicsQueue, VK_OBJECT_TYPE_QUEUE, "GraphicsQueue");
+	m_debugUtils.SetObjectName(data.presentQueue, VK_OBJECT_TYPE_QUEUE, "PresentQueue");
+
 	return 0;
 }
 
@@ -313,6 +317,12 @@ int Engine::CreateSwapchain()
 
 	data.swapchainImages     = m_swapchain.get_images().value();
 	data.swapchainImageViews = m_swapchain.get_image_views().value();
+
+	for (size_t i = 0; i < data.swapchainImages.size(); i++)
+	{
+		m_debugUtils.SetObjectName(data.swapchainImages[i], VK_OBJECT_TYPE_IMAGE, "SwapchainImage_" + std::to_string(i));
+		m_debugUtils.SetObjectName(data.swapchainImageViews[i], VK_OBJECT_TYPE_IMAGE_VIEW, "SwapchainImageView_" + std::to_string(i));
+	}
 
 	// Clean up old depth image and image view
 	vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
@@ -674,11 +684,13 @@ int Engine::RenderFrame()
 
 	m_disp.resetFences(1, &data.inFlightFences[data.currentFrame]);
 
+	m_debugUtils.BeginQueueDebugMarker(data.graphicsQueue, "FrameSubmission", { 0.0f, 0.5f, 1.0f, 1.0f });
 	if (m_disp.queueSubmit(data.graphicsQueue, 1, &submit_info, data.inFlightFences[data.currentFrame]) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to submit draw command buffer!");
 		return -1;
 	}
+	m_debugUtils.EndQueueDebugMarker(data.graphicsQueue);
 
 	VkPresentInfoKHR present_info   = {};
 	present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
