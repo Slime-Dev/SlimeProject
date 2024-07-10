@@ -330,7 +330,7 @@ int Engine::CreateSwapchain()
 	}
 
 	// Create the depth image
-	VkFormat depthFormat             = VK_FORMAT_D32_SFLOAT;
+	VkFormat depthFormat             = VK_FORMAT_D32_SFLOAT; // Or VK_FORMAT_D32_SFLOAT_S8_UINT if you need stencil
 	VkImageCreateInfo depthImageInfo = {};
 	depthImageInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	depthImageInfo.imageType         = VK_IMAGE_TYPE_2D;
@@ -342,14 +342,18 @@ int Engine::CreateSwapchain()
 	depthImageInfo.format            = depthFormat;
 	depthImageInfo.tiling            = VK_IMAGE_TILING_OPTIMAL;
 	depthImageInfo.initialLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
-	depthImageInfo.usage             = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	depthImageInfo.usage             = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	depthImageInfo.samples           = VK_SAMPLE_COUNT_1_BIT;
 	depthImageInfo.sharingMode       = VK_SHARING_MODE_EXCLUSIVE;
 
 	VmaAllocationCreateInfo depthAllocInfo = {};
 	depthAllocInfo.usage                   = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &data.depthImage, &data.depthImageAllocation, nullptr);
+	VkResult result = vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &data.depthImage, &data.depthImageAllocation, nullptr);
+	if (result != VK_SUCCESS)
+	{
+		spdlog::error("Failed to create depth image!");
+	}
 
 	// Create the depth image view
 	VkImageViewCreateInfo depthImageViewInfo           = {};
@@ -363,7 +367,11 @@ int Engine::CreateSwapchain()
 	depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
 	depthImageViewInfo.subresourceRange.layerCount     = 1;
 
-	m_disp.createImageView(&depthImageViewInfo, nullptr, &data.depthImageView);
+	result = m_disp.createImageView(&depthImageViewInfo, nullptr, &data.depthImageView);
+	if (result != VK_SUCCESS)
+	{
+		spdlog::error("Failed to create depth image View!");
+	}
 
 	return 0;
 }
@@ -495,73 +503,71 @@ void Engine::SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd)
 {
 	m_disp.cmdSetDepthTestEnable(cmd, VK_TRUE);
 	m_disp.cmdSetDepthWriteEnable(cmd, VK_TRUE);
-	m_disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS);
+	m_disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
 	m_disp.cmdSetLineWidth(cmd, 10.0f);
 }
 
 void Engine::DrawModels(VkCommandBuffer& cmd)
 {
-	m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
+    m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
+    
+    m_debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
+    CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
+    m_debugUtils.EndDebugMarker(cmd);
+    
+    VkDescriptorSet boundDescriptorSet = VK_NULL_HANDLE;
+    
+    for (const auto& [name, model] : m_modelManager)
+    {
+        if (!model.isActive)
+            continue;
+        
+        m_debugUtils.BeginDebugMarker(cmd, ("Process Model: " + name).c_str(), debugUtil_StartDrawColour);
+        
+        std::string pipelineName = model.pipeLineName;
+        auto pipelineIt = data.pipelines.find(pipelineName);
+        if (pipelineIt == data.pipelines.end())
+        {
+            spdlog::error("Pipeline not found: {}", pipelineName);
+            m_debugUtils.EndDebugMarker(cmd);
+            continue;
+        }
+        
+        PipelineGenerator* pipeline = pipelineIt->second.get();
+        
+        m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipeline());
+		m_debugUtils.InsertDebugMarker(cmd, "Bind Pipeline", debugUtil_White);
 
-	// Update light buffer once
-	m_debugUtils.InsertDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
-	CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
+        auto descSets = pipeline->GetDescriptorSets();
+        if (descSets.empty() || descSets[0] == VK_NULL_HANDLE)
+        {
+            spdlog::error("Invalid descriptor set for pipeline: {}", pipelineName);
+            m_debugUtils.EndDebugMarker(cmd);
+            continue;
+        }
+        
+        if (descSets[0] != boundDescriptorSet)
+        {
+            boundDescriptorSet = descSets[0];
+            m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipelineLayout(), 0, 1, descSets.data(), 0, nullptr);
+            m_descriptorManager.BindBuffer(descSets[0], 0, m_lights.at(0).buffer, 0, sizeof(Light));
+			m_debugUtils.InsertDebugMarker(cmd, "Bind Descriptor Set", debugUtil_White);
+        }
+        
+        m_mvp.view = m_camera.getViewMatrix();
+        m_mvp.proj = m_camera.getProjectionMatrix();
+        m_mvp.model = model.model;
+        m_disp.cmdPushConstants(cmd, pipeline->GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
+		m_debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 
-	// Store the currently bound descriptor set
-	VkDescriptorSet boundDescriptorSet = VK_NULL_HANDLE;
+		m_debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
+        m_modelManager.DrawModel(cmd, model);
+		m_debugUtils.EndDebugMarker(cmd); // End "Draw Model"
 
-	for (const auto& [name, model] : m_modelManager)
-	{
-		if (!model.isActive)
-			continue;
-
-		std::string pipelineName = model.pipeLineName;
-		auto pipelineIt          = data.pipelines.find(pipelineName);
-
-		if (pipelineIt == data.pipelines.end())
-		{
-			spdlog::error("Pipeline not found: {}", pipelineName);
-			continue;
-		}
-
-		m_debugUtils.BeginDebugMarker(cmd, ("Draw Model: " + name).c_str(), debugUtil_StartDrawColour);
-
-		PipelineGenerator* pipeline = pipelineIt->second.get();
-		m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipeline());
-
-		auto descSets = pipeline->GetDescriptorSets();
-		if (descSets.empty() || descSets[0] == VK_NULL_HANDLE)
-		{
-			spdlog::error("Invalid descriptor set for pipeline: {}", pipelineName);
-			m_debugUtils.EndDebugMarker(cmd);
-			continue;
-		}
-
-		// Bind descriptor set
-		if (descSets[0] != boundDescriptorSet)
-		{
-			boundDescriptorSet = descSets[0];
-			m_debugUtils.InsertDebugMarker(cmd, "Bind Descriptor Set", debugUtil_BindDescriptorSetColour);
-			m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipelineLayout(), 0, 1, descSets.data(), 0, nullptr);
-
-			// Bind light buffer only when descriptor set changes
-			m_descriptorManager.BindBuffer(descSets[0], 0, m_lights.at(0).buffer, 0, sizeof(Light));
-		}
-
-		// Push Constants
-		m_mvp.view  = m_camera.getViewMatrix();
-		m_mvp.proj  = m_camera.getProjectionMatrix();
-		m_mvp.model = model.model;
-
-		m_debugUtils.InsertDebugMarker(cmd, "Push Constant MVP", debugUtil_PushConstantsColour);
-		m_disp.cmdPushConstants(cmd, pipeline->GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
-
-		m_modelManager.DrawModel(cmd, model);
-
-		m_debugUtils.EndDebugMarker(cmd);
-	}
-
-	m_debugUtils.EndDebugMarker(cmd);
+        m_debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"
+    }
+    
+    m_debugUtils.EndDebugMarker(cmd); // End "Draw Models"
 }
 
 int Engine::BeginCommandBuffer(VkCommandBuffer& cmd)
@@ -609,13 +615,13 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	colorAttachmentInfo.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachmentInfo.clearValue                = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
 
-	VkRenderingAttachmentInfo depthAttachmentInfo = {};
-	depthAttachmentInfo.sType                     = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachmentInfo.imageView                 = data.depthImageView;
-	depthAttachmentInfo.imageLayout               = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depthAttachmentInfo.loadOp                    = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachmentInfo.storeOp                   = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue                = { .depthStencil = { 0.0f, 0 } }; // Clear to 0 for reverse depth
+	VkRenderingAttachmentInfo depthAttachmentInfo     = {};
+	depthAttachmentInfo.sType                         = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachmentInfo.imageView                     = data.depthImageView;
+	depthAttachmentInfo.imageLayout                   = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachmentInfo.loadOp                        = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachmentInfo.storeOp                       = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
 
 	VkRenderingInfo renderingInfo      = {};
 	renderingInfo.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -623,7 +629,7 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	renderingInfo.layerCount           = 1;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachments    = &colorAttachmentInfo;
-	//renderingInfo.pDepthAttachment     = &depthAttachmentInfo;
+	renderingInfo.pDepthAttachment     = &depthAttachmentInfo;
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
@@ -688,7 +694,7 @@ int Engine::RenderFrame()
 
 	m_disp.resetFences(1, &data.inFlightFences[data.currentFrame]);
 
-	m_debugUtils.BeginQueueDebugMarker(data.graphicsQueue, "FrameSubmission", { 0.0f, 0.5f, 1.0f, 1.0f });
+	m_debugUtils.BeginQueueDebugMarker(data.graphicsQueue, "FrameSubmission", debugUtil_FrameSubmission);
 	if (m_disp.queueSubmit(data.graphicsQueue, 1, &submit_info, data.inFlightFences[data.currentFrame]) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to submit draw command buffer!");

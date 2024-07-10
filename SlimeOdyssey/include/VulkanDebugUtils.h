@@ -267,9 +267,10 @@ public:
     }
 };
 
+constexpr VulkanDebugUtils::Colour debugUtil_White = { 1.0f, 1.0f, 1.0f, 1.0f }; // White
 constexpr VulkanDebugUtils::Colour debugUtil_BeginColour = { 1.0f, 0.94f, 0.7f, 1.0f }; // Pastel Yellow
 constexpr VulkanDebugUtils::Colour debugUtil_StartDrawColour = { 0.7f, 0.9f, 0.7f, 1.0f }; // Pastel Green
 constexpr VulkanDebugUtils::Colour debugUtil_BindDescriptorSetColour = { 0.7f, 0.8f, 1.0f, 1.0f }; // Pastel Blue
 constexpr VulkanDebugUtils::Colour debugUtil_UpdateLightBufferColour = { 0.7f, 0.8f, 1.0f, 1.0f }; // Pastel Blue
-constexpr VulkanDebugUtils::Colour debugUtil_PushConstantsColour = { 1.0f, 0.8f, 0.7f, 1.0f }; // Pastel Orange
+constexpr VulkanDebugUtils::Colour debugUtil_FrameSubmission = { 1.0f, 0.8f, 0.7f, 1.0f }; // Pastel Orange
 constexpr VulkanDebugUtils::Colour debugUtil_DrawModelColour = { 0.9f, 0.9f, 0.9f, 1.0f }; // Very Light Gray

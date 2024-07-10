@@ -543,11 +543,9 @@ int ModelManager::DrawModel(VkCommandBuffer& cmd, const std::string& name)
 
 int ModelManager::DrawModel(VkCommandBuffer& cmd, const ModelResource& model)
 {
-	m_engine->GetDebugUtils().BeginDebugMarker(cmd, "Draw Mesh", debugUtil_DrawModelColour);
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(cmd, 0, 1, &model.vertexBuffer, offsets);
 	vkCmdBindIndexBuffer(cmd, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
-	m_engine->GetDebugUtils().EndDebugMarker(cmd);
 	return 0;
 }
