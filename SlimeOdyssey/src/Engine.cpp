@@ -64,6 +64,13 @@ int Engine::CreateEngine()
 {
 	if (DeviceInit() != 0)
 		return -1;
+
+	if (m_gpuFree)
+	{
+		SetupManagers();
+		return 0;
+	}
+
 	if (CreateCommandPool() != 0)
 		return -1;
 	if (GetQueues() != 0)
@@ -84,6 +91,12 @@ int Engine::SetupManagers()
 {
 	m_shaderManager = ShaderManager(m_device); // TODO Fins a better place to set this up maybe a setup managers func
 	m_modelManager = ModelManager(this, m_device, m_allocator, m_pathManager);
+
+	if (m_gpuFree)
+	{
+		return 0;
+	}
+
 	m_descriptorManager = DescriptorManager(m_device);
 
 	// TODO move lights outta here
@@ -253,6 +266,11 @@ int Engine::DeviceInit()
 		}
 
 		throw std::runtime_error("Failed to create window surface");
+	}
+
+	if (m_gpuFree)
+	{
+		return 0;
 	}
 
 	// Select physical device //
@@ -705,6 +723,11 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 
 int Engine::RenderFrame()
 {
+	if (m_gpuFree)
+	{
+		return 0;
+	}
+
 	// Wait for the frame to be finished
 	if (m_disp.waitForFences(1, &data.inFlightFences[data.currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
 	{
@@ -821,6 +844,14 @@ int Engine::InitSyncObjects()
 int Engine::Cleanup()
 {
 	spdlog::info("Cleaning up...");
+
+	if (m_gpuFree)
+	{
+		vkb::destroy_surface(m_instance, m_surface);
+		vkb::destroy_instance(m_instance);
+		return 0;
+	}
+
 	vkDeviceWaitIdle(m_device);
 
 	// Destroy synchronization objects
@@ -887,6 +918,13 @@ int Engine::Cleanup()
 	vkb::destroy_instance(m_instance);
 
 	return 0;
+}
+
+// SETTERS //
+
+void Engine::SetGPUFree(bool free)
+{
+	m_gpuFree = free;
 }
 
 // GETTERS //
@@ -959,4 +997,9 @@ VkCommandPool Engine::GetCommandPool() const
 VmaAllocator Engine::GetAllocator() const
 {
 	return m_allocator;
+}
+
+bool Engine::GetGPUFree() const
+{
+	return m_gpuFree;
 }

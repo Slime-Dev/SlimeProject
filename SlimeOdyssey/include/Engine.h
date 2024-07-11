@@ -34,6 +34,9 @@ public:
 	int RenderFrame();
 	int Cleanup();
 
+	// Setters
+	void SetGPUFree(bool free);
+
 	// Getters
 	SlimeWindow* GetWindow();
 	ShaderManager& GetShaderManager();
@@ -49,6 +52,7 @@ public:
 	VkQueue GetPresentQueue() const;
 	VkCommandPool GetCommandPool() const;
 	VmaAllocator GetAllocator() const;
+	bool GetGPUFree() const;
 
 	// Helper methods
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
@@ -117,6 +121,7 @@ private:
 	Camera m_camera;
 	const uint8_t MAX_LIGHTS = 1;
 	std::vector<LightObject> m_lights;
+	bool m_gpuFree = false;
 
 	// Vulkan core
 	vkb::Instance m_instance;

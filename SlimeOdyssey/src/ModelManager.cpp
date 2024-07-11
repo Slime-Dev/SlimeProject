@@ -307,7 +307,11 @@ ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, co
 
 	CalculateTangentsAndBitangents(model);
 
-	CreateBuffers(model);
+	if (!m_engine->GetGPUFree())
+	{
+		CreateBuffers(model);
+	}
+
 	model.pipeLineName = pipelineName;
 
 	m_models[name] = std::move(model);
@@ -412,6 +416,11 @@ void ModelManager::UnloadResource(const std::string& name)
 
 void ModelManager::UnloadAllResources()
 {
+	if (m_engine->GetGPUFree())
+	{
+		return;
+	}
+
 	for (const auto& model: m_models)
 	{
 		vmaDestroyBuffer(m_allocator, model.second.vertexBuffer, model.second.vertexAllocation);

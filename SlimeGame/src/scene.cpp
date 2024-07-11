@@ -16,28 +16,6 @@ int Scene::Setup()
 	ResourcePathManager resourcePaths;
 	spdlog::info("Root directory: {}", resourcePaths.GetRootDirectory());
 
-	// Load and parse shaders
-	ShaderManager& shaderManager = m_engine.GetShaderManager();
-	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
-	std::string fragShaderPath = resourcePaths.GetShaderPath("basic.frag.spv");
-
-	auto vertexShaderModule = shaderManager.LoadShader(vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
-	auto fragmentShaderModule = shaderManager.LoadShader(fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
-	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
-	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
-	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
-
-	// Set up descriptor set layout
-	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(combinedResources);
-
-	PipelineGenerator pipelineGenerator(m_engine);
-	pipelineGenerator.SetName("Basic");
-	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
-	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
-	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
-	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
-	pipelineGenerator.Generate();
-
 	// MODEL LOADING
 	ModelManager& modelManager = m_engine.GetModelManager();
 	m_bunny = modelManager.LoadModel("stanford-bunny.obj", "basic");
@@ -52,23 +30,47 @@ int Scene::Setup()
 	m_suzanne = modelManager.LoadModel("suzanne.obj", "basic");
 	m_suzanne->model = glm::translate(m_cube->model, glm::vec3(0.0f, 0.0f, -5.0f));
 
-	// Descriptor set layout
-	DescriptorManager& descriptorManager = m_engine.GetDescriptorManager();
-	m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts);
+	// Load and parse shaders
+	ShaderManager& shaderManager = m_engine.GetShaderManager();
+	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
+	std::string fragShaderPath = resourcePaths.GetShaderPath("basic.frag.spv");
 
-	std::vector<VkDescriptorSet> descriptorSets;
-	for (int i = descriptorSetLayouts.size() - 1; i >= 0; i--)
+	if (!m_engine.GetGPUFree())
 	{
-		descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
+		auto vertexShaderModule = shaderManager.LoadShader(vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+		auto fragmentShaderModule = shaderManager.LoadShader(fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+		auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
+		auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
+		auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+
+		// Set up descriptor set layout
+		auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(combinedResources);
+
+		PipelineGenerator pipelineGenerator(m_engine);
+		pipelineGenerator.SetName("Basic");
+		pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
+		pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+		pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
+		pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+		pipelineGenerator.Generate();
+
+		// Descriptor set layout
+		DescriptorManager& descriptorManager = m_engine.GetDescriptorManager();
+		m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts);
+
+		std::vector<VkDescriptorSet> descriptorSets;
+		for (int i = descriptorSetLayouts.size() - 1; i >= 0; i--)
+		{
+			descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
+		}
+
+		// Sort the descriptor sets in the order of the layout
+		std::reverse(descriptorSets.begin(), descriptorSets.end());
+
+		pipelineGenerator.SetDescriptorSets(descriptorSets);
+
+		m_engine.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
 	}
-
-	// Sort the descriptor sets in the order of the layout
-	std::reverse(descriptorSets.begin(), descriptorSets.end());
-
-	pipelineGenerator.SetDescriptorSets(descriptorSets);
-
-	m_engine.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
-
 	return 0;
 }
 
