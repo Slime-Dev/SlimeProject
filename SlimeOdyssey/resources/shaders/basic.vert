@@ -1,3 +1,4 @@
+// Vertex Shader
 #version 450
 
 layout(location = 0) in vec3 aPosition;
@@ -10,6 +11,7 @@ layout(location = 1) out vec3 vPosition;
 layout(location = 2) out vec2 vTexCoord;
 layout(location = 3) out vec3 vTangent;
 layout(location = 4) out vec3 vBitangent;
+layout(location = 5) out vec3 vViewPosition;
 
 layout(push_constant) uniform PushConstants {
 	mat4 model;
@@ -18,11 +20,14 @@ layout(push_constant) uniform PushConstants {
 } ubo;
 
 void main() {
-	vNormal = mat3(ubo.model) * aNormal;
+	vNormal = normalize(mat3(ubo.model) * aNormal);
 	vPosition = vec3(ubo.model * vec4(aPosition, 1.0));
 	vTexCoord = aTexCoord;
-	vTangent = mat3(ubo.model) * aTangent;
-	vBitangent = cross(vNormal, vTangent);
+	vTangent = normalize(mat3(ubo.model) * aTangent);
+	vBitangent = normalize(cross(vNormal, vTangent));
 
-	gl_Position = ubo.proj * ubo.view * ubo.model * vec4(aPosition, 1.0);
+	vec4 viewPosition = ubo.view * ubo.model * vec4(aPosition, 1.0);
+	vViewPosition = -viewPosition.xyz;
+
+	gl_Position = ubo.proj * viewPosition;
 }

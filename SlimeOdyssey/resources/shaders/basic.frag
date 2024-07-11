@@ -6,6 +6,7 @@ layout(location = 1) in vec3 vPosition;
 layout(location = 2) in vec2 vTexCoord;
 layout(location = 3) in vec3 vTangent;
 layout(location = 4) in vec3 vBitangent;
+layout(location = 5) in vec3 vViewPosition;
 
 layout(location = 0) out vec4 FragColor;
 
@@ -20,7 +21,7 @@ layout(scalar, binding = 0) uniform LightBlock {
 } Light;
 
 // Material properties
-const vec3 diffuseColor = vec3(0.8, 0.5, 0.31);
+const vec3 diffuseColor = vec3(1, 1, 1);
 float specularIntensity = 0.5;
 
 // Calculate the lighting

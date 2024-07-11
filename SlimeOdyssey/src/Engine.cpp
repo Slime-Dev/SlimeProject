@@ -74,7 +74,7 @@ int Engine::SetupManagers()
 		light.viewPos          = glm::vec3(0.0f, 0.0f, 3.0f);
 		light.ambientStrength  = 0.1f;
 		light.specularStrength = 0.5f;
-		light.shininess        = 10.0f;
+		light.shininess        = 1.0f;
 
 		// Create buffer for light
 		CreateBuffer(sizeof(Light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, lightObject.buffer, lightObject.allocation);
@@ -512,6 +512,27 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
     m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
     
     m_debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
+
+	// Light movement
+	float time = glfwGetTime();
+	float radius = 5.0f;
+	float height = 3.0f + 2.0f * sin(time * 0.5f);
+	m_lights.at(0).light.lightPos = glm::vec3(
+		radius * cos(time * 0.7f),
+		height,
+		radius * sin(time * 0.7f)
+	);
+
+	// Light color
+	glm::vec3 baseColor = glm::vec3(1.0f, 0.8f, 0.6f); // Warm, slightly orange light
+	float colorPulse = 0.2f * sin(time * 2.0f) + 0.8f; // Pulsing effect
+	glm::vec3 tintColor = glm::vec3(
+		0.5f + 0.5f * sin(time * 0.3f),
+		0.5f + 0.5f * sin(time * 0.5f),
+		0.5f + 0.5f * sin(time * 0.7f)
+	);
+	m_lights.at(0).light.lightColor = glm::mix(baseColor, tintColor, 0.3f) * colorPulse;
+
     CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
     m_debugUtils.EndDebugMarker(cmd);
     
