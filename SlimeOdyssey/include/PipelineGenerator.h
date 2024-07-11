@@ -11,11 +11,22 @@
 #include <vector>
 #include "ShaderManager.h"
 
+class Engine;
+
+struct PipelineContainer {
+	std::string name;
+	VkPipelineLayout pipelineLayout;
+	VkPipeline pipeline;
+	std::vector<VkDescriptorSet> descriptorSets;
+};
+
 class PipelineGenerator {
 public:
-    PipelineGenerator(VkDevice device);
+    explicit PipelineGenerator(Engine& engine);
 
     ~PipelineGenerator();
+
+	void SetName(const std::string& name) { m_pipelineContainer.name = name; }
 
     void SetShaderModules(const ShaderModule &vertexShader, const ShaderModule &fragmentShader);
 
@@ -30,19 +41,20 @@ public:
 
 	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
 
-    [[nodiscard]] VkPipeline GetPipeline() const { return m_graphicsPipeline; }
-    [[nodiscard]] VkPipelineLayout GetPipelineLayout() const { return m_pipelineLayout; }
-	[[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_descriptorSets; }
+    [[nodiscard]] VkPipeline GetPipeline() const { return m_pipelineContainer.pipeline; }
+    [[nodiscard]] VkPipelineLayout GetPipelineLayout() const { return m_pipelineContainer.pipelineLayout; }
+	[[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_pipelineContainer.descriptorSets; }
+	[[nodiscard]] PipelineContainer GetPipelineContainer() const { return m_pipelineContainer;}
 
 private:
     VkDevice m_device;
+	Engine& m_engine;
     ShaderModule m_vertexShader;
     ShaderModule m_fragmentShader;
 
     std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
     std::vector<VkVertexInputBindingDescription> m_vertexInputBindingDescriptions;
     std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
-    std::vector<VkDescriptorSet> m_descriptorSets;
     std::vector<VkPushConstantRange> m_pushConstantRanges;
 
     VkPipelineShaderStageCreateInfo m_vertexShaderStageInfo{};
@@ -56,12 +68,8 @@ private:
     VkPipelineColorBlendStateCreateInfo m_colorBlending{};
     VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
 
-    VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
-    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+	PipelineContainer m_pipelineContainer;
 
     void CreatePipelineLayout();
-
     void CreatePipeline();
-
-    void Cleanup();
 };

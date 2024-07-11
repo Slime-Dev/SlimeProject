@@ -10,7 +10,7 @@ public:
 	~Scene() = default;
 
 	int Setup();
-	void Update(float dt, InputManager* inputManager);
+	void Update(float dt, const InputManager* inputManager);
 	void Render();
 
 private:
@@ -18,7 +18,7 @@ private:
 	Camera& m_camera;
 	SlimeWindow* m_window = nullptr;
 
-	std::unique_ptr<PipelineGenerator> m_pipelineGenerator;
+	PipelineContainer* m_pipeline = nullptr;
 	size_t m_descriptorSetLayoutIndex;
 	VkDescriptorSet m_descriptorSet;
 

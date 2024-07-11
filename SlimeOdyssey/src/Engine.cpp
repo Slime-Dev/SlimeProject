@@ -9,6 +9,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <GLFW/glfw3.h>
 
+#include <cmath>
 #include <string>
 
 #define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
@@ -509,86 +510,92 @@ void Engine::SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd)
 
 void Engine::DrawModels(VkCommandBuffer& cmd)
 {
-    m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
-    
-    m_debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
+	m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
+
+	m_debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
 
 	// Light movement
-	float time = glfwGetTime();
-	float radius = 5.0f;
-	float height = 3.0f + 2.0f * sin(time * 0.5f);
+	float time                    = glfwGetTime();
+	float radius                  = 5.0f;
+	float height                  = 3.0f + 2.0f * std::sin(time * 0.5f);
 	m_lights.at(0).light.lightPos = glm::vec3(
-		radius * cos(time * 0.7f),
+		radius * std::cos(time * 0.7f),
 		height,
-		radius * sin(time * 0.7f)
-	);
+		radius * std::sin(time * 0.7f)
+		);
 
 	// Light color
-	glm::vec3 baseColor = glm::vec3(1.0f, 0.8f, 0.6f); // Warm, slightly orange light
-	float colorPulse = 0.2f * sin(time * 2.0f) + 0.8f; // Pulsing effect
+	glm::vec3 baseColor = glm::vec3(1.0f, 0.8f, 0.6f);         // Warm, slightly orange light
+	float colorPulse    = 0.2f * std::sin(time * 2.0f) + 0.8f; // Pulsing effect
 	glm::vec3 tintColor = glm::vec3(
-		0.5f + 0.5f * sin(time * 0.3f),
-		0.5f + 0.5f * sin(time * 0.5f),
-		0.5f + 0.5f * sin(time * 0.7f)
-	);
+		0.5f + 0.5f * std::sin(time * 0.3f),
+		0.5f + 0.5f * std::sin(time * 0.5f),
+		0.5f + 0.5f * std::sin(time * 0.7f)
+		);
 	m_lights.at(0).light.lightColor = glm::mix(baseColor, tintColor, 0.3f) * colorPulse;
 
-    CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
-    m_debugUtils.EndDebugMarker(cmd);
-    
-    VkDescriptorSet boundDescriptorSet = VK_NULL_HANDLE;
-    
-    for (const auto& [name, model] : m_modelManager)
-    {
-        if (!model.isActive)
-            continue;
-        
-        m_debugUtils.BeginDebugMarker(cmd, ("Process Model: " + name).c_str(), debugUtil_StartDrawColour);
-        
-        std::string pipelineName = model.pipeLineName;
-        auto pipelineIt = data.pipelines.find(pipelineName);
-        if (pipelineIt == data.pipelines.end())
-        {
-            spdlog::error("Pipeline not found: {}", pipelineName);
-            m_debugUtils.EndDebugMarker(cmd);
-            continue;
-        }
-        
-        PipelineGenerator* pipeline = pipelineIt->second.get();
-        
-        m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipeline());
-		m_debugUtils.InsertDebugMarker(cmd, "Bind Pipeline", debugUtil_White);
+	CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
+	m_debugUtils.EndDebugMarker(cmd);
 
-        auto descSets = pipeline->GetDescriptorSets();
-        if (descSets.empty() || descSets[0] == VK_NULL_HANDLE)
-        {
-            spdlog::error("Invalid descriptor set for pipeline: {}", pipelineName);
-            m_debugUtils.EndDebugMarker(cmd);
-            continue;
-        }
-        
-        if (descSets[0] != boundDescriptorSet)
-        {
-            boundDescriptorSet = descSets[0];
-            m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipelineLayout(), 0, 1, descSets.data(), 0, nullptr);
-            m_descriptorManager.BindBuffer(descSets[0], 0, m_lights.at(0).buffer, 0, sizeof(Light));
+	VkDescriptorSet boundDescriptorSet = VK_NULL_HANDLE;
+
+	std::string lastUsedPipeline;
+	PipelineContainer* pipelineContainer = nullptr;
+
+	for (const auto& [name, model] : m_modelManager)
+	{
+		if (!model.isActive)
+			continue;
+
+		m_debugUtils.BeginDebugMarker(cmd, ("Process Model: " + name).c_str(), debugUtil_StartDrawColour);
+
+		std::string pipelineName = model.pipeLineName;
+		if (pipelineName != lastUsedPipeline)
+		{
+			auto pipelineIt = data.pipelines.find(pipelineName);
+			if (pipelineIt == data.pipelines.end())
+			{
+				spdlog::error("Pipeline not found: {}", pipelineName);
+				m_debugUtils.EndDebugMarker(cmd);
+				continue;
+			}
+
+			pipelineContainer = &pipelineIt->second;
+
+			m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipeline);
+			m_debugUtils.InsertDebugMarker(cmd, "Bind Pipeline", debugUtil_White);
+		}
+
+		auto descSets = pipelineContainer->descriptorSets;
+		if (descSets.empty() || descSets[0] == VK_NULL_HANDLE)
+		{
+			spdlog::error("Invalid descriptor set for pipeline: {}", pipelineName);
+			m_debugUtils.EndDebugMarker(cmd);
+			continue;
+		}
+
+		if (descSets[0] != boundDescriptorSet)
+		{
+			boundDescriptorSet = descSets[0];
+			m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 1, descSets.data(), 0, nullptr);
+			m_descriptorManager.BindBuffer(descSets[0], 0, m_lights.at(0).buffer, 0, sizeof(Light));
 			m_debugUtils.InsertDebugMarker(cmd, "Bind Descriptor Set", debugUtil_White);
-        }
-        
-        m_mvp.view = m_camera.getViewMatrix();
-        m_mvp.proj = m_camera.getProjectionMatrix();
-        m_mvp.model = model.model;
-        m_disp.cmdPushConstants(cmd, pipeline->GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
+		}
+
+		m_mvp.view  = m_camera.getViewMatrix();
+		m_mvp.proj  = m_camera.getProjectionMatrix();
+		m_mvp.model = model.model;
+		m_disp.cmdPushConstants(cmd, pipelineContainer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
 		m_debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 
 		m_debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
-        m_modelManager.DrawModel(cmd, model);
+		m_modelManager.DrawModel(cmd, model);
 		m_debugUtils.EndDebugMarker(cmd); // End "Draw Model"
 
-        m_debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"
-    }
-    
-    m_debugUtils.EndDebugMarker(cmd); // End "Draw Models"
+		m_debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"
+	}
+
+	m_debugUtils.EndDebugMarker(cmd); // End "Draw Models"
 }
 
 int Engine::BeginCommandBuffer(VkCommandBuffer& cmd)
@@ -792,6 +799,13 @@ int Engine::Cleanup()
 		m_disp.destroySemaphore(data.availableSemaphores[i], nullptr);
 		m_disp.destroySemaphore(data.finishedSemaphore[i], nullptr);
 		m_disp.destroyFence(data.inFlightFences[i], nullptr);
+	}
+
+	// Destroy pipelines
+	for (auto& [name, pipeline] : data.pipelines)
+	{
+		m_disp.destroyPipeline(pipeline.pipeline, nullptr);
+		m_disp.destroyPipelineLayout(pipeline.pipelineLayout, nullptr);
 	}
 
 	for (auto& image_view : data.swapchainImageViews)

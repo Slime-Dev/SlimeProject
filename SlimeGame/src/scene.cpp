@@ -28,12 +28,13 @@ int Scene::Setup() {
     // Set up descriptor set layout
     auto descriptorSetLayout = shaderManager.CreateDescriptorSetLayout(combinedResources.descriptorSetLayoutBindings);
 
-    m_pipelineGenerator = std::make_unique<PipelineGenerator>(m_engine.GetDevice());
-    m_pipelineGenerator->SetShaderModules(vertexShaderModule, fragmentShaderModule);
-    m_pipelineGenerator->SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
-    m_pipelineGenerator->SetDescriptorSetLayouts({ descriptorSetLayout });
-    m_pipelineGenerator->SetPushConstantRanges(combinedResources.pushConstantRanges);
-    m_pipelineGenerator->Generate();
+	PipelineGenerator pipelineGenerator(m_engine);
+	pipelineGenerator.SetName("Basic");
+    pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
+    pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+    pipelineGenerator.SetDescriptorSetLayouts({ descriptorSetLayout });
+    pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+    pipelineGenerator.Generate();
 
     // MODEL LOADING
 	ModelManager& modelManager = m_engine.GetModelManager();
@@ -54,14 +55,14 @@ int Scene::Setup() {
     DescriptorManager& descriptorManager = m_engine.GetDescriptorManager();
     m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayout(descriptorSetLayout);
     m_descriptorSet = descriptorManager.AllocateDescriptorSet(m_descriptorSetLayoutIndex);
-    m_pipelineGenerator->SetDescriptorSets({ m_descriptorSet });
+    pipelineGenerator.SetDescriptorSets({ m_descriptorSet });
 
-    m_engine.GetPipelines()["basic"] = std::move(m_pipelineGenerator);
+    m_engine.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
 
     return 0;
 }
 
-void Scene::Update(float dt, InputManager* inputManager) {
+void Scene::Update(float dt, const InputManager* inputManager) {
 	m_time += dt;
 	//m_bunny->model = glm::rotate(m_bunny->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
 	m_cube->model = glm::rotate(m_cube->model, dt, glm::vec3(0.0f, -1.0f, 0.0f));
@@ -71,8 +72,8 @@ void Scene::Update(float dt, InputManager* inputManager) {
 	{
 		m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 		auto [mouseX, mouseY] = inputManager->GetMouseDelta();
-		float yaw = mouseX * 0.1f;
-		float pitch = (mouseY * 0.1f) * -1.0f;
+		float yaw             = 0.1f * mouseX;
+		float pitch           = (mouseY * 0.1f) * -1.0f;
 		m_camera.rotate(yaw, pitch);
 	}
 	else

@@ -1,6 +1,7 @@
 #include "SlimeWindow.h"
 
 #include "spdlog/spdlog.h"
+#include <numeric>
 
 SlimeWindow::SlimeWindow(const WindowProps& props) : m_Width(props.width), m_Height(props.height), m_Props(props)
 {
@@ -27,7 +28,7 @@ SlimeWindow::SlimeWindow(const WindowProps& props) : m_Width(props.width), m_Hei
 	glfwSetFramebufferSizeCallback(m_Window, framebufferResizeCallback);
 
 	m_LastFrameTime = std::chrono::steady_clock::now();
-	m_InputManager = InputManager(m_Window);
+	m_InputManager  = InputManager(m_Window);
 }
 
 SlimeWindow::~SlimeWindow()
@@ -44,14 +45,44 @@ bool SlimeWindow::ShouldClose() const
 	return glfwWindowShouldClose(m_Window) || m_closeNow;
 }
 
-float SlimeWindow::Update() {
+float SlimeWindow::Update()
+{
 	m_InputManager.Update();
 
 	glfwPollEvents();
 
 	auto currentTime = std::chrono::steady_clock::now();
-	float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - m_LastFrameTime).count();
-	m_LastFrameTime = currentTime;
+	float dt         = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - m_LastFrameTime).count();
+	m_LastFrameTime  = currentTime;
+
+	// FPS calculation and update
+	float fps = 1.0f / dt;
+	m_fpsHistory.push_back(fps);
+	if (m_fpsHistory.size() > m_maxFpsSamples)
+	{
+		m_fpsHistory.pop_front();
+	}
+
+	m_timeSinceLastFpsUpdate += dt;
+	if (m_timeSinceLastFpsUpdate >= m_fpsUpdateInterval)
+	{
+		m_timeSinceLastFpsUpdate = 0.0f;
+
+		float averageFps = std::accumulate(m_fpsHistory.begin(), m_fpsHistory.end(), 0.0f) / m_fpsHistory.size();
+
+		std::stringstream stream;
+		stream << std::fixed << std::setprecision(1) << averageFps << " FPS ";
+
+		// Add more detailed information
+		float minFps = *std::min_element(m_fpsHistory.begin(), m_fpsHistory.end());
+		float maxFps = *std::max_element(m_fpsHistory.begin(), m_fpsHistory.end());
+
+		stream << " | Min: " << std::fixed << std::setprecision(1) << minFps
+			<< " | Max: " << std::fixed << std::setprecision(1) << maxFps;
+
+		// Add to window title
+		SetTitle(stream.str());
+	}
 
 	return dt;
 }

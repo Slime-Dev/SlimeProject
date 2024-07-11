@@ -40,7 +40,7 @@ public:
 		VkImage depthImage = VK_NULL_HANDLE;
 		VkImageView depthImageView = VK_NULL_HANDLE;
 
-		std::map<std::string, std::unique_ptr<PipelineGenerator>> pipelines;
+		std::map<std::string, PipelineContainer> pipelines;
 
 		VkCommandPool commandPool = VK_NULL_HANDLE;
 		std::vector<VkCommandBuffer> renderCommandBuffers;
@@ -86,7 +86,7 @@ public:
 	Camera& GetCamera() { return m_camera; }
 	InputManager* GetInputManager() { return m_inputManager; }
 
-	std::map<std::string, std::unique_ptr<PipelineGenerator>>& GetPipelines() { return data.pipelines; }
+	std::map<std::string, PipelineContainer>& GetPipelines() { return data.pipelines; }
 	VkDevice GetDevice() const { return m_device.device; }
 	VkQueue GetGraphicsQueue() const { return data.graphicsQueue; }
 	VkQueue GetPresentQueue() const { return data.presentQueue; }

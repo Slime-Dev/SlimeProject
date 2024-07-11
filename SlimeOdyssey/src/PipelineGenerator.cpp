@@ -1,16 +1,17 @@
 #include "PipelineGenerator.h"
+
+#include "Engine.h"
 #include <fstream>
 #include <stdexcept>
 #include "spirv_glsl.hpp"
 #include "spdlog/spdlog.h"
 
-PipelineGenerator::PipelineGenerator(VkDevice device) : m_device(device)
+PipelineGenerator::PipelineGenerator(Engine& engine) : m_engine(engine), m_device(engine.GetDevice())
 {
 }
 
 PipelineGenerator::~PipelineGenerator()
 {
-	Cleanup();
 }
 
 void PipelineGenerator::SetShaderModules(const ShaderModule& vertexShader, const ShaderModule& fragmentShader)
@@ -44,7 +45,7 @@ void PipelineGenerator::Generate()
 
 void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets)
 {
-	m_descriptorSets = descriptorSets;
+	m_pipelineContainer.descriptorSets = descriptorSets;
 }
 
 void PipelineGenerator::CreatePipelineLayout()
@@ -57,16 +58,17 @@ void PipelineGenerator::CreatePipelineLayout()
 	pipelineLayoutInfo.pPushConstantRanges    = m_pushConstantRanges.data();
 
 	spdlog::info("Creating pipeline layout");
-	for (const auto& range : m_pushConstantRanges)
+	for (const auto& [stageFlags, offset, size] : m_pushConstantRanges)
 	{
-		spdlog::info("Push constant range: offset: {}, size: {}, stage flags: {}", range.offset, range.size,
-			(int)range.stageFlags);
+		spdlog::info("Push constant range: offset: {}, size: {}, stage flags: {}", offset, size, static_cast<int>(stageFlags));
 	}
 
-	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create pipeline layout!");
 	}
+
+	m_engine.GetDebugUtils().SetObjectName(m_pipelineContainer.pipelineLayout, (m_pipelineContainer.name + " Pipeline Layout"));
 }
 
 void PipelineGenerator::CreatePipeline()
@@ -170,30 +172,18 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.pMultisampleState   = &m_multisampling;
 	pipelineInfo.pColorBlendState    = &m_colorBlending;
 	pipelineInfo.pDynamicState       = &dynamicState;
-	pipelineInfo.layout              = m_pipelineLayout;
+	pipelineInfo.layout              = m_pipelineContainer.pipelineLayout;
 	pipelineInfo.renderPass          = VK_NULL_HANDLE;
 	pipelineInfo.subpass             = 0;
 	pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
 	pipelineInfo.pDepthStencilState  = &depthStencilStateCreateInfo;
 	pipelineInfo.pNext               = &pipelineRenderingCreateInfo;
 
-	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) !=
+	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline) !=
 	    VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
-}
 
-void PipelineGenerator::Cleanup()
-{
-	if (m_graphicsPipeline != VK_NULL_HANDLE)
-	{
-		vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-		m_graphicsPipeline = VK_NULL_HANDLE;
-	}
-	if (m_pipelineLayout != VK_NULL_HANDLE)
-	{
-		vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-		m_pipelineLayout = VK_NULL_HANDLE;
-	}
+	m_engine.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
 }
