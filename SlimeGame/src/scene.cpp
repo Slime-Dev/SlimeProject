@@ -83,7 +83,7 @@ void Scene::Update(float dt, const InputManager* inputManager) {
 		auto [mouseX, mouseY] = inputManager->GetMouseDelta();
 		float yaw             = 0.1f * mouseX;
 		float pitch           = (mouseY * 0.1f) * -1.0f;
-		m_camera.rotate(yaw, pitch);
+		m_camera.Rotate(yaw, pitch);
 	}
 	else
 	{
@@ -97,27 +97,27 @@ void Scene::Update(float dt, const InputManager* inputManager) {
 	}
 	if (inputManager->IsKeyPressed(GLFW_KEY_W))
 	{
-		m_camera.moveForward(dt * speed);
+		m_camera.MoveForward(dt * speed);
 	}
 	if (inputManager->IsKeyPressed(GLFW_KEY_S))
 	{
-		m_camera.moveForward(-(dt * speed));
+		m_camera.MoveForward(-(dt * speed));
 	}
 	if (inputManager->IsKeyPressed(GLFW_KEY_A))
 	{
-		m_camera.moveRight(-(dt * speed));
+		m_camera.MoveRight(-(dt * speed));
 	}
 	if (inputManager->IsKeyPressed(GLFW_KEY_D))
 	{
-		m_camera.moveRight(dt * speed);
+		m_camera.MoveRight(dt * speed);
 	}
 	if (inputManager->IsKeyPressed(GLFW_KEY_SPACE))
 	{
-		m_camera.moveUp(dt * speed);
+		m_camera.MoveUp(dt * speed);
 	}
 	if (inputManager->IsKeyPressed(GLFW_KEY_LEFT_CONTROL))
 	{
-		m_camera.moveUp(-(dt * speed));
+		m_camera.MoveUp(-(dt * speed));
 	}
 
 	// Escape key

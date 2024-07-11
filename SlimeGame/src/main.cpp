@@ -1,4 +1,4 @@
-#include "scene.h"
+#include "PlatformerGame.h"
 
 int main()
 {
@@ -23,7 +23,7 @@ int main()
 	};
 	window.SetResizeCallback(resizeCallback);
 
-	Scene scene(engine);
+	PlatformerGame scene(engine);
 	if (scene.Setup() != 0)
 		return -1;
 

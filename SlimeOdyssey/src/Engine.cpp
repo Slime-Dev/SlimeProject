@@ -613,7 +613,7 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 				m_descriptorManager.BindBuffer(descSets[0], 0, materialBuffer, 0, sizeof(Material));
 
 				// Set Camera UBO buffer
-				cameraUBO.viewPos = m_camera.getPosition();
+				cameraUBO.viewPos = m_camera.GetPosition();
 				CopyStructToBuffer(cameraUBO, cameraUBOBBuffer, cameraUBOAllocation);
 				m_descriptorManager.BindBuffer(descSets[0], 1, cameraUBOBBuffer, 0, sizeof(CameraUBO));
 
@@ -633,8 +633,8 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 		}
 
 		m_mvp.model = model.model;
-		m_mvp.view  = m_camera.getViewMatrix();
-		m_mvp.projection  = m_camera.getProjectionMatrix();
+		m_mvp.view  = m_camera.GetViewMatrix();
+		m_mvp.projection  = m_camera.GetProjectionMatrix();
 		m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
 		m_disp.cmdPushConstants(cmd, pipelineContainer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
 		m_debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);

@@ -103,6 +103,7 @@ private:
 	std::unordered_map<std::string, ModelResource> m_models;
 	std::unordered_map<std::string, TextureResource> m_textures;
 
+	void CenterModel(std::vector<Vertex>& vector);
 	void CalculateTexCoords(std::vector<Vertex>& vector, const std::vector<unsigned int>& indices);
 	int GetDominantAxis(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);
 	void CalculateProjectedTexCoords(Vertex& v0, Vertex& v1, Vertex& v2);

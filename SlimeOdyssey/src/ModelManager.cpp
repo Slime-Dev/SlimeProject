@@ -24,6 +24,23 @@ ModelManager::~ModelManager()
 	UnloadAllResources();
 }
 
+void ModelManager::CenterModel(std::vector<Vertex>& vector)
+{
+	glm::vec3 min = vector[0].pos;
+	glm::vec3 max = vector[0].pos;
+
+	for (const Vertex& vertex: vector)
+	{
+		min = glm::min(min, vertex.pos);
+		max = glm::max(max, vertex.pos);
+	}
+
+	for (Vertex& vertex: vector)
+	{
+		vertex.pos -= (min + max) / 2.0f;
+	}
+}
+
 void ModelManager::CalculateTexCoords(std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
 {
 	if (indices.size() % 3 != 0)
@@ -275,6 +292,8 @@ ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, co
 
 	ModelResource model;
 	ProcessVerticesAndIndices(attrib, shapes, model);
+
+	CenterModel(model.vertices);
 
 	if (attrib.texcoords.empty())
 	{
