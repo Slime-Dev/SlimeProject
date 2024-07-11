@@ -1,9 +1,11 @@
 #include "SlimeWindow.h"
 
-#include "spdlog/spdlog.h"
 #include <numeric>
 
-SlimeWindow::SlimeWindow(const WindowProps& props) : m_Width(props.width), m_Height(props.height), m_Props(props)
+#include "spdlog/spdlog.h"
+
+SlimeWindow::SlimeWindow(const WindowProps& props)
+      : m_Width(props.width), m_Height(props.height), m_Props(props)
 {
 	if (!glfwInit())
 	{
@@ -28,7 +30,7 @@ SlimeWindow::SlimeWindow(const WindowProps& props) : m_Width(props.width), m_Hei
 	glfwSetFramebufferSizeCallback(m_Window, framebufferResizeCallback);
 
 	m_LastFrameTime = std::chrono::steady_clock::now();
-	m_InputManager  = InputManager(m_Window);
+	m_InputManager = InputManager(m_Window);
 }
 
 SlimeWindow::~SlimeWindow()
@@ -45,6 +47,41 @@ bool SlimeWindow::ShouldClose() const
 	return glfwWindowShouldClose(m_Window) || m_closeNow;
 }
 
+void SlimeWindow::Close()
+{
+	m_closeNow = true;
+}
+
+GLFWwindow* SlimeWindow::GetGLFWWindow() const
+{
+	return m_Window;
+}
+
+int SlimeWindow::GetWidth() const
+{
+	return m_Width;
+}
+
+int SlimeWindow::GetHeight() const
+{
+	return m_Height;
+}
+
+void SlimeWindow::SetCursorMode(int mode)
+{
+	glfwSetInputMode(m_Window, GLFW_CURSOR, mode);
+}
+
+void SlimeWindow::SetResizeCallback(std::function<void(int, int)> callback)
+{
+	m_ResizeCallback = std::move(callback);
+}
+
+InputManager* SlimeWindow::GetInputManager()
+{
+	return &m_InputManager;
+}
+
 float SlimeWindow::Update()
 {
 	m_InputManager.Update();
@@ -52,8 +89,8 @@ float SlimeWindow::Update()
 	glfwPollEvents();
 
 	auto currentTime = std::chrono::steady_clock::now();
-	float dt         = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - m_LastFrameTime).count();
-	m_LastFrameTime  = currentTime;
+	float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - m_LastFrameTime).count();
+	m_LastFrameTime = currentTime;
 
 	// FPS calculation and update
 	float fps = 1.0f / dt;
@@ -77,8 +114,7 @@ float SlimeWindow::Update()
 		float minFps = *std::min_element(m_fpsHistory.begin(), m_fpsHistory.end());
 		float maxFps = *std::max_element(m_fpsHistory.begin(), m_fpsHistory.end());
 
-		stream << " | Min: " << std::fixed << std::setprecision(1) << minFps
-			<< " | Max: " << std::fixed << std::setprecision(1) << maxFps;
+		stream << " | Min: " << std::fixed << std::setprecision(1) << minFps << " | Max: " << std::fixed << std::setprecision(1) << maxFps;
 
 		// Add to window title
 		SetTitle(stream.str());
@@ -95,7 +131,7 @@ void SlimeWindow::SetFullscreen(bool fullscreen)
 	m_Props.fullscreen = fullscreen;
 	if (fullscreen)
 	{
-		GLFWmonitor* monitor    = GetPrimaryMonitor();
+		GLFWmonitor* monitor = GetPrimaryMonitor();
 		const GLFWvidmode* mode = glfwGetVideoMode(monitor);
 		glfwSetWindowMonitor(m_Window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 	}
@@ -113,8 +149,8 @@ void SlimeWindow::SetTitle(const std::string& title)
 
 void SlimeWindow::framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
-	auto* windowInstance     = static_cast<SlimeWindow*>(glfwGetWindowUserPointer(window));
-	windowInstance->m_Width  = width;
+	auto* windowInstance = static_cast<SlimeWindow*>(glfwGetWindowUserPointer(window));
+	windowInstance->m_Width = width;
 	windowInstance->m_Height = height;
 	if (windowInstance->m_ResizeCallback)
 	{

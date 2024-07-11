@@ -1,10 +1,11 @@
 #pragma once
+
 #include "Engine.h"
-#include <memory>
 
 class PipelineGenerator;
 
-class Scene {
+class Scene
+{
 public:
 	Scene(Engine& engine);
 	~Scene() = default;

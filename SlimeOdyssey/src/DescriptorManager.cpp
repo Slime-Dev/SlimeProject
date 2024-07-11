@@ -2,7 +2,8 @@
 
 #include <stdexcept>
 
-DescriptorManager::DescriptorManager(VkDevice device): m_device(device)
+DescriptorManager::DescriptorManager(VkDevice device)
+      : m_device(device)
 {
 	CreateDescriptorPool();
 }
@@ -23,10 +24,10 @@ VkDescriptorSet DescriptorManager::AllocateDescriptorSet(uint32_t layoutIndex)
 	}
 
 	VkDescriptorSetAllocateInfo allocInfo{};
-	allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool     = m_descriptorPool;
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = m_descriptorPool;
 	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts        = &m_descriptorSetLayouts[layoutIndex];
+	allocInfo.pSetLayouts = &m_descriptorSetLayouts[layoutIndex];
 
 	VkDescriptorSet descriptorSet;
 	if (vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet) != VK_SUCCESS)
@@ -67,16 +68,16 @@ void DescriptorManager::BindBuffer(VkDescriptorSet descriptorSet, uint32_t bindi
 	VkDescriptorBufferInfo bufferInfo{};
 	bufferInfo.buffer = buffer;
 	bufferInfo.offset = offset;
-	bufferInfo.range  = range;
+	bufferInfo.range = range;
 
 	VkWriteDescriptorSet descriptorWrite{};
-	descriptorWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite.dstSet          = descriptorSet;
-	descriptorWrite.dstBinding      = binding;
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptorSet;
+	descriptorWrite.dstBinding = binding;
 	descriptorWrite.dstArrayElement = 0;
-	descriptorWrite.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	descriptorWrite.descriptorCount = 1;
-	descriptorWrite.pBufferInfo     = &bufferInfo;
+	descriptorWrite.pBufferInfo = &bufferInfo;
 
 	vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 }
@@ -84,22 +85,22 @@ void DescriptorManager::BindBuffer(VkDescriptorSet descriptorSet, uint32_t bindi
 VkSampler DescriptorManager::CreateSampler()
 {
 	VkSamplerCreateInfo samplerInfo{};
-	samplerInfo.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter               = VK_FILTER_LINEAR;
-	samplerInfo.minFilter               = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV            = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW            = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.anisotropyEnable        = VK_FALSE;
-	samplerInfo.maxAnisotropy           = 16;
-	samplerInfo.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.anisotropyEnable = VK_FALSE;
+	samplerInfo.maxAnisotropy = 16;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	samplerInfo.compareEnable           = VK_FALSE;
-	samplerInfo.compareOp               = VK_COMPARE_OP_ALWAYS;
-	samplerInfo.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.mipLodBias              = 0.0f;
-	samplerInfo.minLod                  = 0.0f;
-	samplerInfo.maxLod                  = 0.0f;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
 
 	VkSampler sampler;
 	if (vkCreateSampler(m_device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS)
@@ -120,17 +121,17 @@ void DescriptorManager::BindImage(VkDescriptorSet descriptorSet, uint32_t bindin
 {
 	VkDescriptorImageInfo imageInfo{};
 	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView   = imageView;
-	imageInfo.sampler     = sampler;
+	imageInfo.imageView = imageView;
+	imageInfo.sampler = sampler;
 
 	VkWriteDescriptorSet descriptorWrite{};
-	descriptorWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite.dstSet          = descriptorSet;
-	descriptorWrite.dstBinding      = binding;
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptorSet;
+	descriptorWrite.dstBinding = binding;
 	descriptorWrite.dstArrayElement = 0;
-	descriptorWrite.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWrite.descriptorCount = 1;
-	descriptorWrite.pImageInfo      = &imageInfo;
+	descriptorWrite.pImageInfo = &imageInfo;
 
 	vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 }
@@ -138,15 +139,15 @@ void DescriptorManager::BindImage(VkDescriptorSet descriptorSet, uint32_t bindin
 void DescriptorManager::CreateDescriptorPool()
 {
 	VkDescriptorPoolSize poolSizes[] = {
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100 },
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 }
+		{         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 }
 	};
 
 	VkDescriptorPoolCreateInfo poolInfo{};
-	poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = 2;
-	poolInfo.pPoolSizes    = poolSizes;
-	poolInfo.maxSets       = 100; // Adjust this based on your needs
+	poolInfo.pPoolSizes = poolSizes;
+	poolInfo.maxSets = 100; // Adjust this based on your needs
 
 	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
 	{

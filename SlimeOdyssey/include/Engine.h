@@ -3,66 +3,107 @@
 //
 
 #pragma once
-#include "Camera.h"
-#include "PipelineGenerator.h"
-#include "ShaderManager.h"
-#include "ModelManager.h"
-#include "DescriptorManager.h"
-#include "SlimeWindow.h"
-#include <vector>
-#include "Light.h" // TODO Find better place
-#include "VulkanDebugUtils.h"
-#include "InputManager.h"
 
-#include <VkBootstrap.h>
 #include <map>
 #include <memory>
-#include <ResourcePathManager.h>
+#include <vector>
 #include <vk_mem_alloc.h>
+#include <VkBootstrap.h>
+
+#include "Camera.h"
+#include "DescriptorManager.h"
+#include "InputManager.h"
+#include "Light.h"
+#include "ModelManager.h"
+#include "PipelineGenerator.h"
+#include "ResourcePathManager.h"
+#include "ShaderManager.h"
+#include "SlimeWindow.h"
+#include "VulkanDebugUtils.h"
 
 struct GLFWwindow;
 
 class Engine
 {
 public:
+	explicit Engine(SlimeWindow* window);
+	~Engine();
+
+	int CreateEngine();
+	int SetupManagers();
+	int RenderFrame();
+	int Cleanup();
+
+	// Getters
+	SlimeWindow* GetWindow();
+	ShaderManager& GetShaderManager();
+	ModelManager& GetModelManager();
+	ResourcePathManager& GetPathManager();
+	DescriptorManager& GetDescriptorManager();
+	VulkanDebugUtils& GetDebugUtils();
+	Camera& GetCamera();
+	InputManager* GetInputManager();
+	std::map<std::string, PipelineContainer>& GetPipelines();
+	VkDevice GetDevice() const;
+	VkQueue GetGraphicsQueue() const;
+	VkQueue GetPresentQueue() const;
+	VkCommandPool GetCommandPool() const;
+	VmaAllocator GetAllocator() const;
+
+	// Helper methods
+	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
+	int BeginCommandBuffer(VkCommandBuffer& cmd);
+	int EndCommandBuffer(VkCommandBuffer& cmd);
+	int CreateSwapchain(); // Needs to be public for window resize callback
+	VkCommandBuffer BeginSingleTimeCommands();
+	void EndSingleTimeCommands(VkCommandBuffer command_buffer);
+
+private:
+	// Initialization methods
+	int DeviceInit();
+	int GetQueues();
+	int CreateCommandPool();
+	int CreateRenderCommandBuffers();
+	int InitSyncObjects();
+
+	// Rendering methods
+	int Draw(VkCommandBuffer& cmd, int imageIndex);
+	void SetupViewportAndScissor(VkCommandBuffer& cmd);
+	void SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd);
+	void DrawModels(VkCommandBuffer& cmd);
+
+	// Utility methods
+	VkShaderModule CreateShaderModule(const std::vector<char>& code);
+	template<class T>
+	void CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation);
+
+	// Structs
 	struct TempMaterialTextures
 	{
 		const ModelManager::TextureResource* albedo;
 		VkSampler albedoSampler;
-
 		const ModelManager::TextureResource* normal;
 		VkSampler normalSampler;
-
 		const ModelManager::TextureResource* metallic;
 		VkSampler metallicSampler;
-
 		const ModelManager::TextureResource* roughness;
 		VkSampler roughnessSampler;
-
 		const ModelManager::TextureResource* ao;
 		VkSampler aoSampler;
 	};
-
-	Engine(SlimeWindow* window);
-	~Engine();
 
 	struct RenderData
 	{
 		VkQueue graphicsQueue = VK_NULL_HANDLE;
 		VkQueue presentQueue = VK_NULL_HANDLE;
-
 		std::vector<VkImage> swapchainImages;
 		std::vector<VkImageView> swapchainImageViews;
-
 		VmaAllocation depthImageAllocation;
 		VkImage depthImage = VK_NULL_HANDLE;
 		VkImageView depthImageView = VK_NULL_HANDLE;
-
 		std::map<std::string, PipelineContainer> pipelines;
-
 		VkCommandPool commandPool = VK_NULL_HANDLE;
 		std::vector<VkCommandBuffer> renderCommandBuffers;
-
 		std::vector<VkSemaphore> availableSemaphores;
 		std::vector<VkSemaphore> finishedSemaphore;
 		std::vector<VkFence> inFlightFences;
@@ -70,57 +111,14 @@ public:
 		size_t currentFrame = 0;
 	};
 
-	int CreateEngine();
-	int SetupManagers();
-
-	VkCommandBuffer BeginSingleTimeCommands();
-	void EndSingleTimeCommands(VkCommandBuffer command_buffer);
-	int DeviceInit();
-	int CreateSwapchain();
-	int GetQueues();
-	VkShaderModule CreateShaderModule(const std::vector<char>& code);
-	int CreateCommandPool();
-	int CreateRenderCommandBuffers();
-
-	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
-	template <class T> void CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation);
-
-	void SetupViewportAndScissor(VkCommandBuffer& cmd);
-
-	int InitSyncObjects();
-
-	int Draw(VkCommandBuffer& cmd, int imageIndex);
-	int RenderFrame();
-
-	int Cleanup();
-
-	SlimeWindow* GetWindow() { return m_window; }
-
-	ShaderManager& GetShaderManager() { return m_shaderManager; }
-	ModelManager& GetModelManager() { return m_modelManager; }
-	ResourcePathManager& GetPathManager() { return m_pathManager; }
-	DescriptorManager& GetDescriptorManager() { return m_descriptorManager; }
-	VulkanDebugUtils& GetDebugUtils() { return m_debugUtils; }
-	Camera& GetCamera() { return m_camera; }
-	InputManager* GetInputManager() { return m_inputManager; }
-
-	std::map<std::string, PipelineContainer>& GetPipelines() { return data.pipelines; }
-	VkDevice GetDevice() const { return m_device.device; }
-	VkQueue GetGraphicsQueue() const { return data.graphicsQueue; }
-	VkQueue GetPresentQueue() const { return data.presentQueue; }
-	VkCommandPool GetCommandPool() const { return data.commandPool; }
-	VmaAllocator GetAllocator() const { return m_allocator; }
-
-private:
-	void SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd);
-	void DrawModels(VkCommandBuffer& cmd);
-	int BeginCommandBuffer(VkCommandBuffer& cmd);
-	int EndCommandBuffer(VkCommandBuffer& cmd);
-
+	// Core engine components
 	SlimeWindow* m_window = nullptr;
+	InputManager* m_inputManager = nullptr;
+	Camera m_camera;
+	const uint8_t MAX_LIGHTS = 1;
+	std::vector<LightObject> m_lights;
 
-	RenderData data; // Needs to be removed from here
-
+	// Vulkan core
 	vkb::Instance m_instance;
 	vkb::InstanceDispatchTable m_instDisp;
 	VkSurfaceKHR m_surface{};
@@ -128,32 +126,28 @@ private:
 	vkb::DispatchTable m_disp;
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
+
+	// Render data
+	RenderData data;
+
+	// Resource managers
 	ShaderManager m_shaderManager;
 	ModelManager m_modelManager;
 	ResourcePathManager m_pathManager;
 	DescriptorManager m_descriptorManager;
-	InputManager* m_inputManager = nullptr;
-
 	VulkanDebugUtils m_debugUtils;
 
-	Camera m_camera = Camera(90.0f, 800.0f / 600.0f, 0.1f, 100.0f);
+	// Buffers and allocations
 	MVP m_mvp;
 	VkBuffer m_mvpBuffer;
 	VmaAllocation m_mvpAllocation;
-
-	// TESTING
 	VkBuffer materialBuffer;
 	VmaAllocation materialAllocation;
-
 	VkBuffer cameraUBOBBuffer;
 	VmaAllocation cameraUBOAllocation;
-
 	VkBuffer LightBuffer;
 	VmaAllocation LightAllocation;
 
+	// Textures
 	TempMaterialTextures m_tempMaterialTextures;
-
-	// TODO Find better place for lights
-	const uint8_t MAX_LIGHTS = 1;
-	std::vector<LightObject> m_lights;
 };

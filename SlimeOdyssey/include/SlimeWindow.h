@@ -1,11 +1,12 @@
 #pragma once
-#include "InputManager.h"
+#include <chrono>
+#include <deque>
+#include <functional>
 #include <GLFW/glfw3.h>
 #include <string>
-#include <chrono>
-#include <functional>
-#include <deque>
 #include <thread>
+
+#include "InputManager.h"
 
 class SlimeWindow
 {
@@ -21,35 +22,29 @@ public:
 	};
 
 	SlimeWindow(const WindowProps& props);
-
 	~SlimeWindow();
-
-	bool ShouldClose() const;
-
-	void Close() { m_closeNow = true; }
 
 	float Update();
 
-	GLFWwindow* GetGLFWWindow() const { return m_Window; }
-	int GetWidth() const { return m_Width; }
-	int GetHeight() const { return m_Height; }
+	bool ShouldClose() const;
+	void Close();
+
+	GLFWwindow* GetGLFWWindow() const;
+
+	int GetWidth() const;
+	int GetHeight() const;
 
 	void SetFullscreen(bool fullscreen);
-
 	void SetTitle(const std::string& title);
 
-	void SetCursorMode(int mode) { glfwSetInputMode(m_Window, GLFW_CURSOR, mode); }
+	void SetCursorMode(int mode);
+	void SetResizeCallback(std::function<void(int, int)> callback);
 
-	void SetResizeCallback(std::function<void(int, int)> callback) { m_ResizeCallback = std::move(callback); }
-
-	InputManager* GetInputManager() { return &m_InputManager; }
+	InputManager* GetInputManager();
 
 	SlimeWindow(const SlimeWindow&) = delete;
-
 	SlimeWindow& operator=(const SlimeWindow&) = delete;
-
 	SlimeWindow(SlimeWindow&&) = delete;
-
 	SlimeWindow& operator=(SlimeWindow&&) = delete;
 
 private:
@@ -63,9 +58,9 @@ private:
 	InputManager m_InputManager;
 
 	std::deque<float> m_fpsHistory;
-	const size_t m_maxFpsSamples    = 60;
+	const size_t m_maxFpsSamples = 60;
 	const float m_fpsUpdateInterval = 0.5f;
-	float m_timeSinceLastFpsUpdate  = 0.0f;
+	float m_timeSinceLastFpsUpdate = 0.0f;
 
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 

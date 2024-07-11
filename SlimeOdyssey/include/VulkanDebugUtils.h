@@ -1,9 +1,10 @@
 #pragma once
 
-#include "spdlog/spdlog.h"
-#include <vulkan/vulkan.hpp>
-#include <VkBootstrap.h>
 #include <string>
+#include <VkBootstrap.h>
+#include <vulkan/vulkan.hpp>
+
+#include "spdlog/spdlog.h"
 
 class VulkanDebugUtils
 {
@@ -14,7 +15,7 @@ public:
 	};
 
 	VulkanDebugUtils(const vkb::Instance& instance, const vkb::Device& device)
-		: m_instance(instance), m_device(device)
+	      : m_instance(instance), m_device(device)
 	{
 		LoadDebugUtilsFunctions();
 	}
@@ -24,22 +25,14 @@ public:
 	void LoadDebugUtilsFunctions()
 	{
 #if defined(VK_EXT_debug_utils)
-		fp_vkCmdBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkCmdBeginDebugUtilsLabelEXT"));
-		fp_vkCmdEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkCmdEndDebugUtilsLabelEXT"));
-		fp_vkCmdInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdInsertDebugUtilsLabelEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkCmdInsertDebugUtilsLabelEXT"));
-		fp_vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkSetDebugUtilsObjectNameEXT"));
-		fp_vkSetDebugUtilsObjectTagEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectTagEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkSetDebugUtilsObjectTagEXT"));
-		fp_vkQueueBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueBeginDebugUtilsLabelEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkQueueBeginDebugUtilsLabelEXT"));
-		fp_vkQueueEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueEndDebugUtilsLabelEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkQueueEndDebugUtilsLabelEXT"));
-		fp_vkQueueInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueInsertDebugUtilsLabelEXT>(
-			vkGetInstanceProcAddr(m_instance.instance, "vkQueueInsertDebugUtilsLabelEXT"));
+		fp_vkCmdBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkCmdBeginDebugUtilsLabelEXT"));
+		fp_vkCmdEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkCmdEndDebugUtilsLabelEXT"));
+		fp_vkCmdInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdInsertDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkCmdInsertDebugUtilsLabelEXT"));
+		fp_vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkSetDebugUtilsObjectNameEXT"));
+		fp_vkSetDebugUtilsObjectTagEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectTagEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkSetDebugUtilsObjectTagEXT"));
+		fp_vkQueueBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueBeginDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkQueueBeginDebugUtilsLabelEXT"));
+		fp_vkQueueEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueEndDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkQueueEndDebugUtilsLabelEXT"));
+		fp_vkQueueInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueInsertDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkQueueInsertDebugUtilsLabelEXT"));
 #endif
 	}
 
@@ -116,8 +109,8 @@ public:
 		if (fp_vkCmdBeginDebugUtilsLabelEXT)
 		{
 			VkDebugUtilsLabelEXT labelInfo = {};
-			labelInfo.sType                = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-			labelInfo.pLabelName           = markerName;
+			labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+			labelInfo.pLabelName = markerName;
 			memcpy(labelInfo.color, &colour, sizeof(float) * 4);
 			cmdBeginDebugUtilsLabelEXT(commandBuffer, &labelInfo);
 		}
@@ -140,24 +133,25 @@ public:
 		if (fp_vkCmdInsertDebugUtilsLabelEXT)
 		{
 			VkDebugUtilsLabelEXT labelInfo = {};
-			labelInfo.sType                = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-			labelInfo.pLabelName           = markerName;
+			labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+			labelInfo.pLabelName = markerName;
 			memcpy(labelInfo.color, &colour, sizeof(float) * 4);
 			cmdInsertDebugUtilsLabelEXT(commandBuffer, &labelInfo);
 		}
 #endif
 	}
 
-	template <typename T> void SetObjectName(T vkObject, VkObjectType objectType, const std::string& name)
+	template<typename T>
+	void SetObjectName(T vkObject, VkObjectType objectType, const std::string& name)
 	{
 #if defined(VK_EXT_debug_utils)
 		if (fp_vkSetDebugUtilsObjectNameEXT)
 		{
 			VkDebugUtilsObjectNameInfoEXT nameInfo = {};
-			nameInfo.sType                         = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-			nameInfo.objectType                    = objectType;
-			nameInfo.objectHandle                  = (uint64_t)vkObject;
-			nameInfo.pObjectName                   = name.c_str();
+			nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+			nameInfo.objectType = objectType;
+			nameInfo.objectHandle = (uint64_t) vkObject;
+			nameInfo.pObjectName = name.c_str();
 
 			VkResult result = fp_vkSetDebugUtilsObjectNameEXT(m_device, &nameInfo);
 			if (result != VK_SUCCESS)
@@ -169,11 +163,12 @@ public:
 	}
 
 	// Helper function to get the correct object type for common Vulkan handles
-#define VKOBJECT_TO_ENUM(type, enum) \
+#define VKOBJECT_TO_ENUM(type, enum)       \
 	if constexpr (std::is_same_v<T, type>) \
 		return enum;
 
-	template <typename T> static VkObjectType GetObjectType()
+	template<typename T>
+	static VkObjectType GetObjectType()
 	{
 		VKOBJECT_TO_ENUM(VkInstance, VK_OBJECT_TYPE_INSTANCE)
 		VKOBJECT_TO_ENUM(VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
@@ -227,7 +222,8 @@ public:
 #undef VKOBJECT_TO_ENUM
 
 	// Convenience function to set object name with automatic type deduction
-	template <typename T> void SetObjectName(T object, const std::string& name)
+	template<typename T>
+	void SetObjectName(T object, const std::string& name)
 	{
 		SetObjectName(object, GetObjectType<T>(), name);
 	}
@@ -238,12 +234,12 @@ public:
 		if (fp_vkSetDebugUtilsObjectTagEXT)
 		{
 			VkDebugUtilsObjectTagInfoEXT tagInfo = {};
-			tagInfo.sType                        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_TAG_INFO_EXT;
-			tagInfo.objectType                   = objectType;
-			tagInfo.objectHandle                 = object;
-			tagInfo.tagName                      = tagName;
-			tagInfo.tagSize                      = tagSize;
-			tagInfo.pTag                         = tagData;
+			tagInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_TAG_INFO_EXT;
+			tagInfo.objectType = objectType;
+			tagInfo.objectHandle = object;
+			tagInfo.tagName = tagName;
+			tagInfo.tagSize = tagSize;
+			tagInfo.pTag = tagData;
 			setDebugUtilsObjectTagEXT(&tagInfo);
 		}
 #endif
@@ -255,8 +251,8 @@ public:
 		if (fp_vkQueueBeginDebugUtilsLabelEXT)
 		{
 			VkDebugUtilsLabelEXT labelInfo = {};
-			labelInfo.sType                = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-			labelInfo.pLabelName           = markerName;
+			labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+			labelInfo.pLabelName = markerName;
 			memcpy(labelInfo.color, &colour, sizeof(float) * 4);
 			queueBeginDebugUtilsLabelEXT(queue, &labelInfo);
 		}
@@ -279,8 +275,8 @@ public:
 		if (fp_vkQueueInsertDebugUtilsLabelEXT)
 		{
 			VkDebugUtilsLabelEXT labelInfo = {};
-			labelInfo.sType                = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-			labelInfo.pLabelName           = markerName;
+			labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+			labelInfo.pLabelName = markerName;
 			memcpy(labelInfo.color, &colour, sizeof(float) * 4);
 			queueInsertDebugUtilsLabelEXT(queue, &labelInfo);
 		}
@@ -290,22 +286,21 @@ public:
 private:
 	vkb::Instance m_instance;
 	vkb::Device m_device;
-	PFN_vkCmdBeginDebugUtilsLabelEXT fp_vkCmdBeginDebugUtilsLabelEXT          = nullptr;
-	PFN_vkCmdEndDebugUtilsLabelEXT fp_vkCmdEndDebugUtilsLabelEXT              = nullptr;
-	PFN_vkCmdInsertDebugUtilsLabelEXT fp_vkCmdInsertDebugUtilsLabelEXT        = nullptr;
-	PFN_vkSetDebugUtilsObjectNameEXT fp_vkSetDebugUtilsObjectNameEXT          = nullptr;
-	PFN_vkSetDebugUtilsObjectTagEXT fp_vkSetDebugUtilsObjectTagEXT            = nullptr;
-	PFN_vkQueueBeginDebugUtilsLabelEXT fp_vkQueueBeginDebugUtilsLabelEXT      = nullptr;
-	PFN_vkQueueEndDebugUtilsLabelEXT fp_vkQueueEndDebugUtilsLabelEXT          = nullptr;
-	PFN_vkQueueInsertDebugUtilsLabelEXT fp_vkQueueInsertDebugUtilsLabelEXT    = nullptr;
+	PFN_vkCmdBeginDebugUtilsLabelEXT fp_vkCmdBeginDebugUtilsLabelEXT = nullptr;
+	PFN_vkCmdEndDebugUtilsLabelEXT fp_vkCmdEndDebugUtilsLabelEXT = nullptr;
+	PFN_vkCmdInsertDebugUtilsLabelEXT fp_vkCmdInsertDebugUtilsLabelEXT = nullptr;
+	PFN_vkSetDebugUtilsObjectNameEXT fp_vkSetDebugUtilsObjectNameEXT = nullptr;
+	PFN_vkSetDebugUtilsObjectTagEXT fp_vkSetDebugUtilsObjectTagEXT = nullptr;
+	PFN_vkQueueBeginDebugUtilsLabelEXT fp_vkQueueBeginDebugUtilsLabelEXT = nullptr;
+	PFN_vkQueueEndDebugUtilsLabelEXT fp_vkQueueEndDebugUtilsLabelEXT = nullptr;
+	PFN_vkQueueInsertDebugUtilsLabelEXT fp_vkQueueInsertDebugUtilsLabelEXT = nullptr;
 	PFN_vkSetDebugUtilsObjectNameEXT fp_vkSetDebugUtilsObjectNameEXT_instance = nullptr;
-
 };
 
-constexpr VulkanDebugUtils::Colour debugUtil_White                   = { 1.0f, 1.0f, 1.0f, 1.0f };  // White
-constexpr VulkanDebugUtils::Colour debugUtil_BeginColour             = { 1.0f, 0.94f, 0.7f, 1.0f }; // Pastel Yellow
-constexpr VulkanDebugUtils::Colour debugUtil_StartDrawColour         = { 0.7f, 0.9f, 0.7f, 1.0f };  // Pastel Green
-constexpr VulkanDebugUtils::Colour debugUtil_BindDescriptorSetColour = { 0.7f, 0.8f, 1.0f, 1.0f };  // Pastel Blue
-constexpr VulkanDebugUtils::Colour debugUtil_UpdateLightBufferColour = { 0.7f, 0.8f, 1.0f, 1.0f };  // Pastel Blue
-constexpr VulkanDebugUtils::Colour debugUtil_FrameSubmission         = { 1.0f, 0.8f, 0.7f, 1.0f };  // Pastel Orange
-constexpr VulkanDebugUtils::Colour debugUtil_DrawModelColour         = { 0.9f, 0.9f, 0.9f, 1.0f };  // Very Light Gray
+constexpr VulkanDebugUtils::Colour debugUtil_White = { 1.0f, 1.0f, 1.0f, 1.0f };                   // White
+constexpr VulkanDebugUtils::Colour debugUtil_BeginColour = { 1.0f, 0.94f, 0.7f, 1.0f };            // Pastel Yellow
+constexpr VulkanDebugUtils::Colour debugUtil_StartDrawColour = { 0.7f, 0.9f, 0.7f, 1.0f };         // Pastel Green
+constexpr VulkanDebugUtils::Colour debugUtil_BindDescriptorSetColour = { 0.7f, 0.8f, 1.0f, 1.0f }; // Pastel Blue
+constexpr VulkanDebugUtils::Colour debugUtil_UpdateLightBufferColour = { 0.7f, 0.8f, 1.0f, 1.0f }; // Pastel Blue
+constexpr VulkanDebugUtils::Colour debugUtil_FrameSubmission = { 1.0f, 0.8f, 0.7f, 1.0f };         // Pastel Orange
+constexpr VulkanDebugUtils::Colour debugUtil_DrawModelColour = { 0.9f, 0.9f, 0.9f, 1.0f };         // Very Light Gray
