@@ -108,13 +108,13 @@ float SlimeWindow::Update()
 		float averageFps = std::accumulate(m_fpsHistory.begin(), m_fpsHistory.end(), 0.0f) / m_fpsHistory.size();
 
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(1) << averageFps << " FPS ";
+		stream << std::fixed << averageFps << " FPS ";
 
 		// Add more detailed information
 		float minFps = *std::min_element(m_fpsHistory.begin(), m_fpsHistory.end());
 		float maxFps = *std::max_element(m_fpsHistory.begin(), m_fpsHistory.end());
 
-		stream << " | Min: " << std::fixed << std::setprecision(1) << minFps << " | Max: " << std::fixed << std::setprecision(1) << maxFps;
+		stream << " | Min: " << std::fixed << minFps << " | Max: " << std::fixed << maxFps;
 
 		// Add to window title
 		SetTitle(stream.str());
