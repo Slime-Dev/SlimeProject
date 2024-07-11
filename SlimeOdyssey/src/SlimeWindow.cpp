@@ -1,6 +1,7 @@
 #include "SlimeWindow.h"
 
 #include <numeric>
+#include <sstream>
 
 #include "spdlog/spdlog.h"
 
