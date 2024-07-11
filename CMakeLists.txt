@@ -1,4 +1,3 @@
- 
 cmake_minimum_required(VERSION 3.20)
 project(SlimeProject VERSION 1.0.0 LANGUAGES CXX)
 
@@ -9,3 +8,6 @@ set(SHADER_DIR "${CMAKE_SOURCE_DIR}/SlimeOdyssey/resources/shaders")
 
 add_subdirectory(SlimeOdyssey)
 add_subdirectory(SlimeGame)
+
+enable_testing()
+add_subdirectory(SlimeTests)
