@@ -47,7 +47,7 @@ struct LightBuf
 } light;
 
 Engine::Engine(SlimeWindow* window)
-      : m_window(window), m_camera(90.0f, 800.0f / 600.0f, 0.1f, 100.0f)
+      : m_window(window), m_camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f)
 {
 	spdlog::set_level(spdlog::level::trace);
 	spdlog::stdout_color_mt("console");

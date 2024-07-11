@@ -28,9 +28,10 @@ int PlatformerGame::Setup()
 	m_gameOver = false;
 
 	// Set up camera
-	m_cameraDistance = 10.0f;
+	m_cameraDistance = 5.0f;
 	m_cameraHeight = 5.0f;
-	UpdateCamera();
+
+	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 
 	return 0;
 }
@@ -129,7 +130,7 @@ void PlatformerGame::Update(float dt, const InputManager* inputManager)
 	}
 
 	// Update camera
-	UpdateCamera();
+	UpdateCamera(inputManager, dt);
 
 	// Rotate obstacle
 	m_obstacle->model = glm::rotate(m_obstacle->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -141,15 +142,56 @@ void PlatformerGame::Update(float dt, const InputManager* inputManager)
 	}
 }
 
-void PlatformerGame::UpdateCamera()
+void PlatformerGame::UpdateCamera(const InputManager* inputManager, float deltaTime)
 {
-	// update the orbiting camera
-	glm::vec3 camPos = m_camera.GetPosition();
-	camPos.x = m_playerPosition.x + m_cameraDistance * sin(m_playerRotation);
-	camPos.z = m_playerPosition.z + m_cameraDistance * cos(m_playerRotation);
-	camPos.y = m_playerPosition.y + m_cameraHeight;
-	m_camera.SetPosition(camPos);
-	m_camera.SetTarget(m_playerPosition);
+	// Get mouse delta
+	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
+
+	// Scroll to zoom in/out
+	float scrollY = inputManager->GetScrollDelta();
+	m_cameraDistance -= scrollY;
+
+	// Update camera angles
+	float mouseSensitivity = 0.1f;
+	m_cameraYaw += mouseX * mouseSensitivity;
+	m_cameraPitch += -mouseY * mouseSensitivity * -1.0f;
+
+	// Clamp pitch to avoid flipping
+	m_cameraPitch = glm::clamp(m_cameraPitch, -89.0f, 89.0f);
+
+	// Calculate new camera position
+	float horizontalDistance = m_cameraDistance * cos(glm::radians(m_cameraPitch));
+	float verticalDistance = m_cameraDistance * sin(glm::radians(m_cameraPitch));
+
+	float camX = horizontalDistance * sin(glm::radians(m_cameraYaw));
+	float camZ = horizontalDistance * cos(glm::radians(m_cameraYaw));
+
+	glm::vec3 targetCamPos = m_playerPosition + glm::vec3(camX, verticalDistance, camZ);
+
+	// Smoothly interpolate camera position
+	float smoothFactor = 1.0f - std::pow(0.001f, deltaTime);
+	m_cameraPosition = glm::mix(m_cameraPosition, targetCamPos, smoothFactor);
+
+	// Weight camera yaw towards player rotation
+	float weightFactor = 0.2f; // Adjust this value to change how much the camera follows the player's rotation
+	float weightedYaw = glm::mix(m_cameraYaw, m_playerRotation, weightFactor);
+
+	// Calculate camera front vector
+	glm::vec3 front;
+	front.x = cos(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraPitch));
+	front.y = sin(glm::radians(m_cameraPitch));
+	front.z = sin(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraPitch));
+	glm::vec3 cameraFront = glm::normalize(front);
+
+	// Make sure camera is not below the ground
+	if (m_cameraPosition.y < 1.0f)
+	{
+		m_cameraPosition.y = 1.0f;
+	}
+
+	// Set camera position and target
+	m_camera.SetPosition(m_cameraPosition);
+	m_camera.SetTarget(m_playerPosition + glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
 void PlatformerGame::ResetGame()

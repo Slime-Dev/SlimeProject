@@ -91,6 +91,8 @@ void InputManager::Update()
 	m_mouseDeltaY = currentMouseY - m_lastMouseY;
 	m_lastMouseX = currentMouseX;
 	m_lastMouseY = currentMouseY;
+
+	m_scrollDelta = 0.0;
 }
 
 bool InputManager::IsKeyPressed(int key) const
