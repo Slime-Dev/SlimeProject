@@ -1,22 +1,18 @@
+---
 Language: Cpp
 BasedOnStyle: LLVM
 AccessModifierOffset: -4
-UseTab: ForContinuationAndIndentation
 AlignAfterOpenBracket: DontAlign
 AlignArrayOfStructures: Right
-AlignConsecutiveAssignments: true
+AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 AlignEscapedNewlines: Left
 AlignOperands: true
 AlignTrailingComments: true
-AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortLoopsOnASingleLine: false
-AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakAfterReturnType: None
-AlwaysBreakBeforeMultilineStrings: false
-AlwaysBreakTemplateDeclarations: No
-BreakBeforeBraces: Custom
+AlwaysBreakTemplateDeclarations: Yes
+AllowAllConstructorInitializersOnNextLine: true
+AllowShortFunctionsOnASingleLine: None
+BreakArrays: false
 BraceWrapping:
   AfterCaseLabel: true
   AfterClass: true
@@ -24,82 +20,64 @@ BraceWrapping:
   AfterEnum: true
   AfterFunction: true
   AfterNamespace: true
-  AfterObjCDeclaration: true
   AfterStruct: true
   AfterUnion: true
   AfterExternBlock: true
   BeforeCatch: true
   BeforeElse: true
-  IndentBraces: false
-  SplitEmptyFunction: false
-  SplitEmptyRecord: false
+  BeforeLambdaBody: true
+  BeforeWhile: true
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
   SplitEmptyNamespace: true
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: Custom
+BreakConstructorInitializers: BeforeColon
 BreakConstructorInitializersBeforeComma: false
-BreakConstructorInitializers: BeforeComma
-BreakAfterJavaFieldAnnotations: false
-BreakStringLiterals: true
-PackConstructorInitializers: NextLine
-ColumnLimit: 320
-CommentPragmas: "^ IWYU pragma:"
-CompactNamespaces: true
+ColumnLimit: 350
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 6
+ContinuationIndentWidth: 8
 Cpp11BracedListStyle: false
-DerivePointerAlignment: false
-DisableFormat: false
-ExperimentalAutoDetectBinPacking: false
-ForEachMacros:
-  - foreach
-  - Q_FOREACH
-  - BOOST_FOREACH
-IncludeBlocks: Regroup
+DeriveLineEnding: true
+EmptyLineBeforeAccessModifier: Always
 IncludeCategories:
-  - Regex: "^(<)/"
-    Priority: 4
-  - Regex: '^("engine)/'
-    Priority: 3
-  - Regex: '^"(game)/'
-    Priority: 2
-  - Regex: '^[<"]pch'
-    Priority: -1
-  - Regex: ".*"
+  - Regex: '^<.*'
     Priority: 1
-IncludeIsMainRegex: "(Test)?$"
-IndentCaseLabels: false
-IndentPPDirectives: None
+  - Regex: '^".*'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
+IncludeIsMainRegex: '([-_](test|unittest))?$'
+IndentCaseLabels: true
 IndentWidth: 4
-IndentWrappedFunctionNames: false
-JavaScriptQuotes: Leave
-JavaScriptWrapImports: true
-KeepEmptyLinesAtTheStartOfBlocks: true
-MacroBlockBegin: ""
-MacroBlockEnd: ""
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MacroBlockBegin: ''
+MacroBlockEnd: ''
 MaxEmptyLinesToKeep: 1
-NamespaceIndentation: Inner
-ObjCBlockIndentWidth: 2
-ObjCSpaceAfterProperty: false
-ObjCSpaceBeforeProtocolList: true
-PenaltyBreakAssignment: 2
-PenaltyBreakComment: 300
-PenaltyBreakFirstLessLess: 120
-PenaltyBreakString: 1000
-PenaltyExcessCharacter: 1000000
+NamespaceIndentation: All
+PackConstructorInitializers: NextLineOnly
 PenaltyReturnTypeOnItsOwnLine: 10000000
 PointerAlignment: Left
 ReflowComments: false
+SeparateDefinitionBlocks: Always
 SortUsingDeclarations: true
-SpaceAfterCStyleCast: false
-SpaceAfterTemplateKeyword: true
-SpaceBeforeAssignmentOperators: true
-SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: true
+SpaceAfterTemplateKeyword: false
+SpaceBeforeRangeBasedForLoopColon: false
 SpaceInEmptyParentheses: false
-SpacesBeforeTrailingComments: 1
 SpacesInAngles: false
-SpacesInContainerLiterals: true
+SpacesInConditionalStatement: false
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
-SpacesInSquareBrackets: false
-FixNamespaceComments: true
-Standard: Latest
 TabWidth: 4
-DeriveLineEnding: true
-EmptyLineAfterAccessModifier: Leave
-BreakBeforeBinaryOperators: NonAssignment
+BinPackArguments: false
+BinPackParameters: false
+UseTab: ForIndentation
+FixNamespaceComments: true
+IncludeBlocks: Regroup
+SortIncludes: CaseInsensitive
+Standard: Latest
+IndentPPDirectives: AfterHash
+...

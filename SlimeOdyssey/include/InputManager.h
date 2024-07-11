@@ -1,6 +1,6 @@
 #pragma once
-#include <GLFW/glfw3.h>
 #include <array>
+#include <GLFW/glfw3.h>
 
 class SlimeWindow;
 
@@ -25,7 +25,8 @@ public:
 	double GetScrollDelta() const;
 
 private:
-	enum class KeyState {
+	enum class KeyState
+	{
 		Released,
 		JustPressed,
 		Pressed,

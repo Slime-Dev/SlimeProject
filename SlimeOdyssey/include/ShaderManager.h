@@ -4,57 +4,67 @@
 
 #pragma once
 
-#include "spirv_common.hpp"
+#include <map>
 #include <string>
 #include <unordered_map>
-#include <vulkan/vulkan.h>
 #include <vector>
-#include <map>
+#include <vulkan/vulkan.h>
 
-struct ShaderModule {
-    VkShaderModule handle;
-    std::vector<uint32_t> spirvCode;
-    VkShaderStageFlagBits stage;
+#include "spirv_common.hpp"
 
-    ShaderModule(VkShaderModule _handle, std::vector<uint32_t> _spirvCode, VkShaderStageFlagBits _stage)
-        : handle(_handle), spirvCode(std::move(_spirvCode)), stage(_stage) {
-    }
+struct ShaderModule
+{
+	VkShaderModule handle;
+	std::vector<uint32_t> spirvCode;
+	VkShaderStageFlagBits stage;
 
-    ShaderModule() = default;
+	ShaderModule(VkShaderModule _handle, std::vector<uint32_t> _spirvCode, VkShaderStageFlagBits _stage)
+	      : handle(_handle), spirvCode(std::move(_spirvCode)), stage(_stage)
+	{
+	}
+
+	ShaderModule() = default;
 };
 
-class ShaderManager {
+class ShaderManager
+{
 public:
-    struct ShaderResources {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-        std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-        std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
-        std::vector<VkPushConstantRange> pushConstantRanges;
-    };
+	struct ShaderResources
+	{
+		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
 
-    ShaderManager() = default;
-    explicit ShaderManager(VkDevice device);
-    ~ShaderManager();
+		struct DescriptorSetLayoutBinding
+		{
+			uint32_t set;
+			VkDescriptorSetLayoutBinding binding;
+		};
 
-    ShaderModule LoadShader(const std::string &path, VkShaderStageFlagBits stage);
-    ShaderResources ParseShader(const ShaderModule &shaderModule);
+		std::vector<DescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+		std::vector<VkPushConstantRange> pushConstantRanges;
+	};
+
+	ShaderManager() = default;
+	explicit ShaderManager(VkDevice device);
+	~ShaderManager();
+
+	ShaderModule LoadShader(const std::string& path, VkShaderStageFlagBits stage);
+	ShaderResources ParseShader(const ShaderModule& shaderModule);
 	ShaderResources CombineResources(const std::vector<ShaderModule>& shaderModules);
-    VkDescriptorSetLayout CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding> &bindings);
 
-    void CleanupShaderModules();
-    void CleanupDescriptorSetLayouts();
+	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(const ShaderResources& resources);
+
+	void CleanupShaderModules();
+	void CleanupDescriptorSetLayouts();
 
 private:
-    VkDevice m_device;
-    std::unordered_map<std::string, ShaderModule> m_shaderModules;
-    std::unordered_map<std::string, VkDescriptorSetLayout> m_descriptorSetLayouts;
-    std::map<uint32_t, uint32_t> bindingOffsets;
+	VkDevice m_device;
+	std::unordered_map<std::string, ShaderModule> m_shaderModules;
+	std::unordered_map<std::string, VkDescriptorSetLayout> m_descriptorSetLayouts;
+	std::map<uint32_t, uint32_t> bindingOffsets;
 
-    std::vector<uint32_t> ReadFile(const std::string &filename);
-
-    VkShaderModule CreateShaderModule(const std::vector<uint32_t> &code);
-
-    VkFormat GetVkFormat(const spirv_cross::SPIRType &type);
-
-    uint32_t GetFormatSize(VkFormat format);
+	std::vector<uint32_t> ReadFile(const std::string& filename);
+	VkShaderModule CreateShaderModule(const std::vector<uint32_t>& code);
+	VkFormat GetVkFormat(const spirv_cross::SPIRType& type);
+	uint32_t GetFormatSize(VkFormat format);
 };

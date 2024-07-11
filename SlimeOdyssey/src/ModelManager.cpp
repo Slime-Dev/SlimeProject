@@ -1,8 +1,9 @@
 #include "ModelManager.h"
+
 #include <Engine.h>
 #include <fstream>
-#include <stdexcept>
 #include <spdlog/spdlog.h>
+#include <stdexcept>
 #include <vk_mem_alloc.h>
 
 // Assuming we're using tinyobj for model loading
@@ -14,7 +15,7 @@
 #include <stb_image.h>
 
 ModelManager::ModelManager(Engine* engine, VkDevice device, VmaAllocator allocator, ResourcePathManager& pathManager)
-	: m_engine(engine), m_device(device), m_allocator(allocator), m_pathManager(pathManager)
+      : m_engine(engine), m_device(device), m_allocator(allocator), m_pathManager(pathManager)
 {
 }
 
@@ -23,145 +24,298 @@ ModelManager::~ModelManager()
 	UnloadAllResources();
 }
 
-ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
+void ModelManager::CenterModel(std::vector<Vertex>& vector)
 {
-    std::string fullPath = m_pathManager.GetModelPath(name);
+	glm::vec3 min = vector[0].pos;
+	glm::vec3 max = vector[0].pos;
 
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string warn, err;
-
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str()))
-    {
-        spdlog::error("Failed to load model '{}': {}", name, err);
-		return nullptr;
-    }
-
-    ModelResource model;
-    std::unordered_map<Vertex, uint32_t> uniqueVertices;
-
-    // Process vertices and indices
-    for (const auto& shape : shapes)
-    {
-        for (const auto& index : shape.mesh.indices)
-        {
-            Vertex vertex{};
-
-            vertex.pos = {
-                attrib.vertices[3 * index.vertex_index + 0],
-                attrib.vertices[3 * index.vertex_index + 1],
-                attrib.vertices[3 * index.vertex_index + 2]
-            };
-
-            if (!attrib.texcoords.empty())
-            {
-                vertex.texCoord = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                };
-            }
-
-            if (!attrib.normals.empty())
-            {
-                vertex.normal = {
-                    attrib.normals[3 * index.normal_index + 0],
-                    attrib.normals[3 * index.normal_index + 1],
-                    attrib.normals[3 * index.normal_index + 2]
-                };
-            }
-
-            if (uniqueVertices.count(vertex) == 0)
-            {
-                uniqueVertices[vertex] = static_cast<uint32_t>(model.vertices.size());
-                model.vertices.push_back(vertex);
-            }
-
-            model.indices.push_back(uniqueVertices[vertex]);
-        }
-    }
-
-	// Check if we need to calculate normals
-	if (model.vertices[0].normal == glm::vec3(0.0f))
+	for (const Vertex& vertex: vector)
 	{
-		// Calculate normals
-		std::vector<glm::vec3> faceNormals(model.indices.size() / 3);
-		std::vector<std::vector<uint32_t>> vertexFaces(model.vertices.size());
-
-		// Calculate face normals and store vertex-face associations
-		for (size_t i = 0; i < model.indices.size(); i += 3)
-		{
-			uint32_t idx0 = model.indices[i];
-			uint32_t idx1 = model.indices[i + 1];
-			uint32_t idx2 = model.indices[i + 2];
-
-			glm::vec3 v0 = model.vertices[idx0].pos;
-			glm::vec3 v1 = model.vertices[idx1].pos;
-			glm::vec3 v2 = model.vertices[idx2].pos;
-
-			glm::vec3 faceNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-			faceNormals[i / 3] = faceNormal;
-
-			vertexFaces[idx0].push_back(i / 3);
-			vertexFaces[idx1].push_back(i / 3);
-			vertexFaces[idx2].push_back(i / 3);
-		}
-
-		// Calculate vertex normals by averaging face normals
-		for (size_t i = 0; i < model.vertices.size(); ++i)
-		{
-			glm::vec3 vertexNormal(0.0f);
-			for (uint32_t faceIndex : vertexFaces[i])
-			{
-				vertexNormal += faceNormals[faceIndex];
-			}
-			model.vertices[i].normal = glm::normalize(vertexNormal);
-		}
+		min = glm::min(min, vertex.pos);
+		max = glm::max(max, vertex.pos);
 	}
 
-	// Calculate tangents
+	for (Vertex& vertex: vector)
+	{
+		vertex.pos -= (min + max) / 2.0f;
+	}
+}
+
+void ModelManager::CalculateTexCoords(std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
+{
+	if (indices.size() % 3 != 0)
+	{
+		throw std::invalid_argument("Indices must be a multiple of 3 for triangles");
+	}
+
+	for (size_t i = 0; i < indices.size(); i += 3)
+	{
+		Vertex& v0 = vertices[indices[i]];
+		Vertex& v1 = vertices[indices[i + 1]];
+		Vertex& v2 = vertices[indices[i + 2]];
+
+		glm::vec3 edge1 = v1.pos - v0.pos;
+		glm::vec3 edge2 = v2.pos - v0.pos;
+
+		// Calculate texture space vectors
+		glm::vec2 deltaUV1 = v1.texCoord - v0.texCoord;
+		glm::vec2 deltaUV2 = v2.texCoord - v0.texCoord;
+
+		float det = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
+		if (std::abs(det) < 1e-6f)
+		{
+			// Handle degenerate UV case
+			CalculateProjectedTexCoords(v0, v1, v2);
+			continue;
+		}
+
+		float f = 1.0f / det;
+
+		glm::vec3 tangent = CalculateTangent(edge1, edge2, deltaUV1, deltaUV2, f);
+		glm::vec3 bitangent = CalculateBitangent(edge1, edge2, deltaUV1, deltaUV2, f);
+
+		// Normalize the tangent and bitangent
+		tangent = glm::normalize(tangent);
+		bitangent = glm::normalize(bitangent);
+
+		// Calculate new texture coordinates
+		AssignTexCoords(v0, v1, v2, tangent, bitangent);
+	}
+}
+
+void ModelManager::CalculateProjectedTexCoords(Vertex& v0, Vertex& v1, Vertex& v2)
+{
+	// Project onto the plane with the largest area
+	int dominantAxis = GetDominantAxis(v0.pos, v1.pos, v2.pos);
+	int u = (dominantAxis + 1) % 3;
+	int v = (dominantAxis + 2) % 3;
+
+	v0.texCoord = glm::vec2(v0.pos[u], v0.pos[v]);
+	v1.texCoord = glm::vec2(v1.pos[u], v1.pos[v]);
+	v2.texCoord = glm::vec2(v2.pos[u], v2.pos[v]);
+}
+
+int ModelManager::GetDominantAxis(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+{
+	glm::vec3 normal = glm::abs(glm::cross(v1 - v0, v2 - v0));
+	return (normal.x > normal.y && normal.x > normal.z) ? 0 : (normal.y > normal.z) ? 1 : 2;
+}
+
+glm::vec3 ModelManager::CalculateTangent(const glm::vec3& edge1, const glm::vec3& edge2, const glm::vec2& deltaUV1, const glm::vec2& deltaUV2, float f)
+{
+	return { f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x), f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y), f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z) };
+}
+
+glm::vec3 ModelManager::CalculateBitangent(const glm::vec3& edge1, const glm::vec3& edge2, const glm::vec2& deltaUV1, const glm::vec2& deltaUV2, float f)
+{
+	return { f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x), f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y), f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z) };
+}
+
+void ModelManager::AssignTexCoords(Vertex& v0, Vertex& v1, Vertex& v2, const glm::vec3& tangent, const glm::vec3& bitangent)
+{
+	v0.texCoord = glm::vec2(glm::dot(v0.pos, tangent), glm::dot(v0.pos, bitangent));
+	v1.texCoord = glm::vec2(glm::dot(v1.pos, tangent), glm::dot(v1.pos, bitangent));
+	v2.texCoord = glm::vec2(glm::dot(v2.pos, tangent), glm::dot(v2.pos, bitangent));
+}
+
+bool ModelManager::LoadObjFile(const std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err)
+{
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str()))
+	{
+		spdlog::error("Failed to load model '{}': {}", fullPath, err);
+		return false;
+	}
+	return true;
+}
+
+void ModelManager::ProcessVerticesAndIndices(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, ModelResource& model)
+{
+	std::unordered_map<Vertex, uint32_t> uniqueVertices;
+	for (const auto& shape: shapes)
+	{
+		for (const auto& index: shape.mesh.indices)
+		{
+			Vertex vertex = CreateVertex(attrib, index);
+			AddUniqueVertex(vertex, model, uniqueVertices);
+		}
+	}
+}
+
+ModelManager::Vertex ModelManager::CreateVertex(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index)
+{
+	Vertex vertex;
+	vertex.pos = ExtractPosition(attrib, index);
+	vertex.texCoord = ExtractTexCoord(attrib, index);
+	vertex.normal = ExtractNormal(attrib, index);
+	return vertex;
+}
+
+glm::vec3 ModelManager::ExtractPosition(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index)
+{
+	return { attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1], attrib.vertices[3 * index.vertex_index + 2] };
+}
+
+glm::vec2 ModelManager::ExtractTexCoord(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index)
+{
+	if (!attrib.texcoords.empty())
+	{
+		return { attrib.texcoords[2 * index.texcoord_index + 0], 1.0f - attrib.texcoords[2 * index.texcoord_index + 1] };
+	}
+	return { 0.0f, 0.0f };
+}
+
+glm::vec3 ModelManager::ExtractNormal(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index)
+{
+	if (!attrib.normals.empty())
+	{
+		return { attrib.normals[3 * index.normal_index + 0], attrib.normals[3 * index.normal_index + 1], attrib.normals[3 * index.normal_index + 2] };
+	}
+	return { 0.0f, 0.0f, 0.0f };
+}
+
+void ModelManager::AddUniqueVertex(const Vertex& vertex, ModelResource& model, std::unordered_map<Vertex, uint32_t>& uniqueVertices)
+{
+	if (uniqueVertices.count(vertex) == 0)
+	{
+		uniqueVertices[vertex] = static_cast<uint32_t>(model.vertices.size());
+		model.vertices.push_back(vertex);
+	}
+	model.indices.push_back(uniqueVertices[vertex]);
+}
+
+void ModelManager::CalculateNormals(ModelResource& model)
+{
+	std::vector<glm::vec3> faceNormals(model.indices.size() / 3);
+	std::vector<std::vector<uint32_t>> vertexFaces(model.vertices.size());
+
+	CalculateFaceNormals(model, faceNormals, vertexFaces);
+	AverageVertexNormals(model, faceNormals, vertexFaces);
+}
+
+void ModelManager::CalculateFaceNormals(const ModelResource& model, std::vector<glm::vec3>& faceNormals, std::vector<std::vector<uint32_t>>& vertexFaces)
+{
+	for (size_t i = 0; i < model.indices.size(); i += 3)
+	{
+		uint32_t idx0 = model.indices[i];
+		uint32_t idx1 = model.indices[i + 1];
+		uint32_t idx2 = model.indices[i + 2];
+
+		glm::vec3 v0 = model.vertices[idx0].pos;
+		glm::vec3 v1 = model.vertices[idx1].pos;
+		glm::vec3 v2 = model.vertices[idx2].pos;
+
+		glm::vec3 faceNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+		faceNormals[i / 3] = faceNormal;
+
+		vertexFaces[idx0].push_back(i / 3);
+		vertexFaces[idx1].push_back(i / 3);
+		vertexFaces[idx2].push_back(i / 3);
+	}
+}
+
+void ModelManager::AverageVertexNormals(ModelResource& model, const std::vector<glm::vec3>& faceNormals, const std::vector<std::vector<uint32_t>>& vertexFaces)
+{
+	for (size_t i = 0; i < model.vertices.size(); ++i)
+	{
+		glm::vec3 vertexNormal(0.0f);
+		for (uint32_t faceIndex: vertexFaces[i])
+		{
+			vertexNormal += faceNormals[faceIndex];
+		}
+		model.vertices[i].normal = glm::normalize(vertexNormal);
+	}
+}
+
+void ModelManager::CalculateTangentsAndBitangents(ModelResource& model)
+{
 	for (size_t i = 0; i < model.indices.size(); i += 3)
 	{
 		Vertex& v0 = model.vertices[model.indices[i]];
 		Vertex& v1 = model.vertices[model.indices[i + 1]];
 		Vertex& v2 = model.vertices[model.indices[i + 2]];
 
-		glm::vec3 edge1 = v1.pos - v0.pos;
-		glm::vec3 edge2 = v2.pos - v0.pos;
+		CalculateTangentSpace(v0, v1, v2);
+	}
+}
 
-		glm::vec2 deltaUV1 = v1.texCoord - v0.texCoord;
-		glm::vec2 deltaUV2 = v2.texCoord - v0.texCoord;
+void ModelManager::CalculateTangentSpace(Vertex& v0, Vertex& v1, Vertex& v2)
+{
+	glm::vec3 edge1 = v1.pos - v0.pos;
+	glm::vec3 edge2 = v2.pos - v0.pos;
 
-		float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+	glm::vec2 deltaUV1 = v1.texCoord - v0.texCoord;
+	glm::vec2 deltaUV2 = v2.texCoord - v0.texCoord;
 
-		glm::vec3 tangent;
-		tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-		tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-		tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+	float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 
-		v0.tangent += tangent;
-		v1.tangent += tangent;
-		v2.tangent += tangent;
+	glm::vec3 tangent = CalculateTangent(edge1, edge2, deltaUV1, deltaUV2, f);
+
+	v0.tangent += tangent;
+	v1.tangent += tangent;
+	v2.tangent += tangent;
+
+	v0.bitangent += glm::cross(v0.normal, tangent);
+	v1.bitangent += glm::cross(v1.normal, tangent);
+	v2.bitangent += glm::cross(v2.normal, tangent);
+}
+
+void ModelManager::CreateBuffers(ModelResource& model)
+{
+	// Create vertex and index buffers
+	m_engine->CreateBuffer(model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
+	m_engine->CreateBuffer(model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
+
+	// Copy vertex and index data to buffers
+	void* data;
+	vmaMapMemory(m_allocator, model.vertexAllocation, &data);
+	memcpy(data, model.vertices.data(), model.vertices.size() * sizeof(Vertex));
+	vmaUnmapMemory(m_allocator, model.vertexAllocation);
+
+	vmaMapMemory(m_allocator, model.indexAllocation, &data);
+	memcpy(data, model.indices.data(), model.indices.size() * sizeof(uint32_t));
+	vmaUnmapMemory(m_allocator, model.indexAllocation);
+}
+
+ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
+{
+	std::string fullPath = m_pathManager.GetModelPath(name);
+
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn, err;
+
+	if (!LoadObjFile(fullPath, attrib, shapes, materials, warn, err))
+	{
+		return nullptr;
 	}
 
-    // Create vertex and index buffers
-    m_engine->CreateBuffer(model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
-    m_engine->CreateBuffer(model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
+	ModelResource model;
+	ProcessVerticesAndIndices(attrib, shapes, model);
 
-    // Copy vertex and index data to buffers
-    void* data;
-    vmaMapMemory(m_allocator, model.vertexAllocation, &data);
-    memcpy(data, model.vertices.data(), model.vertices.size() * sizeof(Vertex));
-    vmaUnmapMemory(m_allocator, model.vertexAllocation);
+	CenterModel(model.vertices);
 
-    vmaMapMemory(m_allocator, model.indexAllocation, &data);
-    memcpy(data, model.indices.data(), model.indices.size() * sizeof(uint32_t));
-    vmaUnmapMemory(m_allocator, model.indexAllocation);
+	if (attrib.texcoords.empty())
+	{
+		CalculateTexCoords(model.vertices, model.indices);
+	}
 
-	model.pipeLineName = pipelineName.c_str();
+	if (model.vertices[0].normal == glm::vec3(0.0f))
+	{
+		CalculateNormals(model);
+	}
 
-    m_models[name] = std::move(model);
-    spdlog::info("Model '{}' loaded successfully", name);
+	CalculateTangentsAndBitangents(model);
+
+	if (!m_engine->GetGPUFree())
+	{
+		CreateBuffers(model);
+	}
+
+	model.pipeLineName = pipelineName;
+
+	m_models[name] = std::move(model);
+	spdlog::info("Model '{}' loaded successfully", name);
 
 	return &m_models[name];
 }
@@ -182,14 +336,13 @@ bool ModelManager::LoadTexture(const std::string& name)
 	VkDeviceSize imageSize = texWidth * texHeight * 4;
 
 	TextureResource texture;
-	texture.width  = texWidth;
+	texture.width = texWidth;
 	texture.height = texHeight;
 
 	// Create staging buffer
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
-	m_engine->CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY,
-		stagingBuffer, stagingAllocation);
+	m_engine->CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
 
 	// Copy pixel data to staging buffer
 	void* data;
@@ -200,18 +353,21 @@ bool ModelManager::LoadTexture(const std::string& name)
 	stbi_image_free(pixels);
 
 	// Create image
-	CreateImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
+	CreateImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
 
 	// Transition image layout and copy buffer to image
 	TransitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	CopyBufferToImage(stagingBuffer, texture.image, static_cast<uint32_t>(texWidth),
-		static_cast<uint32_t>(texHeight));
+	CopyBufferToImage(stagingBuffer, texture.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 	TransitionImageLayout(texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Create image view
 	texture.imageView = CreateImageView(texture.image, VK_FORMAT_R8G8B8A8_SRGB);
+
+	// Create sampler
+	if (!m_engine->GetGPUFree())
+	{
+		texture.sampler = m_engine->GetDescriptorManager().CreateSampler();
+	}
 
 	// Cleanup staging buffer
 	vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
@@ -266,41 +422,45 @@ void ModelManager::UnloadResource(const std::string& name)
 
 void ModelManager::UnloadAllResources()
 {
-	for (const auto& model : m_models)
+	if (m_engine->GetGPUFree())
+	{
+		return;
+	}
+
+	for (const auto& model: m_models)
 	{
 		vmaDestroyBuffer(m_allocator, model.second.vertexBuffer, model.second.vertexAllocation);
 		vmaDestroyBuffer(m_allocator, model.second.indexBuffer, model.second.indexAllocation);
 	}
 	m_models.clear();
 
-	for (const auto& texture : m_textures)
+	for (const auto& texture: m_textures)
 	{
 		vkDestroyImageView(m_device, texture.second.imageView, nullptr);
 		vmaDestroyImage(m_allocator, texture.second.image, texture.second.allocation);
+		vkDestroySampler(m_device, texture.second.sampler, nullptr);
 	}
 	m_textures.clear();
 
 	spdlog::info("All resources unloaded");
 }
 
-void ModelManager::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
-	VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image,
-	VmaAllocation& allocation)
+void ModelManager::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation)
 {
 	VkImageCreateInfo imageInfo{};
-	imageInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType     = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width  = width;
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
 	imageInfo.extent.height = height;
-	imageInfo.extent.depth  = 1;
-	imageInfo.mipLevels     = 1;
-	imageInfo.arrayLayers   = 1;
-	imageInfo.format        = format;
-	imageInfo.tiling        = tiling;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;
+	imageInfo.tiling = tiling;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage         = usage;
-	imageInfo.samples       = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.usage = usage;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.usage = memoryUsage;
@@ -314,15 +474,15 @@ void ModelManager::CreateImage(uint32_t width, uint32_t height, VkFormat format,
 VkImageView ModelManager::CreateImageView(VkImage image, VkFormat format)
 {
 	VkImageViewCreateInfo viewInfo{};
-	viewInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.image                           = image;
-	viewInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format                          = format;
-	viewInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-	viewInfo.subresourceRange.baseMipLevel   = 0;
-	viewInfo.subresourceRange.levelCount     = 1;
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount     = 1;
+	viewInfo.subresourceRange.layerCount = 1;
 
 	VkImageView imageView;
 	if (vkCreateImageView(m_device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
@@ -342,13 +502,12 @@ void ModelManager::BindModel(const std::string& name, VkCommandBuffer commandBuf
 	}
 
 	VkBuffer vertexBuffers[] = { model->vertexBuffer };
-	VkDeviceSize offsets[]   = { 0 };
+	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(commandBuffer, model->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void ModelManager::BindTexture(const std::string& name, VkCommandBuffer commandBuffer, VkPipelineLayout layout,
-	uint32_t binding, VkDescriptorSet set)
+void ModelManager::BindTexture(const std::string& name, uint32_t binding, VkDescriptorSet set)
 {
 	const TextureResource* texture = GetTexture(name);
 	if (!texture)
@@ -358,17 +517,17 @@ void ModelManager::BindTexture(const std::string& name, VkCommandBuffer commandB
 
 	VkDescriptorImageInfo imageInfo{};
 	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView   = texture->imageView;
-	imageInfo.sampler     = VK_NULL_HANDLE;
+	imageInfo.imageView = texture->imageView;
+	imageInfo.sampler = VK_NULL_HANDLE;
 
 	VkWriteDescriptorSet descriptorWrite{};
-	descriptorWrite.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrite.dstSet          = set;
-	descriptorWrite.dstBinding      = binding;
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = set;
+	descriptorWrite.dstBinding = binding;
 	descriptorWrite.dstArrayElement = 0;
-	descriptorWrite.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWrite.descriptorCount = 1;
-	descriptorWrite.pImageInfo      = &imageInfo;
+	descriptorWrite.pImageInfo = &imageInfo;
 
 	vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
 }
@@ -378,17 +537,17 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 	VkCommandBuffer commandBuffer = m_engine->BeginSingleTimeCommands();
 
 	VkImageMemoryBarrier barrier{};
-	barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout                       = oldLayout;
-	barrier.newLayout                       = newLayout;
-	barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image                           = image;
-	barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.baseMipLevel   = 0;
-	barrier.subresourceRange.levelCount     = 1;
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = oldLayout;
+	barrier.newLayout = newLayout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount     = 1;
+	barrier.subresourceRange.layerCount = 1;
 
 	VkPipelineStageFlags sourceStage;
 	VkPipelineStageFlags destinationStage;
@@ -398,7 +557,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
@@ -406,7 +565,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
@@ -414,7 +573,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
@@ -424,7 +583,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
@@ -434,7 +593,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
@@ -444,7 +603,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
@@ -452,7 +611,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
@@ -460,7 +619,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
@@ -468,7 +627,7 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
@@ -476,23 +635,15 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	}
 	else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 	{
 		barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-		sourceStage      = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
 	else
@@ -510,15 +661,15 @@ void ModelManager::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wi
 	VkCommandBuffer commandBuffer = m_engine->BeginSingleTimeCommands();
 
 	VkBufferImageCopy region{};
-	region.bufferOffset                    = 0;
-	region.bufferRowLength                 = 0;
-	region.bufferImageHeight               = 0;
-	region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel       = 0;
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
 	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount     = 1;
-	region.imageOffset                     = { 0, 0, 0 };
-	region.imageExtent                     = { width, height, 1 };
+	region.imageSubresource.layerCount = 1;
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = { width, height, 1 };
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 

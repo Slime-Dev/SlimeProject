@@ -1,24 +1,25 @@
 #pragma once
+
 #include "Engine.h"
-#include <memory>
 
 class PipelineGenerator;
 
-class Scene {
+class Scene
+{
 public:
 	Scene(Engine& engine);
 	~Scene() = default;
 
-	int Setup();
-	void Update(float dt, InputManager* inputManager);
-	void Render();
+	virtual int Setup();
+	virtual void Update(float dt, const InputManager* inputManager);
+	virtual void Render();
 
-private:
+protected:
 	Engine& m_engine;
 	Camera& m_camera;
 	SlimeWindow* m_window = nullptr;
 
-	std::unique_ptr<PipelineGenerator> m_pipelineGenerator;
+	PipelineContainer* m_pipeline = nullptr;
 	size_t m_descriptorSetLayoutIndex;
 	VkDescriptorSet m_descriptorSet;
 

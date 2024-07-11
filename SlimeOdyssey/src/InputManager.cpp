@@ -1,10 +1,12 @@
 #include "InputManager.h"
 
-#include "SlimeWindow.h"
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
-InputManager::InputManager(GLFWwindow* window) : m_window(window)
+#include "SlimeWindow.h"
+
+InputManager::InputManager(GLFWwindow* window)
+      : m_window(window)
 {
 	// Initialize key states
 	for (int i = 0; i < GLFW_KEY_LAST; ++i)
@@ -87,8 +89,10 @@ void InputManager::Update()
 	glfwGetCursorPos(m_window, &currentMouseX, &currentMouseY);
 	m_mouseDeltaX = currentMouseX - m_lastMouseX;
 	m_mouseDeltaY = currentMouseY - m_lastMouseY;
-	m_lastMouseX  = currentMouseX;
-	m_lastMouseY  = currentMouseY;
+	m_lastMouseX = currentMouseX;
+	m_lastMouseY = currentMouseY;
+
+	m_scrollDelta = 0.0;
 }
 
 bool InputManager::IsKeyPressed(int key) const

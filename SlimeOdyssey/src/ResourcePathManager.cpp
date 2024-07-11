@@ -63,15 +63,15 @@ std::string ResourcePathManager::SetRootDirectory()
 
 void ResourcePathManager::InitializeDirectories()
 {
-	m_directories[ResourceType::Shader]  = m_rootDirectory + "/shaders";
-	m_directories[ResourceType::Model]   = m_rootDirectory + "/models";
+	m_directories[ResourceType::Shader] = m_rootDirectory + "/shaders";
+	m_directories[ResourceType::Model] = m_rootDirectory + "/models";
 	m_directories[ResourceType::Texture] = m_rootDirectory + "/textures";
-	m_directories[ResourceType::Sound]   = m_rootDirectory + "/sounds";
-	m_directories[ResourceType::Script]  = m_rootDirectory + "/scripts";
-	m_directories[ResourceType::Config]  = m_rootDirectory + "/config";
+	m_directories[ResourceType::Sound] = m_rootDirectory + "/sounds";
+	m_directories[ResourceType::Script] = m_rootDirectory + "/scripts";
+	m_directories[ResourceType::Config] = m_rootDirectory + "/config";
 
 	// Create directories if they don't exist
-	for (const auto& [type, path] : m_directories)
+	for (const auto& [type, path]: m_directories)
 	{
 		std::filesystem::create_directories(path);
 	}
