@@ -17,6 +17,7 @@ public:
 	int Setup() override;
 
 	void Update(float dt, const InputManager* inputManager) override;
+	void UpdateCamera();
 
 private:
 	void ResetGame();
@@ -27,6 +28,12 @@ private:
 
 	glm::vec3 m_playerPosition;
 	glm::vec3 m_playerVelocity;
+
+	float m_playerRotation = 0.0f;
+	float m_cameraDistance = 0.0f;
+	float m_cameraHeight = 0.0f;
+
+
 	bool m_isJumping;
 	bool m_gameOver;
 };

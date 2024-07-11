@@ -60,6 +60,10 @@ glm::vec3 Camera::GetPosition() const
 void Camera::SetTarget(const glm::vec3& target)
 {
 	m_front = glm::normalize(target - m_position);
+
+	m_yaw = glm::degrees(std::atan2(m_front.z, m_front.x));
+	m_pitch = glm::degrees(std::asin(m_front.y));
+
 	UpdateCameraVectors();
 }
 
