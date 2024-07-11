@@ -7,7 +7,7 @@ int main()
 	SlimeWindow window(windowProps);
 
 	Engine engine(&window);
-	engine.SetGPUFree(true);
+	//engine.SetGPUFree(true);
 
 	if (engine.CreateEngine() != 0)
 		return -1;

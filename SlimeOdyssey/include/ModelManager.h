@@ -50,6 +50,7 @@ public:
 	struct TextureResource
 	{
 		VkImage image;
+		VkSampler sampler;
 		VmaAllocation allocation;
 		VkImageView imageView;
 		uint32_t width;

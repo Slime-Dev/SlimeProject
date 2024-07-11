@@ -363,6 +363,12 @@ bool ModelManager::LoadTexture(const std::string& name)
 	// Create image view
 	texture.imageView = CreateImageView(texture.image, VK_FORMAT_R8G8B8A8_SRGB);
 
+	// Create sampler
+	if (!m_engine->GetGPUFree())
+	{
+		texture.sampler = m_engine->GetDescriptorManager().CreateSampler();
+	}
+
 	// Cleanup staging buffer
 	vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
 
@@ -432,6 +438,7 @@ void ModelManager::UnloadAllResources()
 	{
 		vkDestroyImageView(m_device, texture.second.imageView, nullptr);
 		vmaDestroyImage(m_allocator, texture.second.image, texture.second.allocation);
+		vkDestroySampler(m_device, texture.second.sampler, nullptr);
 	}
 	m_textures.clear();
 

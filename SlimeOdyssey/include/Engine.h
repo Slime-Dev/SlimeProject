@@ -85,15 +85,10 @@ private:
 	struct TempMaterialTextures
 	{
 		const ModelManager::TextureResource* albedo;
-		VkSampler albedoSampler;
 		const ModelManager::TextureResource* normal;
-		VkSampler normalSampler;
 		const ModelManager::TextureResource* metallic;
-		VkSampler metallicSampler;
 		const ModelManager::TextureResource* roughness;
-		VkSampler roughnessSampler;
 		const ModelManager::TextureResource* ao;
-		VkSampler aoSampler;
 	};
 
 	struct RenderData

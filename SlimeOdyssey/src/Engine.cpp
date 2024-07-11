@@ -126,23 +126,18 @@ int Engine::SetupManagers()
 	// Create the temp material textures
 	m_modelManager.LoadTexture("albedo.png");
 	m_tempMaterialTextures.albedo = m_modelManager.GetTexture("albedo.png");
-	m_tempMaterialTextures.albedoSampler = m_descriptorManager.CreateSampler();
 
 	m_modelManager.LoadTexture("normal.png");
 	m_tempMaterialTextures.normal = m_modelManager.GetTexture("normal.png");
-	m_tempMaterialTextures.normalSampler = m_descriptorManager.CreateSampler();
 
 	m_modelManager.LoadTexture("metallic.png");
 	m_tempMaterialTextures.metallic = m_modelManager.GetTexture("metallic.png");
-	m_tempMaterialTextures.metallicSampler = m_descriptorManager.CreateSampler();
 
 	m_modelManager.LoadTexture("roughness.png");
 	m_tempMaterialTextures.roughness = m_modelManager.GetTexture("roughness.png");
-	m_tempMaterialTextures.roughnessSampler = m_descriptorManager.CreateSampler();
 
 	m_modelManager.LoadTexture("ao.png");
 	m_tempMaterialTextures.ao = m_modelManager.GetTexture("ao.png");
-	m_tempMaterialTextures.aoSampler = m_descriptorManager.CreateSampler();
 
 	return 0;
 }
@@ -622,11 +617,11 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 				m_descriptorManager.BindBuffer(descSets[0], 2, LightBuffer, 0, sizeof(LightBuf));
 
 				// Bind the sampler2D textures
-				m_descriptorManager.BindImage(descSets[1], 0, m_tempMaterialTextures.albedo->imageView, m_tempMaterialTextures.albedoSampler);
-				m_descriptorManager.BindImage(descSets[1], 1, m_tempMaterialTextures.normal->imageView, m_tempMaterialTextures.normalSampler);
-				m_descriptorManager.BindImage(descSets[1], 2, m_tempMaterialTextures.metallic->imageView, m_tempMaterialTextures.metallicSampler);
-				m_descriptorManager.BindImage(descSets[1], 3, m_tempMaterialTextures.roughness->imageView, m_tempMaterialTextures.roughnessSampler);
-				m_descriptorManager.BindImage(descSets[1], 4, m_tempMaterialTextures.ao->imageView, m_tempMaterialTextures.aoSampler);
+				m_descriptorManager.BindImage(descSets[1], 0, m_tempMaterialTextures.albedo->imageView, m_tempMaterialTextures.albedo->sampler);
+				m_descriptorManager.BindImage(descSets[1], 1, m_tempMaterialTextures.normal->imageView, m_tempMaterialTextures.normal->sampler);
+				m_descriptorManager.BindImage(descSets[1], 2, m_tempMaterialTextures.metallic->imageView, m_tempMaterialTextures.metallic->sampler);
+				m_descriptorManager.BindImage(descSets[1], 3, m_tempMaterialTextures.roughness->imageView, m_tempMaterialTextures.roughness->sampler);
+				m_descriptorManager.BindImage(descSets[1], 4, m_tempMaterialTextures.ao->imageView, m_tempMaterialTextures.ao->sampler);
 			}
 		}
 
@@ -886,13 +881,6 @@ int Engine::Cleanup()
 	vmaDestroyBuffer(m_allocator, materialBuffer, materialAllocation);
 	vmaDestroyBuffer(m_allocator, cameraUBOBBuffer, cameraUBOAllocation);
 	vmaDestroyBuffer(m_allocator, LightBuffer, LightAllocation);
-
-	// samplers
-	m_descriptorManager.DestroySampler(m_tempMaterialTextures.albedoSampler);
-	m_descriptorManager.DestroySampler(m_tempMaterialTextures.normalSampler);
-	m_descriptorManager.DestroySampler(m_tempMaterialTextures.metallicSampler);
-	m_descriptorManager.DestroySampler(m_tempMaterialTextures.roughnessSampler);
-	m_descriptorManager.DestroySampler(m_tempMaterialTextures.aoSampler);
 
 	// TODO REMOVE THIS Clean up the lights
 	for (auto& light: m_lights)
