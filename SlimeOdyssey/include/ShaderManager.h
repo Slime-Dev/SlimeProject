@@ -25,12 +25,17 @@ struct ShaderModule {
 
 class ShaderManager {
 public:
-    struct ShaderResources {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-        std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-        std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
-        std::vector<VkPushConstantRange> pushConstantRanges;
-    };
+	struct ShaderResources {
+		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
+		struct DescriptorSetLayoutBinding {
+			uint32_t set;
+			VkDescriptorSetLayoutBinding binding;
+		};
+		std::vector<DescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+		std::vector<VkPushConstantRange> pushConstantRanges;
+	};
+
 
     ShaderManager() = default;
     explicit ShaderManager(VkDevice device);
@@ -39,7 +44,8 @@ public:
     ShaderModule LoadShader(const std::string &path, VkShaderStageFlagBits stage);
     ShaderResources ParseShader(const ShaderModule &shaderModule);
 	ShaderResources CombineResources(const std::vector<ShaderModule>& shaderModules);
-    VkDescriptorSetLayout CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding> &bindings);
+
+	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(const ShaderResources& resources);
 
     void CleanupShaderModules();
     void CleanupDescriptorSetLayouts();

@@ -26,13 +26,13 @@ int Scene::Setup() {
     auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
 
     // Set up descriptor set layout
-    auto descriptorSetLayout = shaderManager.CreateDescriptorSetLayout(combinedResources.descriptorSetLayoutBindings);
+    auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(combinedResources);
 
 	PipelineGenerator pipelineGenerator(m_engine);
 	pipelineGenerator.SetName("Basic");
     pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
     pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
-    pipelineGenerator.SetDescriptorSetLayouts({ descriptorSetLayout });
+    pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
     pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
     pipelineGenerator.Generate();
 
@@ -53,7 +53,7 @@ int Scene::Setup() {
 
     // Descriptor set layout
     DescriptorManager& descriptorManager = m_engine.GetDescriptorManager();
-    m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayout(descriptorSetLayout);
+    m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts);
     m_descriptorSet = descriptorManager.AllocateDescriptorSet(m_descriptorSetLayoutIndex);
     pipelineGenerator.SetDescriptorSets({ m_descriptorSet });
 

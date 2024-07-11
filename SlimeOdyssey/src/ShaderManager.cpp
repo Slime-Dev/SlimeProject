@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include "spirv_cross.hpp"
 #include "spirv_glsl.hpp"
+#include "spdlog/spdlog.h"
 
 ShaderManager::ShaderManager(VkDevice device) : m_device(device)
 {
@@ -93,36 +94,71 @@ ShaderManager::ShaderResources ShaderManager::ParseShader(const ShaderModule& sh
 		resources.bindingDescriptions = std::move(bindingDescriptions);
 	}
 
-	// Parse uniform buffers
-	for (const auto& resource : shaderResources.uniform_buffers)
-	{
-		uint32_t binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
-		uint32_t set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+	    // Parse uniform buffers
+    for (const auto& resource : shaderResources.uniform_buffers)
+    {
+        uint32_t binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
+        uint32_t set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
 
-		// Check if we already have a binding for this set and binding number
-		auto it = std::find_if(resources.descriptorSetLayoutBindings.begin(), resources.descriptorSetLayoutBindings.end(),
-			[binding, set](const VkDescriptorSetLayoutBinding& existingBinding) {
-				return existingBinding.binding == binding && existingBinding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			});
+        // Check if we already have a binding for this set and binding number
+        auto it = std::find_if(resources.descriptorSetLayoutBindings.begin(), resources.descriptorSetLayoutBindings.end(),
+            [binding, set](const ShaderResources::DescriptorSetLayoutBinding& existingBinding) {
+                return existingBinding.binding.binding == binding &&
+                       existingBinding.set == set &&
+                       existingBinding.binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            });
 
-		if (it != resources.descriptorSetLayoutBindings.end())
-		{
-			// We found an existing binding, update its stage flags
-			it->stageFlags |= shaderModule.stage;
-		}
-		else
-		{
-			// Create a new binding
-			VkDescriptorSetLayoutBinding layoutBinding{};
-			layoutBinding.binding            = binding;
-			layoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			layoutBinding.descriptorCount    = 1;
-			layoutBinding.stageFlags         = shaderModule.stage;
-			layoutBinding.pImmutableSamplers = nullptr; // Only relevant for samplers
+        if (it != resources.descriptorSetLayoutBindings.end())
+        {
+            // We found an existing binding, update its stage flags
+            it->binding.stageFlags |= shaderModule.stage;
+        }
+        else
+        {
+            // Create a new binding
+            VkDescriptorSetLayoutBinding layoutBinding{};
+            layoutBinding.binding            = binding;
+            layoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            layoutBinding.descriptorCount    = 1;
+            layoutBinding.stageFlags         = shaderModule.stage;
+            layoutBinding.pImmutableSamplers = nullptr; // Only relevant for samplers
 
-			resources.descriptorSetLayoutBindings.push_back(layoutBinding);
-		}
-	}
+            resources.descriptorSetLayoutBindings.push_back({set, layoutBinding});
+        }
+    }
+
+    // Parse combined image samplers
+    for (const auto& resource : shaderResources.sampled_images)
+    {
+        uint32_t binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
+        uint32_t set     = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+
+        // Check if we already have a binding for this set and binding number
+        auto it = std::find_if(resources.descriptorSetLayoutBindings.begin(), resources.descriptorSetLayoutBindings.end(),
+            [binding, set](const ShaderResources::DescriptorSetLayoutBinding& existingBinding) {
+                return existingBinding.binding.binding == binding &&
+                       existingBinding.set == set &&
+                       existingBinding.binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            });
+
+        if (it != resources.descriptorSetLayoutBindings.end())
+        {
+            // We found an existing binding, update its stage flags
+            it->binding.stageFlags |= shaderModule.stage;
+        }
+        else
+        {
+            // Create a new binding
+            VkDescriptorSetLayoutBinding layoutBinding{};
+            layoutBinding.binding            = binding;
+            layoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            layoutBinding.descriptorCount    = 1;
+            layoutBinding.stageFlags         = shaderModule.stage;
+            layoutBinding.pImmutableSamplers = nullptr;
+
+            resources.descriptorSetLayoutBindings.push_back({set, layoutBinding});
+        }
+    }
 
 	// Parse push constants
 	uint32_t currentOffset = 0;
@@ -186,48 +222,49 @@ ShaderManager::ShaderResources ShaderManager::ParseShader(const ShaderModule& sh
 
 ShaderManager::ShaderResources ShaderManager::CombineResources(const std::vector<ShaderModule>& shaderModules)
 {
-	ShaderResources combinedResources;
+    ShaderResources combinedResources;
 
-	for (const auto& shaderModule : shaderModules)
-	{
-		auto resources = ParseShader(shaderModule);
+    for (const auto& shaderModule : shaderModules)
+    {
+        auto resources = ParseShader(shaderModule);
 
-		// Merge attribute descriptions
-		combinedResources.attributeDescriptions.insert(combinedResources.attributeDescriptions.end(),
-			resources.attributeDescriptions.begin(), resources.attributeDescriptions.end());
+        // Merge attribute descriptions
+        combinedResources.attributeDescriptions.insert(combinedResources.attributeDescriptions.end(),
+            resources.attributeDescriptions.begin(), resources.attributeDescriptions.end());
 
-		// Merge binding descriptions
-		combinedResources.bindingDescriptions.insert(combinedResources.bindingDescriptions.end(),
-			resources.bindingDescriptions.begin(), resources.bindingDescriptions.end());
+        // Merge binding descriptions
+        combinedResources.bindingDescriptions.insert(combinedResources.bindingDescriptions.end(),
+            resources.bindingDescriptions.begin(), resources.bindingDescriptions.end());
 
-		// Merge descriptor set layout bindings
-		for (const auto& binding : resources.descriptorSetLayoutBindings)
-		{
-			auto it = std::find_if(combinedResources.descriptorSetLayoutBindings.begin(),
-				combinedResources.descriptorSetLayoutBindings.end(),
-				[&binding](const VkDescriptorSetLayoutBinding& existingBinding) {
-					return existingBinding.binding == binding.binding &&
-						existingBinding.descriptorType == binding.descriptorType;
-				});
+        // Merge descriptor set layout bindings
+        for (const auto& binding : resources.descriptorSetLayoutBindings)
+        {
+            auto it = std::find_if(combinedResources.descriptorSetLayoutBindings.begin(),
+                combinedResources.descriptorSetLayoutBindings.end(),
+                [&binding](const ShaderResources::DescriptorSetLayoutBinding& existingBinding) {
+                    return existingBinding.set == binding.set &&
+                        existingBinding.binding.binding == binding.binding.binding &&
+                        existingBinding.binding.descriptorType == binding.binding.descriptorType;
+                });
 
-			if (it != combinedResources.descriptorSetLayoutBindings.end())
-			{
-				// We found an existing binding, update its stage flags
-				it->stageFlags |= binding.stageFlags;
-			}
-			else
-			{
-				// Create a new binding
-				combinedResources.descriptorSetLayoutBindings.push_back(binding);
-			}
-		}
+            if (it != combinedResources.descriptorSetLayoutBindings.end())
+            {
+                // We found an existing binding, update its stage flags
+                it->binding.stageFlags |= binding.binding.stageFlags;
+            }
+            else
+            {
+                // Create a new binding
+                combinedResources.descriptorSetLayoutBindings.push_back(binding);
+            }
+        }
 
-		// Merge push constant ranges
-		combinedResources.pushConstantRanges.insert(combinedResources.pushConstantRanges.end(),
-			resources.pushConstantRanges.begin(), resources.pushConstantRanges.end());
-	}
+        // Merge push constant ranges
+        combinedResources.pushConstantRanges.insert(combinedResources.pushConstantRanges.end(),
+            resources.pushConstantRanges.begin(), resources.pushConstantRanges.end());
+    }
 
-	return combinedResources;
+    return combinedResources;
 }
 
 std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindings)
@@ -241,30 +278,55 @@ std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindin
 	return hash;
 }
 
-VkDescriptorSetLayout ShaderManager::CreateDescriptorSetLayout(
-	const std::vector<VkDescriptorSetLayoutBinding>& bindings)
+std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(const ShaderResources& resources)
 {
-	std::string hash = HashBindings(bindings);
+	std::map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> setBindings;
 
-	if (m_descriptorSetLayouts.find(hash) != m_descriptorSetLayouts.end())
+	// Group bindings by set
+	for (const auto& binding : resources.descriptorSetLayoutBindings)
 	{
-		return m_descriptorSetLayouts[hash];
+		setBindings[binding.set].push_back(binding.binding);
 	}
 
-	VkDescriptorSetLayoutCreateInfo layoutInfo{};
-	layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-	layoutInfo.pBindings    = bindings.data();
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+	descriptorSetLayouts.reserve(setBindings.size());
 
-	VkDescriptorSetLayout descriptorSetLayout;
-	if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+	for (const auto& [set, bindings] : setBindings)
 	{
-		throw std::runtime_error("failed to create descriptor set layout!");
+		std::string hash = HashBindings(bindings);
+
+		if (m_descriptorSetLayouts.find(hash) != m_descriptorSetLayouts.end())
+		{
+			descriptorSetLayouts.push_back(m_descriptorSetLayouts[hash]);
+			continue;
+		}
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+		layoutInfo.pBindings = bindings.data();
+
+		VkDescriptorSetLayout descriptorSetLayout;
+		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
+
+		m_descriptorSetLayouts[hash] = descriptorSetLayout;
+		descriptorSetLayouts.push_back(descriptorSetLayout);
+
+		spdlog::info("Created descriptor set layout for set {}", set);
+		for (const auto& binding : bindings)
+		{
+			spdlog::info("  Binding {}: type {}, count {}, stage flags {}",
+				binding.binding,
+				static_cast<int>(binding.descriptorType),
+				binding.descriptorCount,
+				static_cast<int>(binding.stageFlags));
+		}
 	}
 
-	m_descriptorSetLayouts[hash] = descriptorSetLayout;
-
-	return descriptorSetLayout;
+	return descriptorSetLayouts;
 }
 
 void ShaderManager::CleanupShaderModules()

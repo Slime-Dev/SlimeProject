@@ -48,6 +48,54 @@ void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& de
 	m_pipelineContainer.descriptorSets = descriptorSets;
 }
 
+void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderResources& resources)
+{
+	std::map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> setBindings;
+
+	// Group bindings by set
+	for (const auto& binding : resources.descriptorSetLayoutBindings)
+	{
+		setBindings[binding.set].push_back(binding.binding);
+	}
+
+	// Clear existing layouts
+	for (auto layout : m_descriptorSetLayouts)
+	{
+		vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
+	}
+	m_descriptorSetLayouts.clear();
+
+	// Create a descriptor set layout for each set
+	for (const auto& [set, bindings] : setBindings)
+	{
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+		layoutInfo.pBindings = bindings.data();
+
+		VkDescriptorSetLayout setLayout;
+		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &setLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
+
+		m_descriptorSetLayouts.push_back(setLayout);
+
+		spdlog::info("Created descriptor set layout for set {}", set);
+		for (const auto& binding : bindings)
+		{
+			spdlog::info("  Binding {}: type {}, count {}, stage flags {}",
+				binding.binding,
+				static_cast<int>(binding.descriptorType),
+				binding.descriptorCount,
+				static_cast<int>(binding.stageFlags));
+		}
+	}
+
+	// Store push constant ranges
+	m_pushConstantRanges = resources.pushConstantRanges;
+}
+
 void PipelineGenerator::CreatePipelineLayout()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -58,6 +106,12 @@ void PipelineGenerator::CreatePipelineLayout()
 	pipelineLayoutInfo.pPushConstantRanges    = m_pushConstantRanges.data();
 
 	spdlog::info("Creating pipeline layout");
+	spdlog::info("Number of descriptor set layouts: {}", m_descriptorSetLayouts.size());
+	for (size_t i = 0; i < m_descriptorSetLayouts.size(); ++i)
+	{
+		spdlog::info("Descriptor set layout {}: {}", i, (void*)m_descriptorSetLayouts[i]);
+	}
+
 	for (const auto& [stageFlags, offset, size] : m_pushConstantRanges)
 	{
 		spdlog::info("Push constant range: offset: {}, size: {}, stage flags: {}", offset, size, static_cast<int>(stageFlags));
@@ -69,6 +123,7 @@ void PipelineGenerator::CreatePipelineLayout()
 	}
 
 	m_engine.GetDebugUtils().SetObjectName(m_pipelineContainer.pipelineLayout, (m_pipelineContainer.name + " Pipeline Layout"));
+	spdlog::info("Created pipeline layout: {}", (void*)m_pipelineContainer.pipelineLayout);
 }
 
 void PipelineGenerator::CreatePipeline()

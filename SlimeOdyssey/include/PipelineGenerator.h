@@ -10,6 +10,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include "ShaderManager.h"
+#include "spirv_cross.hpp"
 
 class Engine;
 
@@ -40,6 +41,8 @@ public:
     void Generate();
 
 	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
+
+    void PrepareDescriptorSetLayouts(const ShaderManager::ShaderResources& resources);
 
     [[nodiscard]] VkPipeline GetPipeline() const { return m_pipelineContainer.pipeline; }
     [[nodiscard]] VkPipelineLayout GetPipelineLayout() const { return m_pipelineContainer.pipelineLayout; }
