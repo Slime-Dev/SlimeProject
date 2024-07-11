@@ -9,7 +9,8 @@ struct MVP
 {
 	glm::mat4 model;
 	glm::mat4 view;
-	glm::mat4 proj;
+	glm::mat4 projection;
+	glm::mat3 normalMatrix;
 };
 
 class DescriptorManager
@@ -27,6 +28,9 @@ public:
 	size_t AddDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
 
 	void BindBuffer(VkDescriptorSet descriptorSet, uint32_t binding, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
+
+	VkSampler CreateSampler();
+	void DestroySampler(VkSampler sampler);
 
 	void BindImage(VkDescriptorSet descriptorSet, uint32_t binding, VkImageView imageView, VkSampler sampler);
 

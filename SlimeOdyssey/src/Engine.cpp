@@ -25,6 +25,26 @@ spdlog::debug(format, ##__VA_ARGS__); \
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
+struct Material
+{
+	glm::vec4 albedo = glm::vec4(1.0f);
+	float metallic = 0.0f;
+	float roughness = 0.0f;
+	float ao = 1.0f;
+} material;
+
+struct CameraUBO
+{
+	glm::vec3 viewPos;
+} cameraUBO;
+
+struct LightBuf
+{
+	glm::vec3 position;
+	glm::vec3 color;
+} light;
+
+
 Engine::Engine(SlimeWindow* window) : m_window(window)
 {
 	spdlog::set_level(spdlog::level::trace);
@@ -81,6 +101,33 @@ int Engine::SetupManagers()
 		CreateBuffer(sizeof(Light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, lightObject.buffer, lightObject.allocation);
 		CopyStructToBuffer(light, lightObject.buffer, lightObject.allocation);
 	}
+
+	CreateBuffer(sizeof(MVP), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_mvpBuffer, m_mvpAllocation);
+
+	CreateBuffer(sizeof(Material), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, materialBuffer, materialAllocation);
+	CreateBuffer(sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, cameraUBOBBuffer, cameraUBOAllocation);
+	CreateBuffer(sizeof(LightBuf), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, LightBuffer, LightAllocation);
+
+	// Create the temp material textures
+	m_modelManager.LoadTexture("albedo.png");
+	m_tempMaterialTextures.albedo = m_modelManager.GetTexture("albedo.png");
+	m_tempMaterialTextures.albedoSampler = m_descriptorManager.CreateSampler();
+
+	m_modelManager.LoadTexture("normal.png");
+	m_tempMaterialTextures.normal = m_modelManager.GetTexture("normal.png");
+	m_tempMaterialTextures.normalSampler = m_descriptorManager.CreateSampler();
+
+	m_modelManager.LoadTexture("metallic.png");
+	m_tempMaterialTextures.metallic = m_modelManager.GetTexture("metallic.png");
+	m_tempMaterialTextures.metallicSampler = m_descriptorManager.CreateSampler();
+
+	m_modelManager.LoadTexture("roughness.png");
+	m_tempMaterialTextures.roughness = m_modelManager.GetTexture("roughness.png");
+	m_tempMaterialTextures.roughnessSampler = m_descriptorManager.CreateSampler();
+
+	m_modelManager.LoadTexture("ao.png");
+	m_tempMaterialTextures.ao = m_modelManager.GetTexture("ao.png");
+	m_tempMaterialTextures.aoSampler = m_descriptorManager.CreateSampler();
 
 	return 0;
 }
@@ -514,25 +561,11 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 
 	m_debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
 
-	// Light movement
-	float time                    = glfwGetTime();
-	float radius                  = 5.0f;
-	float height                  = 3.0f + 2.0f * std::sin(time * 0.5f);
-	m_lights.at(0).light.lightPos = glm::vec3(
-		radius * std::cos(time * 0.7f),
-		height,
-		radius * std::sin(time * 0.7f)
-		);
+	// Light Pos
+	m_lights.at(0).light.lightPos = glm::vec3(0.0f, 0.0f, 3.0f);
 
 	// Light color
-	glm::vec3 baseColor = glm::vec3(1.0f, 0.8f, 0.6f);         // Warm, slightly orange light
-	float colorPulse    = 0.2f * std::sin(time * 2.0f) + 0.8f; // Pulsing effect
-	glm::vec3 tintColor = glm::vec3(
-		0.5f + 0.5f * std::sin(time * 0.3f),
-		0.5f + 0.5f * std::sin(time * 0.5f),
-		0.5f + 0.5f * std::sin(time * 0.7f)
-		);
-	m_lights.at(0).light.lightColor = glm::mix(baseColor, tintColor, 0.3f) * colorPulse;
+	m_lights.at(0).light.lightColor = glm::vec3(1.0f, 0.8f, 0.6f);
 
 	CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
 	m_debugUtils.EndDebugMarker(cmd);
@@ -566,25 +599,43 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 			m_debugUtils.InsertDebugMarker(cmd, "Bind Pipeline", debugUtil_White);
 		}
 
-		auto descSets = pipelineContainer->descriptorSets;
-		if (descSets.empty() || descSets[0] == VK_NULL_HANDLE)
 		{
-			spdlog::error("Invalid descriptor set for pipeline: {}", pipelineName);
-			m_debugUtils.EndDebugMarker(cmd);
-			continue;
+			if (!boundDescriptorSet)
+			{
+				auto descSets = pipelineContainer->descriptorSets;
+				boundDescriptorSet = descSets[0];
+
+				// Bind descriptor set
+				m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 2, descSets.data(), 0, nullptr);
+
+				// Set material buffer
+				CopyStructToBuffer(material, materialBuffer, materialAllocation);
+				m_descriptorManager.BindBuffer(descSets[0], 0, materialBuffer, 0, sizeof(Material));
+
+				// Set Camera UBO buffer
+				cameraUBO.viewPos = m_camera.getPosition();
+				CopyStructToBuffer(cameraUBO, cameraUBOBBuffer, cameraUBOAllocation);
+				m_descriptorManager.BindBuffer(descSets[0], 1, cameraUBOBBuffer, 0, sizeof(CameraUBO));
+
+				// Set Light buffer
+				light.color = m_lights.at(0).light.lightColor;
+				light.position = m_lights.at(0).light.lightPos;
+				CopyStructToBuffer(light, LightBuffer, LightAllocation);
+				m_descriptorManager.BindBuffer(descSets[0], 2, LightBuffer, 0, sizeof(LightBuf));
+
+				// Bind the sampler2D textures
+				m_descriptorManager.BindImage(descSets[1], 0, m_tempMaterialTextures.albedo->imageView, m_tempMaterialTextures.albedoSampler);
+				m_descriptorManager.BindImage(descSets[1], 1, m_tempMaterialTextures.normal->imageView, m_tempMaterialTextures.normalSampler);
+				m_descriptorManager.BindImage(descSets[1], 2, m_tempMaterialTextures.metallic->imageView, m_tempMaterialTextures.metallicSampler);
+				m_descriptorManager.BindImage(descSets[1], 3, m_tempMaterialTextures.roughness->imageView, m_tempMaterialTextures.roughnessSampler);
+				m_descriptorManager.BindImage(descSets[1], 4, m_tempMaterialTextures.ao->imageView, m_tempMaterialTextures.aoSampler);
+			}
 		}
 
-		if (descSets[0] != boundDescriptorSet)
-		{
-			boundDescriptorSet = descSets[0];
-			m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 1, descSets.data(), 0, nullptr);
-			m_descriptorManager.BindBuffer(descSets[0], 0, m_lights.at(0).buffer, 0, sizeof(Light));
-			m_debugUtils.InsertDebugMarker(cmd, "Bind Descriptor Set", debugUtil_White);
-		}
-
-		m_mvp.view  = m_camera.getViewMatrix();
-		m_mvp.proj  = m_camera.getProjectionMatrix();
 		m_mvp.model = model.model;
+		m_mvp.view  = m_camera.getViewMatrix();
+		m_mvp.projection  = m_camera.getProjectionMatrix();
+		m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
 		m_disp.cmdPushConstants(cmd, pipelineContainer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
 		m_debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 
@@ -819,6 +870,19 @@ int Engine::Cleanup()
 	data.pipelines.clear();
 
 	m_descriptorManager.Cleanup();
+
+	// Clean up all the test textures and buffers
+	vmaDestroyBuffer(m_allocator, m_mvpBuffer, m_mvpAllocation);
+	vmaDestroyBuffer(m_allocator, materialBuffer, materialAllocation);
+	vmaDestroyBuffer(m_allocator, cameraUBOBBuffer, cameraUBOAllocation);
+	vmaDestroyBuffer(m_allocator, LightBuffer, LightAllocation);
+
+	// samplers
+	m_descriptorManager.DestroySampler(m_tempMaterialTextures.albedoSampler);
+	m_descriptorManager.DestroySampler(m_tempMaterialTextures.normalSampler);
+	m_descriptorManager.DestroySampler(m_tempMaterialTextures.metallicSampler);
+	m_descriptorManager.DestroySampler(m_tempMaterialTextures.roughnessSampler);
+	m_descriptorManager.DestroySampler(m_tempMaterialTextures.aoSampler);
 
 	// TODO REMOVE THIS Clean up the lights
 	for (auto& light : m_lights)

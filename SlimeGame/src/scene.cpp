@@ -54,8 +54,17 @@ int Scene::Setup() {
     // Descriptor set layout
     DescriptorManager& descriptorManager = m_engine.GetDescriptorManager();
     m_descriptorSetLayoutIndex = descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts);
-    m_descriptorSet = descriptorManager.AllocateDescriptorSet(m_descriptorSetLayoutIndex);
-    pipelineGenerator.SetDescriptorSets({ m_descriptorSet });
+
+	std::vector<VkDescriptorSet> descriptorSets;
+	for (int i = descriptorSetLayouts.size() - 1; i >= 0; i--)
+	{
+		descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
+	}
+
+	// Sort the descriptor sets in the order of the layout
+	std::reverse(descriptorSets.begin(), descriptorSets.end());
+
+    pipelineGenerator.SetDescriptorSets(descriptorSets);
 
     m_engine.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
 

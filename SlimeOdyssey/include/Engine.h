@@ -25,6 +25,24 @@ struct GLFWwindow;
 class Engine
 {
 public:
+	struct TempMaterialTextures
+	{
+		const ModelManager::TextureResource* albedo;
+		VkSampler albedoSampler;
+
+		const ModelManager::TextureResource* normal;
+		VkSampler normalSampler;
+
+		const ModelManager::TextureResource* metallic;
+		VkSampler metallicSampler;
+
+		const ModelManager::TextureResource* roughness;
+		VkSampler roughnessSampler;
+
+		const ModelManager::TextureResource* ao;
+		VkSampler aoSampler;
+	};
+
 	Engine(SlimeWindow* window);
 	~Engine();
 
@@ -120,6 +138,20 @@ private:
 
 	Camera m_camera = Camera(90.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	MVP m_mvp;
+	VkBuffer m_mvpBuffer;
+	VmaAllocation m_mvpAllocation;
+
+	// TESTING
+	VkBuffer materialBuffer;
+	VmaAllocation materialAllocation;
+
+	VkBuffer cameraUBOBBuffer;
+	VmaAllocation cameraUBOAllocation;
+
+	VkBuffer LightBuffer;
+	VmaAllocation LightAllocation;
+
+	TempMaterialTextures m_tempMaterialTextures;
 
 	// TODO Find better place for lights
 	const uint8_t MAX_LIGHTS = 1;

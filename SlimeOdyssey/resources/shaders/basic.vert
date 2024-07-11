@@ -15,8 +15,8 @@ layout(location = 2) out vec2 TexCoords;
 layout(location = 3) out vec3 Tangent;
 layout(location = 4) out vec3 Bitangent;
 
-// Uniform buffer for transformation matrices
-layout(set = 0, binding = 0) uniform TransformUBO {
+// push constant Uniform buffer for transformation matrices
+layout(push_constant) uniform TransformUBO {
 	mat4 model;
 	mat4 view;
 	mat4 projection;
