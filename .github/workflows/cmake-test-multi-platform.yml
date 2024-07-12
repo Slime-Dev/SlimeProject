@@ -2,7 +2,7 @@ name: Testing for multiple platforms
 
 on:
   push:
-    branches: [ "test" ]
+    branches: [ "SeparateGameAndTest" ]
   pull_request:
     branches: [ "main" ]
 

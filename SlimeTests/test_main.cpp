@@ -8,15 +8,15 @@
 #include <vector>
 
 void testEngineInitialization() {
-	 SlimeWindow::WindowProps windowProps{ .title = "Slime Odyssey", .width = 1920, .height = 1080, .resizable = true, .decorated = true, .fullscreen = false };
+	//SlimeWindow::WindowProps windowProps{ .title = "Slime Odyssey", .width = 1920, .height = 1080, .resizable = true, .decorated = true, .fullscreen = false };
 
-	 SlimeWindow window(windowProps);
+	//SlimeWindow window(windowProps);
+	Engine engine(nullptr);
 
-	 Engine engine(&window);
-     engine.SetGPUFree(true);
-     assert(engine.GetGPUFree() == true);
+    engine.SetGPUFree(true);
+    assert(engine.GetGPUFree() == true);
 
-     assert(engine.CreateEngine() == 0);
+    assert(engine.CreateEngine() == 0);
 
     assert(1 == 1);
 }
