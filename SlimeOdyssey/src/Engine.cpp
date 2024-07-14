@@ -844,6 +844,7 @@ int Engine::Cleanup()
 	{
 		spdlog::info("GPU Free");
 		vkb::destroy_instance(m_instance);
+		spdlog::info("Successfully deleted instance");
 		return 0;
 	}
 

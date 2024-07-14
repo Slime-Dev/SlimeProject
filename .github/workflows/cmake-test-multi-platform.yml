@@ -101,6 +101,12 @@ jobs:
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
 
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-TestResults
+          path: ${{ github.workspace }}/scripts/junitout.xml
+
       - name: Convert XML to CTRF
         if: success()
         run: |
