@@ -99,7 +99,7 @@ jobs:
 
       - name: Copy Vulkan DLLs to build directory
         run: |
-          copy C:\VulkanSDK\<version>\Bin\*.dll build\
+          copy C:\VulkanSDK\1.3.283.0\Bin\*.dll build\
 
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
