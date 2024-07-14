@@ -76,6 +76,7 @@ jobs:
           $vulkanSDK = "https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe"
           Invoke-WebRequest -Uri $vulkanSDK -OutFile VulkanSDK-Installer.exe
           .\VulkanSDK-Installer.exe --accept-licenses --default-answer --confirm-command install
+          choco install -y vulkan-sdk
 
       - name: Set reusable strings
         id: strings
