@@ -842,6 +842,7 @@ int Engine::Cleanup()
 
 	if (m_gpuFree)
 	{
+		spdlog::info("GPU Free");
 		vkb::destroy_instance(m_instance);
 		return 0;
 	}
