@@ -76,7 +76,6 @@ jobs:
           $vulkanSDK = "https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe"
           Invoke-WebRequest -Uri $vulkanSDK -OutFile VulkanSDK-Installer.exe
           .\VulkanSDK-Installer.exe --accept-licenses --default-answer --confirm-command install
-          choco install -y vulkan-sdk
 
       - name: Set reusable strings
         id: strings
@@ -97,16 +96,21 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
+
+      - name: Copy Vulkan DLLs to build directory
+        run: |
+          copy C:\VulkanSDK\<version>\Bin\*.dll build\
+
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
 
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-TestResults
-          path: ${{ github.workspace }}/scripts/junitout.xml
+      # - name: Upload Test Results
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ matrix.os }}-TestResults
+      #     path: ${{ github.workspace }}/scripts/junitout.xml
 
       - name: Convert XML to CTRF
         if: success()
