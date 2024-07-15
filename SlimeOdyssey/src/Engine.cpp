@@ -343,6 +343,7 @@ int Engine::CreateSwapchain()
 	                        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
 	                        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	                        .set_old_swapchain(m_swapchain)
+							.set_desired_extent(m_window->GetWidth(), m_window->GetHeight())
 	                        .build();
 
 	if (!swap_ret)
