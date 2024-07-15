@@ -14,14 +14,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-ModelManager::ModelManager(Engine* engine, VkDevice device, VmaAllocator allocator, ResourcePathManager& pathManager)
-      : m_engine(engine), m_device(device), m_allocator(allocator), m_pathManager(pathManager)
-{
-}
+#include "VulkanUtil.h"
 
-ModelManager::~ModelManager()
+ModelManager::ModelManager(ResourcePathManager& pathManager)
+      : m_pathManager(pathManager)
 {
-	UnloadAllResources();
 }
 
 void ModelManager::CenterModel(std::vector<Vertex>& vector)
@@ -141,7 +138,7 @@ void ModelManager::ProcessVerticesAndIndices(const tinyobj::attrib_t& attrib, co
 	}
 }
 
-ModelManager::Vertex ModelManager::CreateVertex(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index)
+Vertex ModelManager::CreateVertex(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index)
 {
 	Vertex vertex;
 	vertex.pos = ExtractPosition(attrib, index);
@@ -259,24 +256,24 @@ void ModelManager::CalculateTangentSpace(Vertex& v0, Vertex& v1, Vertex& v2)
 	v2.bitangent += glm::cross(v2.normal, tangent);
 }
 
-void ModelManager::CreateBuffers(ModelResource& model)
+void ModelManager::CreateBuffers(VmaAllocator allocator, ModelResource& model)
 {
 	// Create vertex and index buffers
-	m_engine->CreateBuffer(model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
-	m_engine->CreateBuffer(model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
+	SlimeUtil::CreateBuffer(allocator, model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
+	SlimeUtil::CreateBuffer(allocator, model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
 
 	// Copy vertex and index data to buffers
 	void* data;
-	vmaMapMemory(m_allocator, model.vertexAllocation, &data);
+	vmaMapMemory(allocator, model.vertexAllocation, &data);
 	memcpy(data, model.vertices.data(), model.vertices.size() * sizeof(Vertex));
-	vmaUnmapMemory(m_allocator, model.vertexAllocation);
+	vmaUnmapMemory(allocator, model.vertexAllocation);
 
-	vmaMapMemory(m_allocator, model.indexAllocation, &data);
+	vmaMapMemory(allocator, model.indexAllocation, &data);
 	memcpy(data, model.indices.data(), model.indices.size() * sizeof(uint32_t));
-	vmaUnmapMemory(m_allocator, model.indexAllocation);
+	vmaUnmapMemory(allocator, model.indexAllocation);
 }
 
-ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
+ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string& name, const std::string& pipelineName)
 {
 	std::string fullPath = m_pathManager.GetModelPath(name);
 
@@ -307,10 +304,7 @@ ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, co
 
 	CalculateTangentsAndBitangents(model);
 
-	if (!m_engine->GetGPUFree())
-	{
-		CreateBuffers(model);
-	}
+	CreateBuffers(allocator, model);
 
 	model.pipeLineName = pipelineName;
 
@@ -320,7 +314,7 @@ ModelManager::ModelResource* ModelManager::LoadModel(const std::string& name, co
 	return &m_models[name];
 }
 
-bool ModelManager::LoadTexture(const std::string& name)
+bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
 {
 	std::string fullPath = m_pathManager.GetTexturePath(name);
 
@@ -342,42 +336,39 @@ bool ModelManager::LoadTexture(const std::string& name)
 	// Create staging buffer
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
-	m_engine->CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
+	SlimeUtil::CreateBuffer(allocator, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
 
 	// Copy pixel data to staging buffer
 	void* data;
-	vmaMapMemory(m_allocator, stagingAllocation, &data);
+	vmaMapMemory(allocator, stagingAllocation, &data);
 	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vmaUnmapMemory(m_allocator, stagingAllocation);
+	vmaUnmapMemory(allocator, stagingAllocation);
 
 	stbi_image_free(pixels);
 
 	// Create image
-	CreateImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
+	CreateImage(allocator, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
 
 	// Transition image layout and copy buffer to image
-	TransitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	CopyBufferToImage(stagingBuffer, texture.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	TransitionImageLayout(texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	TransitionImageLayout(device, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	CopyBufferToImage(device, graphicsQueue, commandPool, stagingBuffer, texture.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	TransitionImageLayout(device, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Create image view
-	texture.imageView = CreateImageView(texture.image, VK_FORMAT_R8G8B8A8_SRGB);
+	texture.imageView = CreateImageView(device, texture.image, VK_FORMAT_R8G8B8A8_SRGB);
 
 	// Create sampler
-	if (!m_engine->GetGPUFree())
-	{
-		texture.sampler = m_engine->GetDescriptorManager().CreateSampler();
-	}
+	texture.sampler = descriptorManager->CreateSampler();
 
 	// Cleanup staging buffer
-	vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
+	vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
 	m_textures[name] = std::move(texture);
 	spdlog::info("Texture '{}' loaded successfully", name);
 	return true;
 }
 
-const ModelManager::ModelResource* ModelManager::GetModel(const std::string& name) const
+const ModelResource* ModelManager::GetModel(const std::string& name) const
 {
 	auto it = m_models.find(name);
 	if (it != m_models.end())
@@ -387,7 +378,7 @@ const ModelManager::ModelResource* ModelManager::GetModel(const std::string& nam
 	return nullptr;
 }
 
-const ModelManager::TextureResource* ModelManager::GetTexture(const std::string& name) const
+const TextureResource* ModelManager::GetTexture(const std::string& name) const
 {
 	auto it = m_textures.find(name);
 	if (it != m_textures.end())
@@ -397,14 +388,14 @@ const ModelManager::TextureResource* ModelManager::GetTexture(const std::string&
 	return nullptr;
 }
 
-void ModelManager::UnloadResource(const std::string& name)
+void ModelManager::UnloadResource(VkDevice device, VmaAllocator allocator, const std::string& name)
 {
 	// Unload model
 	auto modelIt = m_models.find(name);
 	if (modelIt != m_models.end())
 	{
-		vmaDestroyBuffer(m_allocator, modelIt->second.vertexBuffer, modelIt->second.vertexAllocation);
-		vmaDestroyBuffer(m_allocator, modelIt->second.indexBuffer, modelIt->second.indexAllocation);
+		vmaDestroyBuffer(allocator, modelIt->second.vertexBuffer, modelIt->second.vertexAllocation);
+		vmaDestroyBuffer(allocator, modelIt->second.indexBuffer, modelIt->second.indexAllocation);
 		m_models.erase(modelIt);
 		spdlog::info("Model '{}' unloaded", name);
 	}
@@ -413,39 +404,34 @@ void ModelManager::UnloadResource(const std::string& name)
 	auto textureIt = m_textures.find(name);
 	if (textureIt != m_textures.end())
 	{
-		vkDestroyImageView(m_device, textureIt->second.imageView, nullptr);
-		vmaDestroyImage(m_allocator, textureIt->second.image, textureIt->second.allocation);
+		vkDestroyImageView(device, textureIt->second.imageView, nullptr);
+		vmaDestroyImage(allocator, textureIt->second.image, textureIt->second.allocation);
 		m_textures.erase(textureIt);
 		spdlog::info("Texture '{}' unloaded", name);
 	}
 }
 
-void ModelManager::UnloadAllResources()
+void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
 {
-	if (m_engine->GetGPUFree())
-	{
-		return;
-	}
-
 	for (const auto& model: m_models)
 	{
-		vmaDestroyBuffer(m_allocator, model.second.vertexBuffer, model.second.vertexAllocation);
-		vmaDestroyBuffer(m_allocator, model.second.indexBuffer, model.second.indexAllocation);
+		vmaDestroyBuffer(allocator, model.second.vertexBuffer, model.second.vertexAllocation);
+		vmaDestroyBuffer(allocator, model.second.indexBuffer, model.second.indexAllocation);
 	}
 	m_models.clear();
 
 	for (const auto& texture: m_textures)
 	{
-		vkDestroyImageView(m_device, texture.second.imageView, nullptr);
-		vmaDestroyImage(m_allocator, texture.second.image, texture.second.allocation);
-		vkDestroySampler(m_device, texture.second.sampler, nullptr);
+		vkDestroyImageView(device, texture.second.imageView, nullptr);
+		vmaDestroyImage(allocator, texture.second.image, texture.second.allocation);
+		vkDestroySampler(device, texture.second.sampler, nullptr);
 	}
 	m_textures.clear();
 
 	spdlog::info("All resources unloaded");
 }
 
-void ModelManager::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation)
+void ModelManager::CreateImage(VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation)
 {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -465,13 +451,13 @@ void ModelManager::CreateImage(uint32_t width, uint32_t height, VkFormat format,
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.usage = memoryUsage;
 
-	if (vmaCreateImage(m_allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr) != VK_SUCCESS)
+	if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create image!");
 	}
 }
 
-VkImageView ModelManager::CreateImageView(VkImage image, VkFormat format)
+VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkFormat format)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -485,7 +471,7 @@ VkImageView ModelManager::CreateImageView(VkImage image, VkFormat format)
 	viewInfo.subresourceRange.layerCount = 1;
 
 	VkImageView imageView;
-	if (vkCreateImageView(m_device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
+	if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create texture image view!");
 	}
@@ -507,7 +493,7 @@ void ModelManager::BindModel(const std::string& name, VkCommandBuffer commandBuf
 	vkCmdBindIndexBuffer(commandBuffer, model->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void ModelManager::BindTexture(const std::string& name, uint32_t binding, VkDescriptorSet set)
+void ModelManager::BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set)
 {
 	const TextureResource* texture = GetTexture(name);
 	if (!texture)
@@ -529,12 +515,12 @@ void ModelManager::BindTexture(const std::string& name, uint32_t binding, VkDesc
 	descriptorWrite.descriptorCount = 1;
 	descriptorWrite.pImageInfo = &imageInfo;
 
-	vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+	vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 }
 
-void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
+void ModelManager::TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
-	VkCommandBuffer commandBuffer = m_engine->BeginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(device, commandPool);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -653,12 +639,12 @@ void ModelManager::TransitionImageLayout(VkImage image, VkImageLayout oldLayout,
 
 	vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-	m_engine->EndSingleTimeCommands(commandBuffer);
+	SlimeUtil::EndSingleTimeCommands(device, graphicsQueue, commandPool, commandBuffer);
 }
 
-void ModelManager::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+void ModelManager::CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
-	VkCommandBuffer commandBuffer = m_engine->BeginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(device, commandPool);
 
 	VkBufferImageCopy region{};
 	region.bufferOffset = 0;
@@ -673,7 +659,7 @@ void ModelManager::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wi
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	m_engine->EndSingleTimeCommands(commandBuffer);
+	SlimeUtil::EndSingleTimeCommands(device, graphicsQueue, commandPool, commandBuffer);
 }
 
 int ModelManager::DrawModel(VkCommandBuffer& cmd, const std::string& name)
