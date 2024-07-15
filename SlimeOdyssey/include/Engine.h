@@ -5,7 +5,6 @@
 #pragma once
 
 #include <map>
-#include <memory>
 #include <vector>
 #include <vk_mem_alloc.h>
 #include <VkBootstrap.h>
@@ -14,12 +13,13 @@
 #include "DescriptorManager.h"
 #include "InputManager.h"
 #include "Light.h"
-#include "ModelManager.h"
-#include "PipelineGenerator.h"
-#include "ResourcePathManager.h"
-#include "ShaderManager.h"
 #include "SlimeWindow.h"
 #include "VulkanDebugUtils.h"
+
+struct TempMaterialTextures;
+struct PipelineContainer;
+class ShaderManager;
+class ModelManager;
 
 struct GLFWwindow;
 
@@ -30,19 +30,12 @@ public:
 	~Engine();
 
 	int CreateEngine();
-	int SetupManagers();
-	int RenderFrame();
-	int Cleanup();
-
-	// Setters
-	void SetGPUFree(bool free);
+	int SetupTesting(ModelManager& modelManager, DescriptorManager& descriptorManager);
+	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager);
+	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
 	// Getters
 	SlimeWindow* GetWindow();
-	ShaderManager& GetShaderManager();
-	ModelManager& GetModelManager();
-	ResourcePathManager& GetPathManager();
-	DescriptorManager& GetDescriptorManager();
 	VulkanDebugUtils& GetDebugUtils();
 	Camera& GetCamera();
 	InputManager* GetInputManager();
@@ -52,15 +45,11 @@ public:
 	VkQueue GetPresentQueue() const;
 	VkCommandPool GetCommandPool() const;
 	VmaAllocator GetAllocator() const;
-	bool GetGPUFree() const;
 
 	// Helper methods
-	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
 	int BeginCommandBuffer(VkCommandBuffer& cmd);
 	int EndCommandBuffer(VkCommandBuffer& cmd);
 	int CreateSwapchain(); // Needs to be public for window resize callback
-	VkCommandBuffer BeginSingleTimeCommands();
-	void EndSingleTimeCommands(VkCommandBuffer command_buffer);
 
 private:
 	// Initialization methods
@@ -71,10 +60,10 @@ private:
 	int InitSyncObjects();
 
 	// Rendering methods
-	int Draw(VkCommandBuffer& cmd, int imageIndex);
+	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager);
 	void SetupViewportAndScissor(VkCommandBuffer& cmd);
 	void SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd);
-	void DrawModels(VkCommandBuffer& cmd);
+	void DrawModels(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
 	// Utility methods
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
@@ -82,15 +71,6 @@ private:
 	void CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation);
 
 	// Structs
-	struct TempMaterialTextures
-	{
-		const ModelManager::TextureResource* albedo;
-		const ModelManager::TextureResource* normal;
-		const ModelManager::TextureResource* metallic;
-		const ModelManager::TextureResource* roughness;
-		const ModelManager::TextureResource* ao;
-	};
-
 	struct RenderData
 	{
 		VkQueue graphicsQueue = VK_NULL_HANDLE;
@@ -116,7 +96,6 @@ private:
 	Camera m_camera;
 	const uint8_t MAX_LIGHTS = 1;
 	std::vector<LightObject> m_lights;
-	bool m_gpuFree = false;
 
 	// Vulkan core
 	vkb::Instance m_instance;
@@ -131,10 +110,6 @@ private:
 	RenderData data;
 
 	// Resource managers
-	ShaderManager m_shaderManager;
-	ModelManager m_modelManager;
-	ResourcePathManager m_pathManager;
-	DescriptorManager m_descriptorManager;
 	VulkanDebugUtils m_debugUtils;
 
 	// Buffers and allocations
@@ -148,6 +123,6 @@ private:
 	VkBuffer LightBuffer;
 	VmaAllocation LightAllocation;
 
-	// Textures
-	TempMaterialTextures m_tempMaterialTextures;
+	// Safety checks
+	bool m_cleanUpFinished = false;
 };

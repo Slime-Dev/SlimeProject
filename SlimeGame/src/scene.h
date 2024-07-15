@@ -1,7 +1,14 @@
 #pragma once
 
-#include "Engine.h"
-
+class ModelManager;
+class ShaderManager;
+class DescriptorManager;
+class InputManager;
+struct PipelineContainer;
+class SlimeWindow;
+class Camera;
+class Engine;
+struct ModelResource;
 class PipelineGenerator;
 
 class Scene
@@ -10,7 +17,7 @@ public:
 	Scene(Engine& engine);
 	~Scene() = default;
 
-	virtual int Setup();
+	virtual int Setup(ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager);
 	virtual void Update(float dt, const InputManager* inputManager);
 	virtual void Render();
 
@@ -20,12 +27,10 @@ protected:
 	SlimeWindow* m_window = nullptr;
 
 	PipelineContainer* m_pipeline = nullptr;
-	size_t m_descriptorSetLayoutIndex;
-	VkDescriptorSet m_descriptorSet;
 
-	ModelManager::ModelResource* m_bunny;
-	ModelManager::ModelResource* m_cube;
-	ModelManager::ModelResource* m_suzanne;
+	ModelResource* m_bunny;
+	ModelResource* m_cube;
+	ModelResource* m_suzanne;
 
 	float m_time = 0.0f;
 };
