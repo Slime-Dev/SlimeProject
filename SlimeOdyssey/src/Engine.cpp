@@ -21,12 +21,16 @@
 	}                                         \
 	while (0)
 
-#include <chrono>
 #include <glm/glm.hpp>
 #include <vk_mem_alloc.h>
 
+#include "ModelManager.h"
+#include "PipelineGenerator.h"
+#include "VulkanUtil.h"
+
 #define MAX_FRAMES_IN_FLIGHT 2
 
+// TODO: FIND A BETTER PLACE FOR THE BELOW -------------------------------------
 struct Material
 {
 	glm::vec4 albedo = glm::vec4(1.0f);
@@ -46,6 +50,10 @@ struct LightBuf
 	glm::vec3 color;
 } light;
 
+TempMaterialTextures tempMaterialTextures;
+
+// TODO: FIND A BETTER PLACE FOR THE ABOVVE -------------------------------------
+
 Engine::Engine(SlimeWindow* window)
       : m_window(window), m_camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f)
 {
@@ -57,20 +65,14 @@ Engine::Engine(SlimeWindow* window)
 
 Engine::~Engine()
 {
-	Cleanup();
+	if (!m_cleanUpFinished)
+		spdlog::error("CLEANUP WAS NOT CALLED ON ENGINE!");
 }
 
 int Engine::CreateEngine()
 {
 	if (DeviceInit() != 0)
 		return -1;
-
-	if (m_gpuFree)
-	{
-		SetupManagers();
-		return 0;
-	}
-
 	if (CreateCommandPool() != 0)
 		return -1;
 	if (GetQueues() != 0)
@@ -81,24 +83,12 @@ int Engine::CreateEngine()
 		return -1;
 	if (InitSyncObjects() != 0)
 		return -1;
-	if (SetupManagers() != 0)
-		return -1;
 
 	return 0;
 }
 
-int Engine::SetupManagers()
+int Engine::SetupTesting(ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
-	m_shaderManager = ShaderManager(m_device); // TODO Fins a better place to set this up maybe a setup managers func
-	m_modelManager = ModelManager(this, m_device, m_allocator, m_pathManager);
-
-	if (m_gpuFree)
-	{
-		return 0;
-	}
-
-	m_descriptorManager = DescriptorManager(m_device);
-
 	// TODO move lights outta here
 	for (int i = 0; i < MAX_LIGHTS; i++)
 	{
@@ -113,98 +103,33 @@ int Engine::SetupManagers()
 		light.shininess = 1.0f;
 
 		// Create buffer for light
-		CreateBuffer(sizeof(Light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, lightObject.buffer, lightObject.allocation);
+		SlimeUtil::CreateBuffer(m_allocator, sizeof(Light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, lightObject.buffer, lightObject.allocation);
 		CopyStructToBuffer(light, lightObject.buffer, lightObject.allocation);
 	}
 
-	CreateBuffer(sizeof(MVP), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_mvpBuffer, m_mvpAllocation);
+	SlimeUtil::CreateBuffer(m_allocator, sizeof(MVP), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_mvpBuffer, m_mvpAllocation);
 
-	CreateBuffer(sizeof(Material), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, materialBuffer, materialAllocation);
-	CreateBuffer(sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, cameraUBOBBuffer, cameraUBOAllocation);
-	CreateBuffer(sizeof(LightBuf), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, LightBuffer, LightAllocation);
+	SlimeUtil::CreateBuffer(m_allocator, sizeof(Material), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, materialBuffer, materialAllocation);
+	SlimeUtil::CreateBuffer(m_allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, cameraUBOBBuffer, cameraUBOAllocation);
+	SlimeUtil::CreateBuffer(m_allocator, sizeof(LightBuf), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, LightBuffer, LightAllocation);
 
 	// Create the temp material textures
-	m_modelManager.LoadTexture("albedo.png");
-	m_tempMaterialTextures.albedo = m_modelManager.GetTexture("albedo.png");
+	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "albedo.png");
+	tempMaterialTextures.albedo = modelManager.GetTexture("albedo.png");
 
-	m_modelManager.LoadTexture("normal.png");
-	m_tempMaterialTextures.normal = m_modelManager.GetTexture("normal.png");
+	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "normal.png");
+	tempMaterialTextures.normal = modelManager.GetTexture("normal.png");
 
-	m_modelManager.LoadTexture("metallic.png");
-	m_tempMaterialTextures.metallic = m_modelManager.GetTexture("metallic.png");
+	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "metallic.png");
+	tempMaterialTextures.metallic = modelManager.GetTexture("metallic.png");
 
-	m_modelManager.LoadTexture("roughness.png");
-	m_tempMaterialTextures.roughness = m_modelManager.GetTexture("roughness.png");
+	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "roughness.png");
+	tempMaterialTextures.roughness = modelManager.GetTexture("roughness.png");
 
-	m_modelManager.LoadTexture("ao.png");
-	m_tempMaterialTextures.ao = m_modelManager.GetTexture("ao.png");
+	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "ao.png");
+	tempMaterialTextures.ao = modelManager.GetTexture("ao.png");
 
 	return 0;
-}
-
-VkCommandBuffer Engine::BeginSingleTimeCommands()
-{
-	VkCommandBufferAllocateInfo alloc_info = {};
-	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandPool = data.commandPool; // Assuming you have a command pool created
-	alloc_info.commandBufferCount = 1;
-
-	VkCommandBuffer command_buffer;
-	if (vkAllocateCommandBuffers(m_device, &alloc_info, &command_buffer) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to allocate command buffer!");
-		return VK_NULL_HANDLE;
-	}
-
-	VkCommandBufferBeginInfo begin_info = {};
-	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	if (vkBeginCommandBuffer(command_buffer, &begin_info) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to begin recording command buffer!");
-		return VK_NULL_HANDLE;
-	}
-
-	return command_buffer;
-}
-
-void Engine::EndSingleTimeCommands(VkCommandBuffer command_buffer)
-{
-	if (command_buffer == VK_NULL_HANDLE)
-	{
-		return;
-	}
-
-	if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to record command buffer!");
-		return;
-	}
-
-	VkSubmitInfo submit_info = {};
-	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &command_buffer;
-
-	VkQueue graphics_queue = data.graphicsQueue; // Assuming you have a graphics queue defined
-
-	if (vkQueueSubmit(graphics_queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to submit command buffer!");
-		return;
-	}
-
-	// Wait for the command buffer to finish execution
-	if (vkQueueWaitIdle(graphics_queue) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to wait for queue to finish!");
-		return;
-	}
-
-	// Free the command buffer
-	vkFreeCommandBuffers(m_device, data.commandPool, 1, &command_buffer);
 }
 
 int Engine::DeviceInit()
@@ -261,11 +186,6 @@ int Engine::DeviceInit()
 		}
 
 		throw std::runtime_error("Failed to create window surface");
-	}
-
-	if (m_gpuFree)
-	{
-		return 0;
 	}
 
 	// Select physical device //
@@ -343,7 +263,7 @@ int Engine::CreateSwapchain()
 	                        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
 	                        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	                        .set_old_swapchain(m_swapchain)
-							.set_desired_extent(m_window->GetWidth(), m_window->GetHeight())
+	                        .set_desired_extent(m_window->GetWidth(), m_window->GetHeight())
 	                        .build();
 
 	if (!swap_ret)
@@ -502,23 +422,6 @@ int Engine::CreateRenderCommandBuffers()
 	return 0;
 }
 
-void Engine::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
-{
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = size;
-	bufferInfo.usage = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = memoryUsage;
-
-	if (vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create buffer!");
-	}
-}
-
 template<typename T>
 void Engine::CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation)
 {
@@ -549,7 +452,7 @@ void Engine::SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd)
 	m_disp.cmdSetLineWidth(cmd, 10.0f);
 }
 
-void Engine::DrawModels(VkCommandBuffer& cmd)
+void Engine::DrawModels(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
 	m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
 
@@ -569,7 +472,7 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 	std::string lastUsedPipeline;
 	PipelineContainer* pipelineContainer = nullptr;
 
-	for (const auto& [name, model]: m_modelManager)
+	for (const auto& [name, model]: modelManager)
 	{
 		if (!model.isActive)
 			continue;
@@ -604,25 +507,25 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 
 				// Set material buffer
 				CopyStructToBuffer(material, materialBuffer, materialAllocation);
-				m_descriptorManager.BindBuffer(descSets[0], 0, materialBuffer, 0, sizeof(Material));
+				descriptorManager.BindBuffer(descSets[0], 0, materialBuffer, 0, sizeof(Material));
 
 				// Set Camera UBO buffer
 				cameraUBO.viewPos = m_camera.GetPosition();
 				CopyStructToBuffer(cameraUBO, cameraUBOBBuffer, cameraUBOAllocation);
-				m_descriptorManager.BindBuffer(descSets[0], 1, cameraUBOBBuffer, 0, sizeof(CameraUBO));
+				descriptorManager.BindBuffer(descSets[0], 1, cameraUBOBBuffer, 0, sizeof(CameraUBO));
 
 				// Set Light buffer
 				light.color = m_lights.at(0).light.lightColor;
 				light.position = m_lights.at(0).light.lightPos;
 				CopyStructToBuffer(light, LightBuffer, LightAllocation);
-				m_descriptorManager.BindBuffer(descSets[0], 2, LightBuffer, 0, sizeof(LightBuf));
+				descriptorManager.BindBuffer(descSets[0], 2, LightBuffer, 0, sizeof(LightBuf));
 
 				// Bind the sampler2D textures
-				m_descriptorManager.BindImage(descSets[1], 0, m_tempMaterialTextures.albedo->imageView, m_tempMaterialTextures.albedo->sampler);
-				m_descriptorManager.BindImage(descSets[1], 1, m_tempMaterialTextures.normal->imageView, m_tempMaterialTextures.normal->sampler);
-				m_descriptorManager.BindImage(descSets[1], 2, m_tempMaterialTextures.metallic->imageView, m_tempMaterialTextures.metallic->sampler);
-				m_descriptorManager.BindImage(descSets[1], 3, m_tempMaterialTextures.roughness->imageView, m_tempMaterialTextures.roughness->sampler);
-				m_descriptorManager.BindImage(descSets[1], 4, m_tempMaterialTextures.ao->imageView, m_tempMaterialTextures.ao->sampler);
+				descriptorManager.BindImage(descSets[1], 0, tempMaterialTextures.albedo->imageView, tempMaterialTextures.albedo->sampler);
+				descriptorManager.BindImage(descSets[1], 1, tempMaterialTextures.normal->imageView, tempMaterialTextures.normal->sampler);
+				descriptorManager.BindImage(descSets[1], 2, tempMaterialTextures.metallic->imageView, tempMaterialTextures.metallic->sampler);
+				descriptorManager.BindImage(descSets[1], 3, tempMaterialTextures.roughness->imageView, tempMaterialTextures.roughness->sampler);
+				descriptorManager.BindImage(descSets[1], 4, tempMaterialTextures.ao->imageView, tempMaterialTextures.ao->sampler);
 			}
 		}
 
@@ -634,7 +537,7 @@ void Engine::DrawModels(VkCommandBuffer& cmd)
 		m_debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 
 		m_debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
-		m_modelManager.DrawModel(cmd, model);
+		modelManager.DrawModel(cmd, model);
 		m_debugUtils.EndDebugMarker(cmd); // End "Draw Model"
 
 		m_debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"
@@ -665,7 +568,7 @@ int Engine::EndCommandBuffer(VkCommandBuffer& cmd)
 	return 0;
 }
 
-int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
+int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
 	if (BeginCommandBuffer(cmd) != 0)
 		return -1;
@@ -674,9 +577,9 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 	SetupDepthTestingAndLineWidth(cmd);
 
 	// Transition color image to color attachment optimal
-	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	// Transition depth image to depth attachment optimal
-	m_modelManager.TransitionImageLayout(data.depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
 	VkRenderingAttachmentInfo colorAttachmentInfo = {};
 	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -707,23 +610,18 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex)
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-	DrawModels(cmd);
+	DrawModels(cmd, modelManager, descriptorManager);
 
 	m_disp.cmdEndRendering(cmd);
 
 	// Transition color image to present src layout
-	m_modelManager.TransitionImageLayout(data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	return EndCommandBuffer(cmd);
 }
 
-int Engine::RenderFrame()
+int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
-	if (m_gpuFree)
-	{
-		return 0;
-	}
-
 	// Wait for the frame to be finished
 	if (m_disp.waitForFences(1, &data.inFlightFences[data.currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
 	{
@@ -749,7 +647,7 @@ int Engine::RenderFrame()
 	// Begin command buffer recording
 	VkCommandBuffer cmd = data.renderCommandBuffers[image_index];
 
-	if (Draw(cmd, image_index) != 0)
+	if (Draw(cmd, image_index, modelManager, descriptorManager) != 0)
 		return -1;
 
 	// Mark the image as now being in use by this frame
@@ -837,16 +735,9 @@ int Engine::InitSyncObjects()
 	return 0;
 }
 
-int Engine::Cleanup()
+int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
 	spdlog::info("Cleaning up...");
-
-	if (m_gpuFree)
-	{
-		vkb::destroy_surface(m_instance, m_surface);
-		vkb::destroy_instance(m_instance);
-		return 0;
-	}
 
 	vkDeviceWaitIdle(m_device);
 
@@ -870,12 +761,12 @@ int Engine::Cleanup()
 		m_disp.destroyImageView(image_view, nullptr);
 	}
 
-	m_modelManager.UnloadAllResources();
+	modelManager.UnloadAllResources(m_device, m_allocator);
 
-	m_shaderManager.CleanupDescriptorSetLayouts();
+	shaderManager.CleanupDescriptorSetLayouts(m_device);
 	data.pipelines.clear();
 
-	m_descriptorManager.Cleanup();
+	descriptorManager.Cleanup();
 
 	// Clean up all the test textures and buffers
 	vmaDestroyBuffer(m_allocator, m_mvpBuffer, m_mvpAllocation);
@@ -893,7 +784,7 @@ int Engine::Cleanup()
 	vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
 	m_disp.destroyImageView(data.depthImageView, nullptr);
 
-	m_shaderManager.CleanupShaderModules();
+	shaderManager.CleanupShaderModules(m_device);
 
 	m_disp.destroyCommandPool(data.commandPool, nullptr);
 
@@ -906,14 +797,9 @@ int Engine::Cleanup()
 	vkb::destroy_device(m_device);
 	vkb::destroy_instance(m_instance);
 
+	m_cleanUpFinished = true;
+
 	return 0;
-}
-
-// SETTERS //
-
-void Engine::SetGPUFree(bool free)
-{
-	m_gpuFree = free;
 }
 
 // GETTERS //
@@ -921,26 +807,6 @@ void Engine::SetGPUFree(bool free)
 SlimeWindow* Engine::GetWindow()
 {
 	return m_window;
-}
-
-ShaderManager& Engine::GetShaderManager()
-{
-	return m_shaderManager;
-}
-
-ModelManager& Engine::GetModelManager()
-{
-	return m_modelManager;
-}
-
-ResourcePathManager& Engine::GetPathManager()
-{
-	return m_pathManager;
-}
-
-DescriptorManager& Engine::GetDescriptorManager()
-{
-	return m_descriptorManager;
 }
 
 VulkanDebugUtils& Engine::GetDebugUtils()
@@ -986,9 +852,4 @@ VkCommandPool Engine::GetCommandPool() const
 VmaAllocator Engine::GetAllocator() const
 {
 	return m_allocator;
-}
-
-bool Engine::GetGPUFree() const
-{
-	return m_gpuFree;
 }

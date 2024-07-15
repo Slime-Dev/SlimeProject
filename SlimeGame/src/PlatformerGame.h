@@ -3,7 +3,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/rotate_vector.hpp>
 
-#include "Engine.h"
 #include "scene.h"
 
 class PlatformerGame : public Scene
@@ -14,7 +13,7 @@ public:
 	{
 	}
 
-	int Setup() override;
+	int Setup(ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
 
 	void Update(float dt, const InputManager* inputManager) override;
 	void UpdateCamera(const InputManager* inputManager, float deltaTime);
@@ -22,9 +21,9 @@ public:
 private:
 	void ResetGame();
 
-	ModelManager::ModelResource* m_ground;
-	ModelManager::ModelResource* m_player;
-	ModelManager::ModelResource* m_obstacle;
+	ModelResource* m_ground;
+	ModelResource* m_player;
+	ModelResource* m_obstacle;
 
 	glm::vec3 m_playerPosition;
 	glm::vec3 m_playerVelocity;

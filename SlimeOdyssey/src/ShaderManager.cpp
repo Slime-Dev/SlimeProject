@@ -10,18 +10,13 @@
 #include "spirv_cross.hpp"
 #include "spirv_glsl.hpp"
 
-ShaderManager::ShaderManager(VkDevice device)
-      : m_device(device)
+void ShaderManager::CleanUp(VkDevice device)
 {
+	CleanupDescriptorSetLayouts(device);
+	CleanupShaderModules(device);
 }
 
-ShaderManager::~ShaderManager()
-{
-	CleanupDescriptorSetLayouts();
-	CleanupShaderModules();
-}
-
-ShaderModule ShaderManager::LoadShader(const std::string& path, VkShaderStageFlagBits stage)
+ShaderModule ShaderManager::LoadShader(VkDevice device, const std::string& path, VkShaderStageFlagBits stage)
 {
 	auto it = m_shaderModules.find(path);
 	if (it != m_shaderModules.end())
@@ -30,7 +25,7 @@ ShaderModule ShaderManager::LoadShader(const std::string& path, VkShaderStageFla
 	}
 
 	std::vector<uint32_t> code = ReadFile(path);
-	VkShaderModule shaderModule = CreateShaderModule(code);
+	VkShaderModule shaderModule = CreateShaderModule(device, code);
 	ShaderModule module(shaderModule, std::move(code), stage);
 	m_shaderModules[path] = module;
 
@@ -256,7 +251,7 @@ std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindin
 	return hash;
 }
 
-std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(const ShaderResources& resources)
+std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(VkDevice device, const ShaderResources& resources)
 {
 	std::map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> setBindings;
 
@@ -285,7 +280,7 @@ std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(con
 		layoutInfo.pBindings = bindings.data();
 
 		VkDescriptorSetLayout descriptorSetLayout;
-		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
@@ -303,20 +298,20 @@ std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(con
 	return descriptorSetLayouts;
 }
 
-void ShaderManager::CleanupShaderModules()
+void ShaderManager::CleanupShaderModules(VkDevice device)
 {
 	for (const auto& [path, shaderModule]: m_shaderModules)
 	{
-		vkDestroyShaderModule(m_device, shaderModule.handle, nullptr);
+		vkDestroyShaderModule(device, shaderModule.handle, nullptr);
 	}
 	m_shaderModules.clear();
 }
 
-void ShaderManager::CleanupDescriptorSetLayouts()
+void ShaderManager::CleanupDescriptorSetLayouts(VkDevice device)
 {
 	for (const auto& [hash, descriptorSetLayout]: m_descriptorSetLayouts)
 	{
-		vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 	}
 	m_descriptorSetLayouts.clear();
 }
@@ -340,7 +335,7 @@ std::vector<uint32_t> ShaderManager::ReadFile(const std::string& filename)
 	return buffer;
 }
 
-VkShaderModule ShaderManager::CreateShaderModule(const std::vector<uint32_t>& code)
+VkShaderModule ShaderManager::CreateShaderModule(VkDevice device, const std::vector<uint32_t>& code)
 {
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -348,7 +343,7 @@ VkShaderModule ShaderManager::CreateShaderModule(const std::vector<uint32_t>& co
 	createInfo.pCode = code.data();
 
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create shader module!");
 	}

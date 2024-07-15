@@ -1,9 +1,14 @@
 #include "PlatformerGame.h"
 
-int PlatformerGame::Setup()
+#include "Camera.h"
+#include "ModelManager.h"
+#include "SlimeWindow.h"
+#include "spdlog/spdlog.h"
+
+int PlatformerGame::Setup(ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	// Call the base class Setup
-	if (Scene::Setup() != 0)
+	if (Scene::Setup(modelManager, shaderManager, descriptorManager) != 0)
 	{
 		return -1;
 	}

@@ -45,26 +45,26 @@ public:
 	};
 
 	ShaderManager() = default;
-	explicit ShaderManager(VkDevice device);
-	~ShaderManager();
+	~ShaderManager() = default;
 
-	ShaderModule LoadShader(const std::string& path, VkShaderStageFlagBits stage);
+	void CleanUp(VkDevice device);
+
+	ShaderModule LoadShader(VkDevice device, const std::string& path, VkShaderStageFlagBits stage);
 	ShaderResources ParseShader(const ShaderModule& shaderModule);
 	ShaderResources CombineResources(const std::vector<ShaderModule>& shaderModules);
 
-	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(const ShaderResources& resources);
+	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(VkDevice device, const ShaderResources& resources);
 
-	void CleanupShaderModules();
-	void CleanupDescriptorSetLayouts();
+	void CleanupShaderModules(VkDevice device);
+	void CleanupDescriptorSetLayouts(VkDevice device);
 
 private:
-	VkDevice m_device;
 	std::unordered_map<std::string, ShaderModule> m_shaderModules;
 	std::unordered_map<std::string, VkDescriptorSetLayout> m_descriptorSetLayouts;
 	std::map<uint32_t, uint32_t> bindingOffsets;
 
 	std::vector<uint32_t> ReadFile(const std::string& filename);
-	VkShaderModule CreateShaderModule(const std::vector<uint32_t>& code);
+	VkShaderModule CreateShaderModule(VkDevice device, const std::vector<uint32_t>& code);
 	VkFormat GetVkFormat(const spirv_cross::SPIRType& type);
 	uint32_t GetFormatSize(VkFormat format);
 };
