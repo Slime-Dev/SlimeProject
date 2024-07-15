@@ -9,10 +9,11 @@ int main()
 	SlimeWindow::WindowProps windowProps{ .title = "Slime Odyssey", .width = 1920, .height = 1080, .resizable = true, .decorated = true, .fullscreen = false };
 
 	SlimeWindow window(windowProps);
+	InputManager* inputManager = window.GetInputManager();
 
-	Engine engine(&window);
+	Engine engine;
 
-	if (engine.CreateEngine() != 0)
+	if (engine.CreateEngine(&window) != 0)
 		return -1;
 
 	ResourcePathManager resourcePathManager;
@@ -20,13 +21,11 @@ int main()
 	ModelManager modelManager = ModelManager(resourcePathManager);
 	DescriptorManager descriptorManager = DescriptorManager(engine.GetDevice());
 
-	engine.SetupTesting(modelManager, descriptorManager); // TODO: REMOVE THIS
-
-	auto resizeCallback = [&](int width, int height) { engine.CreateSwapchain(); };
+	auto resizeCallback = [&](int width, int height) { engine.CreateSwapchain(&window); };
 	window.SetResizeCallback(resizeCallback);
 
-	PlatformerGame scene(engine);
-	if (scene.Setup(modelManager, shaderManager, descriptorManager) != 0)
+	PlatformerGame scene(&window);
+	if (scene.Enter(engine, modelManager, shaderManager, descriptorManager) != 0)
 		return -1;
 
 	float dt = 0.0f;
@@ -34,9 +33,9 @@ int main()
 	while (!window.ShouldClose())
 	{
 		dt = window.Update();
-		scene.Update(dt, engine.GetInputManager());
-		scene.Render();
-		engine.RenderFrame(modelManager, descriptorManager);
+		scene.Update(dt, engine, inputManager);
+		scene.Render(engine, modelManager);
+		engine.RenderFrame(modelManager, descriptorManager, &window, scene);
 	}
 
 	engine.Cleanup(shaderManager, modelManager, descriptorManager);

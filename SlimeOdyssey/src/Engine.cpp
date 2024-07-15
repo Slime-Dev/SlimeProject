@@ -30,37 +30,10 @@
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
-// TODO: FIND A BETTER PLACE FOR THE BELOW -------------------------------------
-struct Material
-{
-	glm::vec4 albedo = glm::vec4(1.0f);
-	float metallic = 0.0f;
-	float roughness = 0.0f;
-	float ao = 1.0f;
-} material;
-
-struct CameraUBO
-{
-	glm::vec3 viewPos;
-} cameraUBO;
-
-struct LightBuf
-{
-	glm::vec3 position;
-	glm::vec3 color;
-} light;
-
-TempMaterialTextures tempMaterialTextures;
-
-// TODO: FIND A BETTER PLACE FOR THE ABOVVE -------------------------------------
-
-Engine::Engine(SlimeWindow* window)
-      : m_window(window), m_camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f)
+Engine::Engine()
 {
 	spdlog::set_level(spdlog::level::trace);
 	spdlog::stdout_color_mt("console");
-
-	m_inputManager = m_window->GetInputManager();
 }
 
 Engine::~Engine()
@@ -69,15 +42,15 @@ Engine::~Engine()
 		spdlog::error("CLEANUP WAS NOT CALLED ON ENGINE!");
 }
 
-int Engine::CreateEngine()
+int Engine::CreateEngine(SlimeWindow* window)
 {
-	if (DeviceInit() != 0)
+	if (DeviceInit(window) != 0)
 		return -1;
 	if (CreateCommandPool() != 0)
 		return -1;
 	if (GetQueues() != 0)
 		return -1;
-	if (CreateSwapchain() != 0)
+	if (CreateSwapchain(window) != 0)
 		return -1;
 	if (CreateRenderCommandBuffers() != 0)
 		return -1;
@@ -87,52 +60,7 @@ int Engine::CreateEngine()
 	return 0;
 }
 
-int Engine::SetupTesting(ModelManager& modelManager, DescriptorManager& descriptorManager)
-{
-	// TODO move lights outta here
-	for (int i = 0; i < MAX_LIGHTS; i++)
-	{
-		LightObject& lightObject = m_lights.emplace_back();
-
-		Light& light = lightObject.light;
-		light.lightPos = glm::vec3(0.0f, 0.0f, 3.0f);
-		light.lightColor = glm::vec3(1.0f, 0.85f, 0.9f);
-		light.viewPos = glm::vec3(0.0f, 0.0f, 3.0f);
-		light.ambientStrength = 0.1f;
-		light.specularStrength = 0.5f;
-		light.shininess = 1.0f;
-
-		// Create buffer for light
-		SlimeUtil::CreateBuffer(m_allocator, sizeof(Light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, lightObject.buffer, lightObject.allocation);
-		CopyStructToBuffer(light, lightObject.buffer, lightObject.allocation);
-	}
-
-	SlimeUtil::CreateBuffer(m_allocator, sizeof(MVP), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_mvpBuffer, m_mvpAllocation);
-
-	SlimeUtil::CreateBuffer(m_allocator, sizeof(Material), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, materialBuffer, materialAllocation);
-	SlimeUtil::CreateBuffer(m_allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, cameraUBOBBuffer, cameraUBOAllocation);
-	SlimeUtil::CreateBuffer(m_allocator, sizeof(LightBuf), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, LightBuffer, LightAllocation);
-
-	// Create the temp material textures
-	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "albedo.png");
-	tempMaterialTextures.albedo = modelManager.GetTexture("albedo.png");
-
-	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "normal.png");
-	tempMaterialTextures.normal = modelManager.GetTexture("normal.png");
-
-	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "metallic.png");
-	tempMaterialTextures.metallic = modelManager.GetTexture("metallic.png");
-
-	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "roughness.png");
-	tempMaterialTextures.roughness = modelManager.GetTexture("roughness.png");
-
-	modelManager.LoadTexture(m_device, data.graphicsQueue, data.commandPool, m_allocator, &descriptorManager, "ao.png");
-	tempMaterialTextures.ao = modelManager.GetTexture("ao.png");
-
-	return 0;
-}
-
-int Engine::DeviceInit()
+int Engine::DeviceInit(SlimeWindow* window)
 {
 	spdlog::info("Initializing Vulkan...");
 
@@ -176,7 +104,7 @@ int Engine::DeviceInit()
 	m_instDisp = m_instance.make_table();
 
 	// Create the window surface
-	if (VkResult err = glfwCreateWindowSurface(m_instance.instance, m_window->GetGLFWWindow(), nullptr, &m_surface))
+	if (VkResult err = glfwCreateWindowSurface(m_instance.instance, window->GetGLFWWindow(), nullptr, &m_surface))
 	{
 		const char* error_msg;
 		int ret = glfwGetError(&error_msg);
@@ -251,7 +179,7 @@ int Engine::DeviceInit()
 	return 0;
 }
 
-int Engine::CreateSwapchain()
+int Engine::CreateSwapchain(SlimeWindow* window)
 {
 	spdlog::info("Creating swapchain...");
 	vkDeviceWaitIdle(m_device);
@@ -263,7 +191,7 @@ int Engine::CreateSwapchain()
 	                        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
 	                        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	                        .set_old_swapchain(m_swapchain)
-	                        .set_desired_extent(m_window->GetWidth(), m_window->GetHeight())
+	                        .set_desired_extent(window->GetWidth(), window->GetHeight())
 	                        .build();
 
 	if (!swap_ret)
@@ -367,23 +295,6 @@ int Engine::GetQueues()
 	return 0;
 }
 
-VkShaderModule Engine::CreateShaderModule(const std::vector<char>& code)
-{
-	spdlog::info("Creating shader module...");
-	VkShaderModuleCreateInfo create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	create_info.codeSize = code.size();
-	create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-	VkShaderModule shaderModule;
-	if (m_disp.createShaderModule(&create_info, nullptr, &shaderModule) != VK_SUCCESS)
-	{
-		return VK_NULL_HANDLE; // failed to create shader module
-	}
-
-	return shaderModule;
-}
-
 int Engine::CreateCommandPool()
 {
 	spdlog::info("Creating command pool...");
@@ -422,159 +333,13 @@ int Engine::CreateRenderCommandBuffers()
 	return 0;
 }
 
-template<typename T>
-void Engine::CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation)
+int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
 {
-	void* mappedData;
-	vmaMapMemory(m_allocator, allocation, &mappedData);
-	memcpy(mappedData, &data, sizeof(T));
-	vmaUnmapMemory(m_allocator, allocation);
-}
-
-void Engine::SetupViewportAndScissor(VkCommandBuffer& cmd)
-{
-	VkViewport viewport = { .x = 0.0f, .y = 0.0f, .width = static_cast<float>(m_swapchain.extent.width), .height = static_cast<float>(m_swapchain.extent.height), .minDepth = 0.0f, .maxDepth = 1.0f };
-
-	VkRect2D scissor = {
-		.offset = { 0, 0 },
-          .extent = m_swapchain.extent
-	};
-
-	m_disp.cmdSetViewport(cmd, 0, 1, &viewport);
-	m_disp.cmdSetScissor(cmd, 0, 1, &scissor);
-}
-
-void Engine::SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd)
-{
-	m_disp.cmdSetDepthTestEnable(cmd, VK_TRUE);
-	m_disp.cmdSetDepthWriteEnable(cmd, VK_TRUE);
-	m_disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
-	m_disp.cmdSetLineWidth(cmd, 10.0f);
-}
-
-void Engine::DrawModels(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager)
-{
-	m_debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
-
-	m_debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
-
-	// Light Pos
-	m_lights.at(0).light.lightPos = glm::vec3(0.0f, 0.0f, 3.0f);
-
-	// Light color
-	m_lights.at(0).light.lightColor = glm::vec3(1.0f, 0.8f, 0.6f);
-
-	CopyStructToBuffer(m_lights.at(0).light, m_lights.at(0).buffer, m_lights.at(0).allocation);
-	m_debugUtils.EndDebugMarker(cmd);
-
-	VkDescriptorSet boundDescriptorSet = VK_NULL_HANDLE;
-
-	std::string lastUsedPipeline;
-	PipelineContainer* pipelineContainer = nullptr;
-
-	for (const auto& [name, model]: modelManager)
-	{
-		if (!model.isActive)
-			continue;
-
-		m_debugUtils.BeginDebugMarker(cmd, ("Process Model: " + name).c_str(), debugUtil_StartDrawColour);
-
-		std::string pipelineName = model.pipeLineName;
-		if (pipelineName != lastUsedPipeline)
-		{
-			auto pipelineIt = data.pipelines.find(pipelineName);
-			if (pipelineIt == data.pipelines.end())
-			{
-				spdlog::error("Pipeline not found: {}", pipelineName);
-				m_debugUtils.EndDebugMarker(cmd);
-				continue;
-			}
-
-			pipelineContainer = &pipelineIt->second;
-
-			m_disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipeline);
-			m_debugUtils.InsertDebugMarker(cmd, "Bind Pipeline", debugUtil_White);
-		}
-
-		{
-			if (!boundDescriptorSet)
-			{
-				auto descSets = pipelineContainer->descriptorSets;
-				boundDescriptorSet = descSets[0];
-
-				// Bind descriptor set
-				m_disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 2, descSets.data(), 0, nullptr);
-
-				// Set material buffer
-				CopyStructToBuffer(material, materialBuffer, materialAllocation);
-				descriptorManager.BindBuffer(descSets[0], 0, materialBuffer, 0, sizeof(Material));
-
-				// Set Camera UBO buffer
-				cameraUBO.viewPos = m_camera.GetPosition();
-				CopyStructToBuffer(cameraUBO, cameraUBOBBuffer, cameraUBOAllocation);
-				descriptorManager.BindBuffer(descSets[0], 1, cameraUBOBBuffer, 0, sizeof(CameraUBO));
-
-				// Set Light buffer
-				light.color = m_lights.at(0).light.lightColor;
-				light.position = m_lights.at(0).light.lightPos;
-				CopyStructToBuffer(light, LightBuffer, LightAllocation);
-				descriptorManager.BindBuffer(descSets[0], 2, LightBuffer, 0, sizeof(LightBuf));
-
-				// Bind the sampler2D textures
-				descriptorManager.BindImage(descSets[1], 0, tempMaterialTextures.albedo->imageView, tempMaterialTextures.albedo->sampler);
-				descriptorManager.BindImage(descSets[1], 1, tempMaterialTextures.normal->imageView, tempMaterialTextures.normal->sampler);
-				descriptorManager.BindImage(descSets[1], 2, tempMaterialTextures.metallic->imageView, tempMaterialTextures.metallic->sampler);
-				descriptorManager.BindImage(descSets[1], 3, tempMaterialTextures.roughness->imageView, tempMaterialTextures.roughness->sampler);
-				descriptorManager.BindImage(descSets[1], 4, tempMaterialTextures.ao->imageView, tempMaterialTextures.ao->sampler);
-			}
-		}
-
-		m_mvp.model = model.model;
-		m_mvp.view = m_camera.GetViewMatrix();
-		m_mvp.projection = m_camera.GetProjectionMatrix();
-		m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
-		m_disp.cmdPushConstants(cmd, pipelineContainer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
-		m_debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
-
-		m_debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
-		modelManager.DrawModel(cmd, model);
-		m_debugUtils.EndDebugMarker(cmd); // End "Draw Model"
-
-		m_debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"
-	}
-
-	m_debugUtils.EndDebugMarker(cmd); // End "Draw Models"
-}
-
-int Engine::BeginCommandBuffer(VkCommandBuffer& cmd)
-{
-	VkCommandBufferBeginInfo beginInfo = { .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-
-	if (m_disp.beginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to begin recording command buffer!");
-		return -1;
-	}
-	return 0;
-}
-
-int Engine::EndCommandBuffer(VkCommandBuffer& cmd)
-{
-	if (m_disp.endCommandBuffer(cmd) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to record command buffer!");
-		return -1;
-	}
-	return 0;
-}
-
-int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager)
-{
-	if (BeginCommandBuffer(cmd) != 0)
+	if (SlimeUtil::BeginCommandBuffer(m_disp, cmd) != 0)
 		return -1;
 
-	SetupViewportAndScissor(cmd);
-	SetupDepthTestingAndLineWidth(cmd);
+	m_renderer.SetupViewportAndScissor(m_swapchain, m_disp, cmd);
+	SlimeUtil::SetupDepthTestingAndLineWidth(m_disp, cmd);
 
 	// Transition color image to color attachment optimal
 	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -610,17 +375,17 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManage
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-	DrawModels(cmd, modelManager, descriptorManager);
+	m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
 
 	m_disp.cmdEndRendering(cmd);
 
 	// Transition color image to present src layout
 	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-	return EndCommandBuffer(cmd);
+	return SlimeUtil::EndCommandBuffer(m_disp, cmd);
 }
 
-int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager)
+int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene)
 {
 	// Wait for the frame to be finished
 	if (m_disp.waitForFences(1, &data.inFlightFences[data.currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
@@ -634,7 +399,7 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-		if (CreateSwapchain() != 0)
+		if (CreateSwapchain(window) != 0)
 			return -1;
 		return 0;
 	}
@@ -647,7 +412,7 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	// Begin command buffer recording
 	VkCommandBuffer cmd = data.renderCommandBuffers[image_index];
 
-	if (Draw(cmd, image_index, modelManager, descriptorManager) != 0)
+	if (Draw(cmd, image_index, modelManager, descriptorManager, scene) != 0)
 		return -1;
 
 	// Mark the image as now being in use by this frame
@@ -693,7 +458,7 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
-		if (CreateSwapchain() != 0)
+		if (CreateSwapchain(window) != 0)
 			return -1;
 	}
 	else if (result != VK_SUCCESS)
@@ -749,13 +514,6 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 		m_disp.destroyFence(data.inFlightFences[i], nullptr);
 	}
 
-	// Destroy pipelines
-	for (auto& [name, pipeline]: data.pipelines)
-	{
-		m_disp.destroyPipeline(pipeline.pipeline, nullptr);
-		m_disp.destroyPipelineLayout(pipeline.pipelineLayout, nullptr);
-	}
-
 	for (auto& image_view: data.swapchainImageViews)
 	{
 		m_disp.destroyImageView(image_view, nullptr);
@@ -764,21 +522,8 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 	modelManager.UnloadAllResources(m_device, m_allocator);
 
 	shaderManager.CleanupDescriptorSetLayouts(m_device);
-	data.pipelines.clear();
 
 	descriptorManager.Cleanup();
-
-	// Clean up all the test textures and buffers
-	vmaDestroyBuffer(m_allocator, m_mvpBuffer, m_mvpAllocation);
-	vmaDestroyBuffer(m_allocator, materialBuffer, materialAllocation);
-	vmaDestroyBuffer(m_allocator, cameraUBOBBuffer, cameraUBOAllocation);
-	vmaDestroyBuffer(m_allocator, LightBuffer, LightAllocation);
-
-	// TODO REMOVE THIS Clean up the lights
-	for (auto& light: m_lights)
-	{
-		vmaDestroyBuffer(m_allocator, light.buffer, light.allocation);
-	}
 
 	// Clean up old depth image and image view
 	vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
@@ -804,34 +549,19 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 
 // GETTERS //
 
-SlimeWindow* Engine::GetWindow()
-{
-	return m_window;
-}
-
 VulkanDebugUtils& Engine::GetDebugUtils()
 {
 	return m_debugUtils;
 }
 
-Camera& Engine::GetCamera()
-{
-	return m_camera;
-}
-
-InputManager* Engine::GetInputManager()
-{
-	return m_inputManager;
-}
-
-std::map<std::string, PipelineContainer>& Engine::GetPipelines()
-{
-	return data.pipelines;
-}
-
 VkDevice Engine::GetDevice() const
 {
 	return m_device.device;
+}
+
+const vkb::Swapchain& Engine::GetSwapchain() const
+{
+	return m_swapchain;
 }
 
 VkQueue Engine::GetGraphicsQueue() const
@@ -852,4 +582,9 @@ VkCommandPool Engine::GetCommandPool() const
 VmaAllocator Engine::GetAllocator() const
 {
 	return m_allocator;
+}
+
+const vkb::DispatchTable& Engine::GetDispatchTable()
+{
+	return m_disp;
 }

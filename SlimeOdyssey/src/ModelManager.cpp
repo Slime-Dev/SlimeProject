@@ -308,10 +308,10 @@ ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string
 
 	model.pipeLineName = pipelineName;
 
-	m_models[name] = std::move(model);
+	m_modelResources[name] = std::move(model);
 	spdlog::info("Model '{}' loaded successfully", name);
 
-	return &m_models[name];
+	return &m_modelResources[name];
 }
 
 bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
@@ -370,8 +370,8 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 
 const ModelResource* ModelManager::GetModel(const std::string& name) const
 {
-	auto it = m_models.find(name);
-	if (it != m_models.end())
+	auto it = m_modelResources.find(name);
+	if (it != m_modelResources.end())
 	{
 		return &it->second;
 	}
@@ -391,12 +391,12 @@ const TextureResource* ModelManager::GetTexture(const std::string& name) const
 void ModelManager::UnloadResource(VkDevice device, VmaAllocator allocator, const std::string& name)
 {
 	// Unload model
-	auto modelIt = m_models.find(name);
-	if (modelIt != m_models.end())
+	auto modelIt = m_modelResources.find(name);
+	if (modelIt != m_modelResources.end())
 	{
 		vmaDestroyBuffer(allocator, modelIt->second.vertexBuffer, modelIt->second.vertexAllocation);
 		vmaDestroyBuffer(allocator, modelIt->second.indexBuffer, modelIt->second.indexAllocation);
-		m_models.erase(modelIt);
+		m_modelResources.erase(modelIt);
 		spdlog::info("Model '{}' unloaded", name);
 	}
 
@@ -413,12 +413,12 @@ void ModelManager::UnloadResource(VkDevice device, VmaAllocator allocator, const
 
 void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
 {
-	for (const auto& model: m_models)
+	for (const auto& model: m_modelResources)
 	{
 		vmaDestroyBuffer(allocator, model.second.vertexBuffer, model.second.vertexAllocation);
 		vmaDestroyBuffer(allocator, model.second.indexBuffer, model.second.indexAllocation);
 	}
-	m_models.clear();
+	m_modelResources.clear();
 
 	for (const auto& texture: m_textures)
 	{
@@ -455,6 +455,21 @@ void ModelManager::CreateImage(VmaAllocator allocator, uint32_t width, uint32_t 
 	{
 		throw std::runtime_error("failed to create image!");
 	}
+}
+
+std::map<std::string, PipelineContainer>& ModelManager::GetPipelines()
+{
+	return m_pipelines;
+}
+
+void ModelManager::AddModel(const std::string& name, Model* model)
+{
+	if (m_models.contains(name))
+	{
+		throw std::runtime_error("Model already exists: " + name);
+	}
+
+	m_models[name] = model;
 }
 
 VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkFormat format)
@@ -660,22 +675,6 @@ void ModelManager::CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkC
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 	SlimeUtil::EndSingleTimeCommands(device, graphicsQueue, commandPool, commandBuffer);
-}
-
-int ModelManager::DrawModel(VkCommandBuffer& cmd, const std::string& name)
-{
-	const ModelResource* model = GetModel(name);
-	if (!model)
-	{
-		spdlog::error("Model not found: {}", name);
-		return -1;
-	}
-
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(cmd, 0, 1, &model->vertexBuffer, offsets);
-	vkCmdBindIndexBuffer(cmd, model->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model->indices.size()), 1, 0, 0, 0);
-	return 0;
 }
 
 int ModelManager::DrawModel(VkCommandBuffer& cmd, const ModelResource& model)

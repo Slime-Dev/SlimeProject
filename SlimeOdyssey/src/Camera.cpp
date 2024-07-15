@@ -1,5 +1,8 @@
 #include "Camera.h"
 
+#include "spdlog/spdlog.h"
+#include "VulkanUtil.h"
+
 Camera::Camera(float fov, float aspect, float nearZ, float farZ)
       : m_position(0.0f, 0.0f, 1.0f), m_front(0.0f, 0.0f, -1.0f), m_up(0.0f, 1.0f, 0.0f), m_fov(fov), m_aspect(aspect), m_nearZ(nearZ), m_farZ(farZ), m_yaw(-90.0f), m_pitch(0.0f)
 {
@@ -70,6 +73,46 @@ void Camera::SetTarget(const glm::vec3& target)
 void Camera::SetAspectRatio(float aspect)
 {
 	m_aspect = aspect;
+}
+
+void Camera::CreateCameraUBO(VmaAllocator allocator)
+{
+	// Create buffer
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = sizeof(CameraUBO);
+	bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+	if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &m_cameraUBOBBuffer, &m_cameraUBOAllocation, nullptr) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to create camera UBO buffer!");
+	}
+}
+
+void Camera::UpdateCameraUBO(VmaAllocator allocator)
+{
+	if (m_cameraUBOBBuffer == VK_NULL_HANDLE)
+	{
+		CreateCameraUBO(allocator);
+		return;
+	}
+
+	m_cameraUBO.view = GetViewMatrix();
+	m_cameraUBO.projection = GetProjectionMatrix();
+	m_cameraUBO.viewProjection = m_cameraUBO.projection * m_cameraUBO.view;
+	m_cameraUBO.viewPos = glm::vec4(m_position, 1.0f);
+
+	// Copy to buffer
+	SlimeUtil::CopyStructToBuffer(m_cameraUBO, allocator, m_cameraUBOAllocation);
+}
+
+CameraUBO& Camera::GetCameraUBO()
+{
+	return m_cameraUBO;
 }
 
 void Camera::UpdateCameraVectors()

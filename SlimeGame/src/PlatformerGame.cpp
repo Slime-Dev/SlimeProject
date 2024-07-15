@@ -1,29 +1,83 @@
 #include "PlatformerGame.h"
 
 #include "Camera.h"
+#include "DescriptorManager.h"
+#include "Engine.h"
 #include "ModelManager.h"
+#include "PipelineGenerator.h"
 #include "SlimeWindow.h"
 #include "spdlog/spdlog.h"
+#include "VulkanUtil.h"
 
-int PlatformerGame::Setup(ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+PlatformerGame::PlatformerGame(SlimeWindow* window)
+      : Scene(), m_window(window)
 {
-	// Call the base class Setup
-	if (Scene::Setup(modelManager, shaderManager, descriptorManager) != 0)
+	m_camera = Camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f);
+}
+
+int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	ResourcePathManager resourcePaths;
+	spdlog::info("Root directory: {}", resourcePaths.GetRootDirectory());
+
+	// MODEL LOADING
+	m_player.model = modelManager.LoadModel(engine.GetAllocator(), "stanford-bunny.obj", "basic");
+	m_player.modelMat = glm::translate(m_player.modelMat, glm::vec3(1.75f, -0.75f, -2.0f));
+	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.0f, 10.0f, 10.0f));
+
+	m_ground.model = modelManager.LoadModel(engine.GetAllocator(), "cube.obj", "basic");
+	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(-4.0f, 0.0f, -5.0f));
+
+	m_obstacle.model = modelManager.LoadModel(engine.GetAllocator(), "suzanne.obj", "basic");
+	m_obstacle.modelMat = glm::translate(m_obstacle.modelMat, glm::vec3(0.0f, 0.0f, -5.0f));
+
+	// Load and parse shaders
+	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
+	std::string fragShaderPath = resourcePaths.GetShaderPath("basic.frag.spv");
+
+	auto vertexShaderModule = shaderManager.LoadShader(engine.GetDevice(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+	auto fragmentShaderModule = shaderManager.LoadShader(engine.GetDevice(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
+	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
+	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+
+	// Set up descriptor set layout
+	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(engine.GetDevice(), combinedResources);
+
+	PipelineGenerator pipelineGenerator(engine);
+	pipelineGenerator.SetName("Basic");
+	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
+	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
+	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+	pipelineGenerator.Generate();
+
+	// Descriptor set layout
+	descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts);
+
+	std::vector<VkDescriptorSet> descriptorSets;
+	for (int i = descriptorSetLayouts.size() - 1; i >= 0; i--)
 	{
-		return -1;
+		descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
 	}
 
+	// Sort the descriptor sets in the order of the layout
+	std::reverse(descriptorSets.begin(), descriptorSets.end());
+
+	pipelineGenerator.SetDescriptorSets(descriptorSets);
+
+	modelManager.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
+
+	// PLATFORMER SETUP //
+
 	// Modify the existing models for our game
-	m_ground = m_cube; // Use the cube as our ground
-	m_ground->model = glm::scale(m_ground->model, glm::vec3(20.0f, 0.5f, 20.0f));
-	m_ground->model = glm::translate(m_ground->model, glm::vec3(0.0f, -0.25f, 0.0f));
+	m_ground.modelMat = glm::scale(m_ground.modelMat, glm::vec3(20.0f, 0.5f, 20.0f));
+	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
 
-	m_player = m_bunny; // Use the bunny as our player
-	m_player->model = glm::scale(m_player->model, glm::vec3(10.5f));
+	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.5f));
 
-	m_obstacle = m_suzanne; // Use Suzanne as our obstacle
-	m_obstacle->model = glm::scale(m_obstacle->model, glm::vec3(0.25f));
-	m_obstacle->model = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 2.0f, 5.0f));
+	m_obstacle.modelMat = glm::scale(m_obstacle.modelMat, glm::vec3(0.25f));
+	m_obstacle.modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 2.0f, 5.0f));
 
 	// Initialize game state
 	m_playerPosition = glm::vec3(0.0f, 0.25f, 0.0f);
@@ -36,12 +90,21 @@ int PlatformerGame::Setup(ModelManager& modelManager , ShaderManager& shaderMana
 	m_cameraDistance = 5.0f;
 	m_cameraHeight = 5.0f;
 
+	CreateDebugMaterials(engine, modelManager, shaderManager, descriptorManager);
+	m_player.material = tempMaterial;
+	m_ground.material = tempMaterial;
+	m_obstacle.material = tempMaterial;
+
+	modelManager.AddModel("Player", &m_player);
+	modelManager.AddModel("Ground", &m_ground);
+	modelManager.AddModel("Obstacle", &m_obstacle);
+
 	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 
 	return 0;
 }
 
-void PlatformerGame::Update(float dt, const InputManager* inputManager)
+void PlatformerGame::Update(float dt, Engine& engine, const InputManager* inputManager)
 {
 	if (m_gameOver)
 	{
@@ -123,9 +186,9 @@ void PlatformerGame::Update(float dt, const InputManager* inputManager)
 	}
 
 	// Update player model
-	m_player->model = glm::translate(glm::mat4(1.0f), m_playerPosition);
-	m_player->model = glm::rotate(m_player->model, m_playerRotation, glm::vec3(0, 1, 0));
-	m_player->model = glm::scale(m_player->model, glm::vec3(10.5f));
+	m_player.modelMat = glm::translate(glm::mat4(1.0f), m_playerPosition);
+	m_player.modelMat = glm::rotate(m_player.modelMat, m_playerRotation, glm::vec3(0, 1, 0));
+	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.5f));
 
 	// Check for win condition (reaching the obstacle)
 	if (glm::distance(m_playerPosition, glm::vec3(5.0f, 0.5f, 5.0f)) < 1.0f)
@@ -135,19 +198,18 @@ void PlatformerGame::Update(float dt, const InputManager* inputManager)
 	}
 
 	// Update camera
-	UpdateCamera(inputManager, dt);
+	UpdateCamera(engine, inputManager, dt);
 
 	// Rotate obstacle
-	m_obstacle->model = glm::rotate(m_obstacle->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
+	m_obstacle.modelMat = glm::rotate(m_obstacle.modelMat, dt, glm::vec3(0.0f, 1.0f, 0.0f));
 
-	// Handle escape key
-	if (inputManager->IsKeyJustPressed(GLFW_KEY_ESCAPE))
+	if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
 	{
 		m_window->Close();
 	}
 }
 
-void PlatformerGame::UpdateCamera(const InputManager* inputManager, float deltaTime)
+void PlatformerGame::UpdateCamera(Engine& engine, const InputManager* inputManager, float deltaTime)
 {
 	// Get mouse delta
 	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
@@ -197,6 +259,38 @@ void PlatformerGame::UpdateCamera(const InputManager* inputManager, float deltaT
 	// Set camera position and target
 	m_camera.SetPosition(m_cameraPosition);
 	m_camera.SetTarget(m_playerPosition + glm::vec3(0.0f, 1.0f, 0.0f));
+}
+
+void PlatformerGame::Render(Engine& engine, ModelManager& modelManager)
+{
+	//modelManager.DrawModel()
+}
+
+void PlatformerGame::CreateDebugMaterials(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	VkDevice device = engine.GetDevice();
+	VkCommandPool commandPool = engine.GetCommandPool();
+	VmaAllocator allocator = engine.GetAllocator();
+	VkQueue graphicsQueue = engine.GetGraphicsQueue();
+
+	// Create the temp material textures
+	SlimeUtil::CreateBuffer(allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, tempMaterial.configBuffer, tempMaterial.configAllocation);
+
+	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "albedo.png");
+	tempMaterial.albedoTex = modelManager.GetTexture("albedo.png");
+
+	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "normal.png");
+	tempMaterial.normalTex = modelManager.GetTexture("normal.png");
+
+	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "metallic.png");
+	tempMaterial.metallicTex = modelManager.GetTexture("metallic.png");
+
+	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "roughness.png");
+	tempMaterial.roughnessTex = modelManager.GetTexture("roughness.png");
+
+	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "ao.png");
+	tempMaterial.aoTex = modelManager.GetTexture("ao.png");
+
 }
 
 void PlatformerGame::ResetGame()

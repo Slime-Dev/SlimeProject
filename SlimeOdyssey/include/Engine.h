@@ -12,7 +12,7 @@
 #include "Camera.h"
 #include "DescriptorManager.h"
 #include "InputManager.h"
-#include "Light.h"
+#include "Renderer.h"
 #include "SlimeWindow.h"
 #include "VulkanDebugUtils.h"
 
@@ -26,49 +26,36 @@ struct GLFWwindow;
 class Engine
 {
 public:
-	explicit Engine(SlimeWindow* window);
+	explicit Engine();
 	~Engine();
 
-	int CreateEngine();
-	int SetupTesting(ModelManager& modelManager, DescriptorManager& descriptorManager);
-	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager);
+	int CreateEngine(SlimeWindow* window);
+	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene);
 	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
 	// Getters
-	SlimeWindow* GetWindow();
 	VulkanDebugUtils& GetDebugUtils();
-	Camera& GetCamera();
-	InputManager* GetInputManager();
-	std::map<std::string, PipelineContainer>& GetPipelines();
 	VkDevice GetDevice() const;
+	const vkb::Swapchain& GetSwapchain() const;
 	VkQueue GetGraphicsQueue() const;
 	VkQueue GetPresentQueue() const;
 	VkCommandPool GetCommandPool() const;
 	VmaAllocator GetAllocator() const;
+	const vkb::DispatchTable& GetDispatchTable();
 
 	// Helper methods
-	int BeginCommandBuffer(VkCommandBuffer& cmd);
-	int EndCommandBuffer(VkCommandBuffer& cmd);
-	int CreateSwapchain(); // Needs to be public for window resize callback
+	int CreateSwapchain(SlimeWindow* window); // Needs to be public for window resize callback
 
 private:
 	// Initialization methods
-	int DeviceInit();
+	int DeviceInit(SlimeWindow* window);
 	int GetQueues();
 	int CreateCommandPool();
 	int CreateRenderCommandBuffers();
 	int InitSyncObjects();
 
 	// Rendering methods
-	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager);
-	void SetupViewportAndScissor(VkCommandBuffer& cmd);
-	void SetupDepthTestingAndLineWidth(VkCommandBuffer& cmd);
-	void DrawModels(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager);
-
-	// Utility methods
-	VkShaderModule CreateShaderModule(const std::vector<char>& code);
-	template<class T>
-	void CopyStructToBuffer(T& data, VkBuffer buffer, VmaAllocation allocation);
+	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene);
 
 	// Structs
 	struct RenderData
@@ -80,7 +67,6 @@ private:
 		VmaAllocation depthImageAllocation;
 		VkImage depthImage = VK_NULL_HANDLE;
 		VkImageView depthImageView = VK_NULL_HANDLE;
-		std::map<std::string, PipelineContainer> pipelines;
 		VkCommandPool commandPool = VK_NULL_HANDLE;
 		std::vector<VkCommandBuffer> renderCommandBuffers;
 		std::vector<VkSemaphore> availableSemaphores;
@@ -89,13 +75,6 @@ private:
 		std::vector<VkFence> imageInFlight;
 		size_t currentFrame = 0;
 	};
-
-	// Core engine components
-	SlimeWindow* m_window = nullptr;
-	InputManager* m_inputManager = nullptr;
-	Camera m_camera;
-	const uint8_t MAX_LIGHTS = 1;
-	std::vector<LightObject> m_lights;
 
 	// Vulkan core
 	vkb::Instance m_instance;
@@ -108,20 +87,10 @@ private:
 
 	// Render data
 	RenderData data;
+	Renderer m_renderer;
 
 	// Resource managers
 	VulkanDebugUtils m_debugUtils;
-
-	// Buffers and allocations
-	MVP m_mvp;
-	VkBuffer m_mvpBuffer;
-	VmaAllocation m_mvpAllocation;
-	VkBuffer materialBuffer;
-	VmaAllocation materialAllocation;
-	VkBuffer cameraUBOBBuffer;
-	VmaAllocation cameraUBOAllocation;
-	VkBuffer LightBuffer;
-	VmaAllocation LightAllocation;
 
 	// Safety checks
 	bool m_cleanUpFinished = false;

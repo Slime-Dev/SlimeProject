@@ -11,30 +11,32 @@ layout(location = 4) in vec3 Bitangent;
 // Output
 layout(location = 0) out vec4 FragColor;
 
-// Material properties
-layout(set = 0, binding = 0) uniform MaterialUBO {
+// Camera and lighting properties
+layout(set = 0, binding = 0) uniform CameraUBO {
+    mat4 view;
+    mat4 projection;
+    mat4 viewProjection;
+    vec4 viewPos;
+} camera;
+
+layout(set = 0, binding = 1) uniform LightUBO {
+    vec3 position;
+    vec3 color;
+} light;
+
+// Material
+layout(set = 1, binding = 0) uniform MaterialUBO {
     vec4 albedo;
     float metallic;
     float roughness;
     float ao;
 } material;
 
-// Camera and lighting properties
-layout(set = 0, binding = 1) uniform CameraUBO {
-    vec3 viewPos;
-} camera;
-
-layout(set = 0, binding = 2) uniform LightUBO {
-    vec3 position;
-    vec3 color;
-} light;
-
-// PBR textures
-layout(set = 1, binding = 0) uniform sampler2D albedoMap;
-layout(set = 1, binding = 1) uniform sampler2D normalMap;
-layout(set = 1, binding = 2) uniform sampler2D metallicMap;
-layout(set = 1, binding = 3) uniform sampler2D roughnessMap;
-layout(set = 1, binding = 4) uniform sampler2D aoMap;
+layout(set = 1, binding = 1) uniform sampler2D albedoMap;
+layout(set = 1, binding = 2) uniform sampler2D normalMap;
+layout(set = 1, binding = 3) uniform sampler2D metallicMap;
+layout(set = 1, binding = 4) uniform sampler2D roughnessMap;
+layout(set = 1, binding = 5) uniform sampler2D aoMap;
 
 vec3 calculateNormal() {
     vec3 tangentNormal = texture(normalMap, TexCoords).xyz * 2.0 - 1.0;
@@ -88,7 +90,7 @@ void main() {
     float ao = texture(aoMap, TexCoords).r * material.ao;
 
     vec3 N = calculateNormal();
-    vec3 V = normalize(camera.viewPos - FragPos);
+    vec3 V = normalize(camera.viewPos.xyz - FragPos);
     vec3 L = normalize(light.position - FragPos);
     vec3 H = normalize(V + L);
 

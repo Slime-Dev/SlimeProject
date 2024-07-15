@@ -5,10 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtx/hash.hpp>
-
+#include "Model.h"
+#include "PipelineGenerator.h"
 #include "tiny_obj_loader.h"
 #include "vk_mem_alloc.h"
 
@@ -17,52 +15,6 @@ class Engine;
 class ResourcePathManager;
 struct VmaAllocator_T;
 using VmaAllocator = VmaAllocator_T*;
-
-struct Vertex
-{
-	glm::vec3 pos;
-	glm::vec3 normal;
-	glm::vec2 texCoord;
-	glm::vec3 tangent;
-	glm::vec3 bitangent;
-
-	bool operator==(const Vertex& other) const
-	{
-		return pos == other.pos && texCoord == other.texCoord && normal == other.normal;
-	}
-};
-
-struct ModelResource
-{
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
-	VkBuffer vertexBuffer;
-	VmaAllocation vertexAllocation;
-	VkBuffer indexBuffer;
-	VmaAllocation indexAllocation;
-	glm::mat4 model = glm::mat4(1.0f);
-	std::string pipeLineName;
-	bool isActive = true;
-};
-
-struct TextureResource
-{
-	VkImage image;
-	VkSampler sampler;
-	VmaAllocation allocation;
-	VkImageView imageView;
-	uint32_t width;
-	uint32_t height;
-};
-
-struct TempMaterialTextures
-{
-	const TextureResource* albedo;
-	const TextureResource* normal;
-	const TextureResource* metallic;
-	const TextureResource* roughness;
-	const TextureResource* ao;
-};
 
 class ModelManager
 {
@@ -80,27 +32,30 @@ public:
 	void BindModel(const std::string& name, VkCommandBuffer commandBuffer);
 	void BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set);
 	void TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
-	int DrawModel(VkCommandBuffer& cmd, const std::string& name);
 	int DrawModel(VkCommandBuffer& cmd, const ModelResource& model);
 	void CreateImage(VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation);
 
+	std::map<std::string, PipelineContainer>& GetPipelines();
+
+	void AddModel(const std::string& name, Model* model);
+
 	// Iterator for models
-	std::unordered_map<std::string, ModelResource>::iterator begin()
+	std::unordered_map<std::string, Model*>::iterator begin()
 	{
 		return m_models.begin();
 	}
 
-	std::unordered_map<std::string, ModelResource>::iterator end()
+	std::unordered_map<std::string, Model*>::iterator end()
 	{
 		return m_models.end();
 	}
 
-	std::unordered_map<std::string, ModelResource>::const_iterator begin() const
+	std::unordered_map<std::string, Model*>::const_iterator begin() const
 	{
 		return m_models.begin();
 	}
 
-	std::unordered_map<std::string, ModelResource>::const_iterator end() const
+	std::unordered_map<std::string, Model*>::const_iterator end() const
 	{
 		return m_models.end();
 	}
@@ -108,8 +63,11 @@ public:
 private:
 	ResourcePathManager m_pathManager;
 
-	std::unordered_map<std::string, ModelResource> m_models;
+	std::unordered_map<std::string, Model*> m_models;
+	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
+	std::map<std::string, PipelineContainer> m_pipelines;
+
 
 	void CenterModel(std::vector<Vertex>& vector);
 	void CalculateTexCoords(std::vector<Vertex>& vector, const std::vector<unsigned int>& indices);
