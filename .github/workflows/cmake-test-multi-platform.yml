@@ -111,18 +111,8 @@ jobs:
           npm install github-actions-ctrf@0.0.20
           npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
 
-      - name: Post JSON to Discord
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          $json = Get-Content "${{ github.workspace }}/scripts/finalresult.json" -Raw
-          $escapedJson = $json -replace '"', '\"' -replace '\n', ' '
-          $body = @{
-            content = "Here is the JSON file:"
-            embeds = @(@{
-              title = "JSON File"
-              description = "```json`n$escapedJson`n```"
-            })
-          } | ConvertTo-Json -Compress
-          Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK_URL -Method Post -ContentType 'application/json' -Body $body
-        shell: pwsh
+      - name: Discord Webhook Action
+        uses: tsickert/discord-webhook@v5.3.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          filename: ${{ github.workspace }}/scripts/finalresult.json
