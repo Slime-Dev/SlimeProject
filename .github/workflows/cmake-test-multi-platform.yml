@@ -111,18 +111,10 @@ jobs:
           npm install github-actions-ctrf@0.0.20
           npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
 
-      - name: Get Action Summary
-        if: success()
-        uses: austenstone/job-summary-to-pdf@main
-        id: job-summary
-        with:
-            create-pdf: false
-
-      - name: Post to Discord
-        if: success()
+      - name: Post JSON to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          SUMMARY=$(echo ${{ steps.job-summary.outputs.job-summary }})
-          DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }}
-          curl -H "Content-Type: application/json" \
-            -d "{\"content\": \"Workflow Summary: $SUMMARY\"}" \
-            $DISCORD_WEBHOOK_URL
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{"content": "Here is the JSON file:", "embeds": [{"title": "JSON File", "description": "```json\n'$(cat ${{ github.workspace }}/scripts/finalresult.json)'\n```"}]}' \
+          $DISCORD_WEBHOOK_URL
