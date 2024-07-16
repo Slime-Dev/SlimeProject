@@ -1,6 +1,7 @@
 #pragma once
 #include "Light.h"
 #include "Camera.h"
+#include <array>
 
 constexpr int MAX_POINT_LIGHTS = 10;
 
@@ -20,7 +21,7 @@ public:
 	virtual void Update(float dt, Engine& engine, const InputManager* inputManager) = 0;
 	virtual void Render(Engine& engine, ModelManager& modelManager) = 0;
 
-	const std::array<PointLightObject, MAX_POINT_LIGHTS>& GetPointLights() const { return m_pointLights; }
+	std::array<PointLightObject, MAX_POINT_LIGHTS>& GetPointLights() { return m_pointLights; }
 	const DirectionalLightObject& GetDirectionalLight() const { return m_directionalLight; }
 
 	[[nodiscard]] Camera& GetCamera() { return m_camera; }

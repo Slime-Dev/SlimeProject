@@ -17,6 +17,11 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 
 int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
+	auto light = PointLightObject();
+	light.light.colour = glm::vec3(1.0f, 0.8f, 0.9f);
+	light.light.pos = glm::vec3(0.0f, 0.0f, 3.0f);
+	m_pointLights.at(0) = light;
+
 	ResourcePathManager resourcePaths;
 	spdlog::info("Root directory: {}", resourcePaths.GetRootDirectory());
 

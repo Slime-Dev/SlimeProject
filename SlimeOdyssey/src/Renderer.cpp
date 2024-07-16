@@ -26,15 +26,12 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
 
 	// Light
-	auto lights = scene.GetPointLights();
+	auto& lights = scene.GetPointLights();
 	auto& light = lights.at(0);
-	light.light.pos = glm::vec3(0.0f, 0.0f, 3.0f);
-	light.light.colour = glm::vec3(1.0f, 0.8f, 0.6f);
 
 	if (light.buffer == VK_NULL_HANDLE)
 	{
 		SlimeUtil::CreateBuffer(allocator, sizeof(light.light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
-		light.buffer = light.buffer;
 	}
 
 	SlimeUtil::CopyStructToBuffer(light, allocator, light.allocation);
@@ -91,7 +88,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 				auto tempMaterial = model->material;
 
 				SlimeUtil::CopyStructToBuffer(tempMaterial.config, allocator, tempMaterial.configAllocation);
-				descriptorManager.BindBuffer(descSets[1], 0, tempMaterial.configBuffer, 0, sizeof(Material));
+				descriptorManager.BindBuffer(descSets[1], 0, tempMaterial.configBuffer, 0, sizeof(Material::Config));
 
 				// Bind the sampler2D textures
 				descriptorManager.BindImage(descSets[1], 1, tempMaterial.albedoTex->imageView, tempMaterial.albedoTex->sampler);
