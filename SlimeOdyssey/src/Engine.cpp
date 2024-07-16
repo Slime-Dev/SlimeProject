@@ -175,11 +175,6 @@ int Engine::DeviceInit()
 	m_instance = instance_ret.value();
 	m_instDisp = m_instance.make_table();
 
-	if (m_gpuFree)
-	{
-		return 0;
-	}
-
 	// Create the window surface
 	if (VkResult err = glfwCreateWindowSurface(m_instance.instance, m_window->GetGLFWWindow(), nullptr, &m_surface))
 	{
