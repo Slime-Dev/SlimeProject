@@ -115,13 +115,13 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          $json = Get-Content ${{ github.workspace }}/scripts/finalresult.json -Raw
-          $json = $json -replace '"', '\"' # Escape double quotes
+          $json = Get-Content "${{ github.workspace }}/scripts/finalresult.json" -Raw
+          $escapedJson = $json -replace '"', '\"' -replace '\n', ' '
           $body = @{
             content = "Here is the JSON file:"
             embeds = @(@{
               title = "JSON File"
-              description = "```json`n$json`n```"
+              description = "```json`n$escapedJson`n```"
             })
           } | ConvertTo-Json -Compress
           Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK_URL -Method Post -ContentType 'application/json' -Body $body
