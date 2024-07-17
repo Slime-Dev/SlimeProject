@@ -22,9 +22,17 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 
 void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
 {
+	m_shaderDebug.debugMode = 0;
+
 	debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
 
 	debugUtils.BeginDebugMarker(cmd, "Update Light Buffer", debugUtil_UpdateLightBufferColour);
+
+	// Shader Debug
+	if (m_shaderDebugBuffer == VK_NULL_HANDLE)
+	{
+		SlimeUtil::CreateBuffer("ShaderDebug", allocator, sizeof(ShaderDebug), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shaderDebugBuffer, m_shaderDebugAllocation);
+	}
 
 	// Light
 	auto& lights = scene.GetPointLights();
@@ -85,6 +93,9 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 				// Set Light buffer
 				descriptorManager.BindBuffer(descSets[0], 1, light.buffer, 0, sizeof(light.light));
 
+				SlimeUtil::CopyStructToBuffer(m_shaderDebug, allocator, m_shaderDebugAllocation);
+				descriptorManager.BindBuffer(descSets[0], 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
+
 				// Set material buffer
 				auto tempMaterial = *model->material;
 
@@ -113,4 +124,9 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	}
 
 	debugUtils.EndDebugMarker(cmd); // End "Draw Models"
+}
+
+void Renderer::CleanUp(VmaAllocator allocator)
+{
+	vmaDestroyBuffer(allocator, m_shaderDebugBuffer, m_shaderDebugAllocation);
 }

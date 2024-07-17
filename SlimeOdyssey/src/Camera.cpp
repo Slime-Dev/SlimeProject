@@ -77,20 +77,7 @@ void Camera::SetAspectRatio(float aspect)
 
 void Camera::CreateCameraUBO(VmaAllocator allocator)
 {
-	// Create buffer
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = sizeof(CameraUBO);
-	bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo allocInfo = {};
-	allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-	if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &m_cameraUBOBBuffer, &m_cameraUBOAllocation, nullptr) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to create camera UBO buffer!");
-	}
+	SlimeUtil::CreateBuffer("Camera UBO", allocator, sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_cameraUBOBBuffer, m_cameraUBOAllocation);
 }
 
 void Camera::DestroyCameraUBOBuffer(VmaAllocator allocator)

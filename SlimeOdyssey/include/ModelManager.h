@@ -23,14 +23,14 @@ public:
 	explicit ModelManager(ResourcePathManager& pathManager);
 	~ModelManager();
 
-	ModelResource* LoadModel(VmaAllocator allocator, const std::string& name, const std::string& pipelineName);
+	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
 	const TextureResource* LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
 	void UnloadAllResources(VkDevice device, VmaAllocator allocator);
 	void BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set);
 	void TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	int DrawModel(VkCommandBuffer& cmd, const ModelResource& model);
-	void CreateImage(VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation);
+	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
 
 	std::map<std::string, PipelineContainer>& GetPipelines();
 
@@ -83,7 +83,6 @@ private:
 	void CalculateNormals(ModelResource& model);
 	void CalculateTangentsAndBitangents(ModelResource& model);
 	void CalculateTangentSpace(Vertex& v0, Vertex& v1, Vertex& v2);
-	void CreateBuffers(VmaAllocator allocator, ModelResource& model);
 	glm::vec3 ExtractPosition(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);
 	glm::vec2 ExtractTexCoord(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);
 	glm::vec3 ExtractNormal(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);

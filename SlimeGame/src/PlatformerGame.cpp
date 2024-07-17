@@ -4,10 +4,8 @@
 #include "DescriptorManager.h"
 #include "Engine.h"
 #include "ModelManager.h"
-#include "PipelineGenerator.h"
 #include "SlimeWindow.h"
 #include "spdlog/spdlog.h"
-#include "VulkanUtil.h"
 
 PlatformerGame::PlatformerGame(SlimeWindow* window)
       : Scene(), m_window(window)
@@ -22,7 +20,7 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 
 	// Light
 	PointLight& light = m_pointLights.at(0).light;
-	light.pos = glm::vec3(6, 6, 6);
+	light.pos = glm::vec3(-6, 6, 6);
 	light.colour = glm::vec3(1, 0.8, 0.95);
 
 	ResetGame();
@@ -85,20 +83,31 @@ void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
 
 void PlatformerGame::InitializeGameObjects(Engine& engine, ModelManager& modelManager, Material* material)
 {
+	VmaAllocator allocator = engine.GetAllocator();
+	std::string pipelineName = "basic";
+
 	// Initialize player
-	m_player.model = modelManager.LoadModel(engine.GetAllocator(), "stanford-bunny.obj", "basic");
+	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", pipelineName);
+	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
+
+	m_player.model = bunnyMesh;
 	m_player.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(10.5f));
 	m_player.material = material;
 
 	// Initialize obstacle
-	m_obstacle.model = modelManager.LoadModel(engine.GetAllocator(), "suzanne.obj", "basic");
+	auto suzanneMesh = modelManager.LoadModel("suzanne.obj", pipelineName);
+	modelManager.CreateBuffersForMesh(allocator, *suzanneMesh);
+
+	m_obstacle.model = suzanneMesh;
 	m_obstacle.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(0.75f));
 	m_obstacle.modelMat = glm::translate(m_obstacle.modelMat, glm::vec3(5.0f, 4.0f, 5.0f));
 	m_obstacle.material = material;
 
 	// Initialize ground
-	auto cube = modelManager.LoadModel(engine.GetAllocator(), "cube.obj", "basic");
-	m_ground.model = cube;
+	auto cubeMesh = modelManager.LoadModel("cube.obj", pipelineName);
+	modelManager.CreateBuffersForMesh(allocator, *cubeMesh);
+	
+	m_ground.model = cubeMesh;
 	m_ground.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(20.0f, 0.5f, 20.0f));
 	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
 	m_ground.material = material;
@@ -107,7 +116,7 @@ void PlatformerGame::InitializeGameObjects(Engine& engine, ModelManager& modelMa
 	PointLight& light = m_pointLights.at(0).light;
 	m_lightCube.modelMat = glm::translate(glm::mat4(1.0f), light.pos);
 	m_lightCube.material = material;
-	m_lightCube.model = cube;
+	m_lightCube.model = cubeMesh;
 
 	modelManager.AddModel("Player", &m_player);
 	modelManager.AddModel("Obstacle", &m_obstacle);

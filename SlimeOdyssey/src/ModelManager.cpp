@@ -264,7 +264,7 @@ void ModelManager::CalculateTangentSpace(Vertex& v0, Vertex& v1, Vertex& v2)
 	v2.bitangent += glm::cross(v2.normal, tangent);
 }
 
-void ModelManager::CreateBuffers(VmaAllocator allocator, ModelResource& model)
+void ModelManager::CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model)
 {
 	// Create vertex and index buffers
 	SlimeUtil::CreateBuffer("Vertex Buffer", allocator, model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
@@ -281,7 +281,7 @@ void ModelManager::CreateBuffers(VmaAllocator allocator, ModelResource& model)
 	vmaUnmapMemory(allocator, model.indexAllocation);
 }
 
-ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string& name, const std::string& pipelineName)
+ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
 {
 	std::string fullPath = m_pathManager.GetModelPath(name);
 
@@ -311,8 +311,6 @@ ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string
 	}
 
 	CalculateTangentsAndBitangents(model);
-
-	CreateBuffers(allocator, model);
 
 	model.pipeLineName = pipelineName;
 
@@ -361,7 +359,7 @@ const TextureResource* ModelManager::LoadTexture(VkDevice device, VkQueue graphi
 	stbi_image_free(pixels);
 
 	// Create image
-	CreateImage(allocator, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
+	SlimeUtil::CreateImage(name.c_str(), allocator, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
 
 	// Transition image layout and copy buffer to image
 	TransitionImageLayout(device, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -421,32 +419,6 @@ void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
 	m_models.clear();
 
 	spdlog::info("All resources unloaded");
-}
-
-void ModelManager::CreateImage(VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation)
-{
-	VkImageCreateInfo imageInfo{};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = width;
-	imageInfo.extent.height = height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format;
-	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage = usage;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = memoryUsage;
-
-	if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create image!");
-	}
 }
 
 std::map<std::string, PipelineContainer>& ModelManager::GetPipelines()

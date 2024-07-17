@@ -19,6 +19,12 @@ struct MVP
 	glm::mat3 normalMatrix;
 };
 
+struct ShaderDebug
+{
+	int debugMode = 0;     // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
+	bool useNormalMap = true; // Toggle normal mapping
+};
+
 class DescriptorManager
 {
 public:

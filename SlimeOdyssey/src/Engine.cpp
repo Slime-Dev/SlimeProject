@@ -4,22 +4,13 @@
 
 #include "Engine.h"
 
-#include <cmath>
 #include <GLFW/glfw3.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <string>
 
-#include "SlimeWindow.h"
-
 #define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
 #define VMA_IMPLEMENTATION
-#define VMA_DEBUG_LOG(format, ...)            \
-	do                                        \
-	{                                         \
-		spdlog::debug(format, ##__VA_ARGS__); \
-	}                                         \
-	while (0)
 
 #include <vk_mem_alloc.h>
 
@@ -547,6 +538,8 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 	shaderManager.CleanupDescriptorSetLayouts(m_device);
 
 	descriptorManager.Cleanup();
+
+	m_renderer.CleanUp(m_allocator);
 
 	// Clean up old depth image and image view
 	vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
