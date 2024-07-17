@@ -88,8 +88,6 @@ def xml_to_json(xml_file, tool_name):
 
     return json_structure
 
-import time
-
 def json_to_discord_json(json_data):
     summary = json_data["results"]["summary"]
     tests = json_data["results"]["tests"]
@@ -102,13 +100,13 @@ def json_to_discord_json(json_data):
     duration_width = len("Duration (ms)") + 2
     flaky_width = len("Flaky 🍂") + 2
 
-    detailed_results = (
-        "```\n"
-        f"{'Name':<{name_width}} {'Status':<{status_width}} {'Duration (ms)':<{duration_width}} {'Flaky 🍂':<{flaky_width}}\n"
-        "-" * (name_width + status_width + duration_width + flaky_width) + "\n"
-    )
+    detailed_results = "```\n"
+    detailed_results += f"{'Name':<{name_width}} {'Status':<{status_width}} {'Duration (ms)':<{duration_width}} {'Flaky 🍂':<{flaky_width}}\n"
+    detailed_results += "-" * (name_width + status_width + duration_width + flaky_width) + "\n"
+
     for test in tests:
         detailed_results += f"{test['name']:<{name_width}} {test['status']:<{status_width}} {test['duration']:<{duration_width}} {'':<{flaky_width}}\n"
+
     detailed_results += "```\n"
 
     if summary["failed"] == 0:
@@ -150,6 +148,7 @@ def json_to_discord_json(json_data):
     }
 
     return discord_json
+
 
 
 if __name__ == "__main__":
