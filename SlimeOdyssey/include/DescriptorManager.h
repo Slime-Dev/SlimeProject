@@ -4,10 +4,13 @@
 #include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan.h>
+#include "Model.h"
 
 // Forward declarations
 struct MVP;
 class DescriptorManager;
+class Engine;
+class ModelManager;
 
 // Structures
 struct MVP
@@ -40,6 +43,8 @@ public:
 
 	// Cleanup
 	void Cleanup();
+
+	Material CreateMaterial(Engine& engine, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
 
 private:
 	// Private Methods

@@ -13,27 +13,111 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
       : Scene(), m_window(window)
 {
 	m_camera = Camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f);
+
+	// Initialize game parameters
+	m_gameParams = { .moveSpeed = 2.0f, .rotationSpeed = 2.0f, .jumpForce = 5.0f, .gravity = 9.8f, .dragCoefficient = 2.0f, .frictionCoefficient = 0.9f };
+
+	// Initialize camera state
+	m_cameraState = { .distance = 10.0f, .yaw = 0.0f, .pitch = 0.0f, .position = glm::vec3(0.0f) };
+
+	// Light
+	PointLight& light = m_pointLights.at(0).light;
+	light.pos = glm::vec3(6, 6, 6);
+	light.colour = glm::vec3(1, 0.8, 0.95);
+
+	ResetGame();
 }
 
 int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
-	auto light = PointLightObject();
-	light.light.colour = glm::vec3(1.0f, 0.8f, 0.9f);
-	light.light.pos = glm::vec3(0.0f, 0.0f, 3.0f);
-	m_pointLights.at(0) = light;
+	SetupShaders(engine, modelManager, shaderManager, descriptorManager);
+	m_tempMaterial = descriptorManager.CreateMaterial(engine, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	InitializeGameObjects(engine, modelManager, &m_tempMaterial);
 
-	ResourcePathManager resourcePaths;
-	spdlog::info("Root directory: {}", resourcePaths.GetRootDirectory());
+	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 
-	// MODEL LOADING
+	return 0;
+}
+
+void PlatformerGame::Update(float dt, Engine& engine, const InputManager* inputManager)
+{
+	if (m_gameState.gameOver)
+	{
+		if (inputManager->IsKeyJustPressed(GLFW_KEY_R))
+		{
+			ResetGame();
+		}
+		return;
+	}
+
+	UpdatePlayer(dt, inputManager);
+	UpdateCamera(dt, inputManager);
+	CheckCollisions();
+	CheckWinCondition();
+
+	// Update obstacle rotation
+	m_obstacle.modelMat = glm::rotate(m_obstacle.modelMat, dt, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
+	{
+		m_window->Close();
+	}
+}
+
+void PlatformerGame::Render(Engine& engine, ModelManager& modelManager)
+{
+	//modelManager.DrawModel()
+}
+
+void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
+{
+	for (auto& light: m_pointLights)
+	{
+		vmaDestroyBuffer(engine.GetAllocator(), light.buffer, light.allocation);
+	}
+
+	m_camera.DestroyCameraUBOBuffer(engine.GetAllocator());
+
+	auto basicPipeline = modelManager.GetPipelines()["basic"];
+	engine.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
+	engine.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
+}
+
+void PlatformerGame::InitializeGameObjects(Engine& engine, ModelManager& modelManager, Material* material)
+{
+	// Initialize player
 	m_player.model = modelManager.LoadModel(engine.GetAllocator(), "stanford-bunny.obj", "basic");
-	m_player.modelMat = glm::translate(m_player.modelMat, glm::vec3(1.75f, -0.75f, -2.0f));
-	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.0f, 10.0f, 10.0f));
+	m_player.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(10.5f));
+	m_player.material = material;
 
-	ModelResource* cubeMesh = modelManager.LoadModel(engine.GetAllocator(), "cube.obj", "basic");
-
+	// Initialize obstacle
 	m_obstacle.model = modelManager.LoadModel(engine.GetAllocator(), "suzanne.obj", "basic");
-	m_obstacle.modelMat = glm::translate(m_obstacle.modelMat, glm::vec3(0.0f, 0.0f, -5.0f));
+	m_obstacle.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(0.75f));
+	m_obstacle.modelMat = glm::translate(m_obstacle.modelMat, glm::vec3(5.0f, 4.0f, 5.0f));
+	m_obstacle.material = material;
+
+	// Initialize ground
+	auto cube = modelManager.LoadModel(engine.GetAllocator(), "cube.obj", "basic");
+	m_ground.model = cube;
+	m_ground.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(20.0f, 0.5f, 20.0f));
+	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
+	m_ground.material = material;
+
+	// Light cube
+	PointLight& light = m_pointLights.at(0).light;
+	m_lightCube.modelMat = glm::translate(glm::mat4(1.0f), light.pos);
+	m_lightCube.material = material;
+	m_lightCube.model = cube;
+
+	modelManager.AddModel("Player", &m_player);
+	modelManager.AddModel("Obstacle", &m_obstacle);
+	modelManager.AddModel("Ground", &m_ground);
+	modelManager.AddModel("Light", &m_lightCube);
+}
+
+void PlatformerGame::SetupShaders(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	ResourcePathManager resourcePaths;
 
 	// Load and parse shaders
 	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
@@ -71,249 +155,146 @@ int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderMana
 	pipelineGenerator.SetDescriptorSets(descriptorSets);
 
 	modelManager.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
-
-	// PLATFORMER SETUP //
-
-	// Modify the existing models for our game
-	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.5f));
-
-	m_obstacle.modelMat = glm::scale(m_obstacle.modelMat, glm::vec3(0.25f));
-	m_obstacle.modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 2.0f, 5.0f));
-
-	// Initialize game state
-	m_playerPosition = glm::vec3(0.0f, 0.25f, 0.0f);
-	m_playerRotation = 0.0f;
-	m_playerVelocity = glm::vec3(0.0f);
-	m_isJumping = false;
-	m_gameOver = false;
-
-	CreateDebugMaterials(engine, modelManager, shaderManager, descriptorManager);
-	m_player.material = &tempMaterial;
-	m_obstacle.material = &tempMaterial;
-
-	// Setup the cube Enviroment
-	Model& ground = *modelManager.GetModel("ground");
-	ground.model = cubeMesh;
-	ground.modelMat = glm::scale(ground.modelMat, glm::vec3(20.0f, 0.5f, 20.0f));
-	ground.modelMat = glm::translate(ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
-	ground.material = &tempMaterial;
-
-	modelManager.AddModel("Player", &m_player);
-	modelManager.AddModel("Obstacle", &m_obstacle);
-
-	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
-
-	return 0;
 }
 
-void PlatformerGame::Update(float dt, Engine& engine, const InputManager* inputManager)
+void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)
 {
-	if (m_gameOver)
-	{
-		if (inputManager->IsKeyJustPressed(GLFW_KEY_R))
-		{
-			ResetGame();
-		}
-		return;
-	}
-
-	// Player movement
-	float moveSpeed = 2.0f;
-	float rotationSpeed = 2.0f;
-
 	glm::vec3 moveDirection(0.0f);
 	if (inputManager->IsKeyPressed(GLFW_KEY_W))
 	{
-		moveDirection += -glm::vec3(sin(m_playerRotation), 0, cos(m_playerRotation));
+		moveDirection += -glm::vec3(sin(m_gameState.playerRotation), 0, cos(m_gameState.playerRotation));
 	}
 	else if (inputManager->IsKeyPressed(GLFW_KEY_S))
 	{
-		moveDirection += glm::vec3(sin(m_playerRotation), 0, cos(m_playerRotation));
+		moveDirection += glm::vec3(sin(m_gameState.playerRotation), 0, cos(m_gameState.playerRotation));
 	}
 
-	// Normalize move direction to prevent diagonal movement from being faster
+	// Normalize move direction
 	if (glm::length(moveDirection) > 0.0f)
 	{
-		moveDirection = glm::normalize(moveDirection) * moveSpeed;
+		moveDirection = glm::normalize(moveDirection) * m_gameParams.moveSpeed;
 	}
 
-	// Apply acceleration instead of directly setting velocity
+	// Apply acceleration
 	float acceleration = 10.0f;
-	m_playerVelocity += moveDirection * acceleration * dt;
+	m_gameState.playerVelocity += moveDirection * acceleration * dt;
 
+	// Handle rotation
 	if (inputManager->IsKeyPressed(GLFW_KEY_A))
 	{
-		m_playerRotation += rotationSpeed * dt;
+		m_gameState.playerRotation += m_gameParams.rotationSpeed * dt;
 	}
 	else if (inputManager->IsKeyPressed(GLFW_KEY_D))
 	{
-		m_playerRotation -= rotationSpeed * dt;
+		m_gameState.playerRotation -= m_gameParams.rotationSpeed * dt;
 	}
 
-	// Jumping
-	if (inputManager->IsKeyJustPressed(GLFW_KEY_SPACE) && !m_isJumping)
+	// Handle jumping
+	if (inputManager->IsKeyJustPressed(GLFW_KEY_SPACE) && !m_gameState.isJumping)
 	{
-		m_playerVelocity.y = 5.0f;
-		m_isJumping = true;
+		m_gameState.playerVelocity.y = m_gameParams.jumpForce;
+		m_gameState.isJumping = true;
 	}
 
 	// Apply gravity
-	m_playerVelocity.y -= 9.8f * dt;
+	m_gameState.playerVelocity.y -= m_gameParams.gravity * dt;
 
-	// Apply drag to slow down the player
-	float dragCoefficient = 2.0f;
-	m_playerVelocity *= (1.0f / (1.0f + dragCoefficient * dt));
+	// Apply drag
+	m_gameState.playerVelocity *= (1.0f / (1.0f + m_gameParams.dragCoefficient * dt));
 
 	// Clamp velocity
 	float maxSpeed = 5.0f;
-	if (glm::length(m_playerVelocity) > maxSpeed)
+	if (glm::length(m_gameState.playerVelocity) > maxSpeed)
 	{
-		m_playerVelocity = glm::normalize(m_playerVelocity) * maxSpeed;
+		m_gameState.playerVelocity = glm::normalize(m_gameState.playerVelocity) * maxSpeed;
 	}
 
 	// Update position
-	m_playerPosition += m_playerVelocity * dt;
+	m_gameState.playerPosition += m_gameState.playerVelocity * dt;
 
-	// Ground collision
-	if (m_playerPosition.y < 1.2f)
-	{
-		m_playerPosition.y = 1.2f;
-		m_playerVelocity.y = 0.0f;
-		m_isJumping = false;
-
-		// Apply friction
-		float frictionCoefficient = 0.9f;
-		m_playerVelocity.x *= frictionCoefficient;
-		m_playerVelocity.z *= frictionCoefficient;
-	}
-
-	// Update player model
-	m_player.modelMat = glm::translate(glm::mat4(1.0f), m_playerPosition);
-	m_player.modelMat = glm::rotate(m_player.modelMat, m_playerRotation, glm::vec3(0, 1, 0));
+	// Update player model matrix
+	m_player.modelMat = glm::translate(glm::mat4(1.0f), m_gameState.playerPosition);
+	m_player.modelMat = glm::rotate(m_player.modelMat, m_gameState.playerRotation, glm::vec3(0, 1, 0));
 	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.5f));
-
-	// Check for win condition (reaching the obstacle)
-	if (glm::distance(m_playerPosition, glm::vec3(5.0f, 0.5f, 5.0f)) < 1.0f)
-	{
-		spdlog::info("You win! Press R to play again.");
-		m_gameOver = true;
-	}
-
-	// Update camera
-	UpdateCamera(engine, inputManager, dt);
-
-	// Rotate obstacle
-	m_obstacle.modelMat = glm::rotate(m_obstacle.modelMat, dt, glm::vec3(0.0f, 1.0f, 0.0f));
-
-	if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
-	{
-		m_window->Close();
-	}
 }
 
-void PlatformerGame::UpdateCamera(Engine& engine, const InputManager* inputManager, float deltaTime)
+void PlatformerGame::UpdateCamera(float dt, const InputManager* inputManager)
 {
 	// Get mouse delta
 	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
 
 	// Scroll to zoom in/out
 	float scrollY = inputManager->GetScrollDelta();
-	m_cameraDistance -= scrollY;
+	m_cameraState.distance -= scrollY;
 
 	// Update camera angles
 	float mouseSensitivity = 0.1f;
-	m_cameraYaw += mouseX * mouseSensitivity;
-	m_cameraPitch += -mouseY * mouseSensitivity;
+	m_cameraState.yaw += mouseX * mouseSensitivity;
+	m_cameraState.pitch += -mouseY * mouseSensitivity;
 
 	// Clamp pitch to avoid flipping
-	m_cameraPitch = glm::clamp(m_cameraPitch, -89.0f, 89.0f);
+	m_cameraState.pitch = glm::clamp(m_cameraState.pitch, -89.0f, 89.0f);
 
 	// Calculate new camera position
-	float horizontalDistance = m_cameraDistance * cos(glm::radians(m_cameraPitch));
-	float verticalDistance = m_cameraDistance * sin(glm::radians(m_cameraPitch));
+	float horizontalDistance = m_cameraState.distance * cos(glm::radians(m_cameraState.pitch));
+	float verticalDistance = m_cameraState.distance * sin(glm::radians(m_cameraState.pitch));
 
-	float camX = horizontalDistance * sin(glm::radians(m_cameraYaw));
-	float camZ = horizontalDistance * cos(glm::radians(m_cameraYaw));
+	float camX = horizontalDistance * sin(glm::radians(m_cameraState.yaw));
+	float camZ = horizontalDistance * cos(glm::radians(m_cameraState.yaw));
 
-	glm::vec3 targetCamPos = m_playerPosition + glm::vec3(camX, verticalDistance, camZ);
+	glm::vec3 targetCamPos = m_gameState.playerPosition + glm::vec3(camX, verticalDistance, camZ);
 
 	// Smoothly interpolate camera position
-	float smoothFactor = 1.0f - std::pow(0.001f, deltaTime);
-	m_cameraPosition = glm::mix(m_cameraPosition, targetCamPos, smoothFactor);
+	float smoothFactor = 1.0f - std::pow(0.001f, dt);
+	m_cameraState.position = glm::mix(m_cameraState.position, targetCamPos, smoothFactor);
 
 	// Weight camera yaw towards player rotation
 	float weightFactor = 0.2f; // Adjust this value to change how much the camera follows the player's rotation
-	float weightedYaw = glm::mix(m_cameraYaw, m_playerRotation, weightFactor);
+	float weightedYaw = glm::mix(m_cameraState.yaw, m_gameState.playerRotation, weightFactor);
 
 	// Calculate camera front vector
 	glm::vec3 front;
-	front.x = cos(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraPitch));
-	front.y = sin(glm::radians(m_cameraPitch));
-	front.z = sin(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraPitch));
+	front.x = cos(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraState.pitch));
+	front.y = sin(glm::radians(m_cameraState.pitch));
+	front.z = sin(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraState.pitch));
 	glm::vec3 cameraFront = glm::normalize(front);
 
 	// Make sure camera is not below the ground
-	if (m_cameraPosition.y < 1.0f)
+	if (m_cameraState.position.y < 1.0f)
 	{
-		m_cameraPosition.y = 1.0f;
+		m_cameraState.position.y = 1.0f;
 	}
 
 	// Set camera position and target
-	m_camera.SetPosition(m_cameraPosition);
-	m_camera.SetTarget(m_playerPosition + glm::vec3(0.0f, 1.0f, 0.0f));
+	m_camera.SetPosition(m_cameraState.position);
+	m_camera.SetTarget(m_gameState.playerPosition + glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
-void PlatformerGame::Render(Engine& engine, ModelManager& modelManager)
+void PlatformerGame::CheckCollisions()
 {
-	//modelManager.DrawModel()
-}
-
-void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
-{
-	for (auto& light: m_pointLights)
+	// Ground collision
+	if (m_gameState.playerPosition.y < 1.2f)
 	{
-		vmaDestroyBuffer(engine.GetAllocator(), light.buffer, light.allocation);
+		m_gameState.playerPosition.y = 1.2f;
+		m_gameState.playerVelocity.y = 0.0f;
+		m_gameState.isJumping = false;
+
+		// Apply friction
+		m_gameState.playerVelocity.x *= m_gameParams.frictionCoefficient;
+		m_gameState.playerVelocity.z *= m_gameParams.frictionCoefficient;
 	}
-
-	m_camera.DestroyCameraUBOBuffer(engine.GetAllocator());
-
-	auto basicPipeline = modelManager.GetPipelines()["basic"];
-	engine.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
-	engine.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
 }
 
-void PlatformerGame::CreateDebugMaterials(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+void PlatformerGame::CheckWinCondition()
 {
-	VkDevice device = engine.GetDevice();
-	VkCommandPool commandPool = engine.GetCommandPool();
-	VmaAllocator allocator = engine.GetAllocator();
-	VkQueue graphicsQueue = engine.GetGraphicsQueue();
-
-	// Create the temp material textures
-	SlimeUtil::CreateBuffer("Temp Material Buffer", allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, tempMaterial.configBuffer, tempMaterial.configAllocation);
-
-	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "albedo.png");
-	tempMaterial.albedoTex = modelManager.GetTexture("albedo.png");
-
-	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "normal.png");
-	tempMaterial.normalTex = modelManager.GetTexture("normal.png");
-
-	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "metallic.png");
-	tempMaterial.metallicTex = modelManager.GetTexture("metallic.png");
-
-	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "roughness.png");
-	tempMaterial.roughnessTex = modelManager.GetTexture("roughness.png");
-
-	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "ao.png");
-	tempMaterial.aoTex = modelManager.GetTexture("ao.png");
-
+	if (glm::distance(m_gameState.playerPosition, glm::vec3(5.0f, 0.5f, 5.0f)) < 1.0f)
+	{
+		spdlog::info("You win! Press R to play again.");
+		m_gameState.gameOver = true;
+	}
 }
 
 void PlatformerGame::ResetGame()
 {
-	m_playerPosition = glm::vec3(0.0f, 0.25f, 0.0f);
-	m_playerRotation = 0.0f;
-	m_playerVelocity = glm::vec3(0.0f);
-	m_isJumping = false;
-	m_gameOver = false;
+	m_gameState = { .playerPosition = glm::vec3(0.0f, 0.25f, 0.0f), .playerVelocity = glm::vec3(0.0f), .playerRotation = 0.0f, .isJumping = false, .gameOver = false };
 }

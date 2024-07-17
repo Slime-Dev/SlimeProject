@@ -24,7 +24,7 @@ public:
 	~ModelManager();
 
 	ModelResource* LoadModel(VmaAllocator allocator, const std::string& name, const std::string& pipelineName);
-	bool LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
+	const TextureResource* LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
 	void UnloadAllResources(VkDevice device, VmaAllocator allocator);
 	void BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set);

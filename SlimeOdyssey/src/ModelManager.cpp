@@ -322,9 +322,15 @@ ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string
 	return &m_modelResources[name];
 }
 
-bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
+const TextureResource* ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
 {
 	std::string fullPath = m_pathManager.GetTexturePath(name);
+
+	if (m_textures.contains(name))
+	{
+		spdlog::warn("Texture already exists: {}", name);
+		return &m_textures[name];
+	}
 
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels = stbi_load(fullPath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -332,7 +338,7 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 	if (!pixels)
 	{
 		spdlog::error("Failed to load texture '{}': {}", name, stbi_failure_reason());
-		return false;
+		return nullptr;
 	}
 
 	VkDeviceSize imageSize = texWidth * texHeight * 4;
@@ -373,7 +379,7 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 
 	m_textures[name] = std::move(texture);
 	spdlog::info("Texture '{}' loaded successfully", name);
-	return true;
+	return &m_textures[name];
 }
 
 const TextureResource* ModelManager::GetTexture(const std::string& name) const
