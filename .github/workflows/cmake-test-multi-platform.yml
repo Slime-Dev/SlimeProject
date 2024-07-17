@@ -103,7 +103,7 @@ jobs:
         if: success()
         run: |
           pip install defusedxml
-          python ${{ github.workspace }}/scripts/ConvertAndCreateMD.py ${{ github.workspace }}/scripts/junitout.xml "Test Results" --json_output ${{ github.workspace }}/scripts/junitout_output.json --markdown_output ${{ github.workspace }}/scripts/junitout_output.md
+          python ${{ github.workspace }}/scripts/OutPutResultsToJsons.py ${{ github.workspace }}/scripts/junitout.xml "Test Results" --json_output ${{ github.workspace }}/scripts/junitout_output.json --discord_json_output ${{ github.workspace }}/scripts/discordJson_output.md
 
       - name: Post results
         if: success()
@@ -111,16 +111,9 @@ jobs:
           npm install github-actions-ctrf@0.0.20
           npx github-actions-ctrf ${{ github.workspace }}/scripts/junitout_output.json
 
-      - name: Run tests and capture output
-        shell: pwsh
-        run: |
-          $content = Get-Content -Path D:\a\SlimeOdyssey\SlimeOdyssey\scripts\junitout_output.md -Raw
-          echo "markdown_content=$content" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-
       - name: Post results to Discord
-        uses: tsickert/discord-webhook@v5.3.0
+        if: success()
+        uses: tsickert/discord-webhook@v6.0.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content: |
-            ### Test Summary
-            ${{ env.markdown_content }}
+          raw-data: ${{ github.workspace }}/scripts/discordJson_output.md
