@@ -85,11 +85,3 @@ bin/
 obj/
 *.spv
 _deps/
-
-# Custom output files
-scripts/junitout_output.json
-scripts/junitout_output.md
-scripts/discord.py
-scripts/discordJson_output.md
-scripts/output_discord.json
-scripts/xmlfile.py

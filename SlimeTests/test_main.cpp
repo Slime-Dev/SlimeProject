@@ -8,18 +8,10 @@
 #include <vector>
 
 void testEngineInitialization() {
-	//SlimeWindow::WindowProps windowProps{ .title = "Slime Odyssey", .width = 1920, .height = 1080, .resizable = true, .decorated = true, .fullscreen = false };
-
-	//SlimeWindow window(windowProps);
-	// Engine engine(nullptr);
-
-    // engine.SetGPUFree(true);
-    // assert(engine.GetGPUFree() == true);
-
-    // assert(engine.CreateEngine() == 0);
     ResourcePathManager resourcePathManager;
 	ShaderManager shaderManager = ShaderManager();
 	ModelManager modelManager = ModelManager(resourcePathManager);
+
     assert(1 == 1);
 }
 
