@@ -129,6 +129,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
     parser.add_argument('xml_file', help='Path to the XML file.')
     parser.add_argument('tool_name', help='Name of the testing tool.')
+    parser.add_argument('--json_output', help='Path to the output JSON file.')
+    parser.add_argument('--markdown_output', help='Path to the output Markdown file.')
 
     args = parser.parse_args()
 
@@ -136,10 +138,13 @@ if __name__ == "__main__":
         # Generate JSON data
         json_data = xml_to_json(args.xml_file, args.tool_name)
 
-        # Create filenames based on the input XML file
-        base_name = os.path.splitext(os.path.basename(args.xml_file))[0]
-        json_output_file = f"{base_name}_output.json"
-        markdown_output_file = f"{base_name}_output.md"
+        # Determine output file paths
+        json_output_file = args.json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_output.json"
+        markdown_output_file = args.markdown_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_output.md"
+
+        # Ensure the output directories exist
+        os.makedirs(os.path.dirname(json_output_file), exist_ok=True)
+        os.makedirs(os.path.dirname(markdown_output_file), exist_ok=True)
 
         # Write JSON output to file
         with open(json_output_file, 'w') as json_file:
@@ -156,3 +161,5 @@ if __name__ == "__main__":
 
     except FileNotFoundError as e:
         print(e)
+    except Exception as e:
+        print(f"An error occurred: {e}")

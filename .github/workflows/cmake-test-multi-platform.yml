@@ -103,7 +103,7 @@ jobs:
         if: success()
         run: |
           pip install defusedxml
-          python ${{ github.workspace }}/scripts/ConvertAndCreateMD.py ${{ github.workspace }}/scripts/junitout.xml "Test Results"
+          python ${{ github.workspace }}/scripts/ConvertAndCreateMD.py ${{ github.workspace }}/scripts/junitout.xml "Test Results" --json_output ${{ github.workspace }}/scripts/junitout_output.json --markdown_output ${{ github.workspace }}/scripts/junitout_output.md
 
       - name: Post results
         if: success()
