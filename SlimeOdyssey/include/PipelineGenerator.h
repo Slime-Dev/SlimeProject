@@ -23,7 +23,7 @@ struct PipelineContainer
 class PipelineGenerator
 {
 public:
-	explicit PipelineGenerator(VulkanContext& engine);
+	explicit PipelineGenerator(VulkanContext& vulkanContext);
 
 	~PipelineGenerator();
 
@@ -46,7 +46,7 @@ public:
 
 private:
 	VkDevice m_device;
-	VulkanContext& m_engine;
+	VulkanContext& m_vulkanContext;
 	ShaderModule m_vertexShader;
 	ShaderModule m_fragmentShader;
 

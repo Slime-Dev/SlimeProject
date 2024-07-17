@@ -18,12 +18,12 @@ public:
 private:
 	void InitializeLogging();
 	void InitializeWindow();
-	void InitializeEngine();
+	void InitializeVulkanContext();
 	void InitializeManagers();
 	void InitializeScene();
 
 	SlimeWindow m_window;
-	VulkanContext m_engine;
+	VulkanContext m_vulkanContext;
 	ResourcePathManager m_resourcePathManager;
 	ShaderManager m_shaderManager;
 	ModelManager m_modelManager;

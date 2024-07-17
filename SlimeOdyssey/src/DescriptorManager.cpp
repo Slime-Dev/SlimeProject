@@ -158,12 +158,12 @@ void DescriptorManager::CreateDescriptorPool()
 	}
 }
 
-Material DescriptorManager::CreateMaterial(VulkanContext& engine, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
+Material DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
 {
-	VkDevice device = engine.GetDevice();
-	VkCommandPool commandPool = engine.GetCommandPool();
-	VmaAllocator allocator = engine.GetAllocator();
-	VkQueue graphicsQueue = engine.GetGraphicsQueue();
+	VkDevice device = vulkanContext.GetDevice();
+	VkCommandPool commandPool = vulkanContext.GetCommandPool();
+	VmaAllocator allocator = vulkanContext.GetAllocator();
+	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
 
 	Material::Config config;
 	VkBuffer configBuffer;

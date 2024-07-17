@@ -26,18 +26,18 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 	ResetGame();
 }
 
-int PlatformerGame::Enter(VulkanContext& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
-	SetupShaders(engine, modelManager, shaderManager, descriptorManager);
-	m_tempMaterial = descriptorManager.CreateMaterial(engine, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
-	InitializeGameObjects(engine, modelManager, &m_tempMaterial);
+	SetupShaders(vulkanContext, modelManager, shaderManager, descriptorManager);
+	m_tempMaterial = descriptorManager.CreateMaterial(vulkanContext, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	InitializeGameObjects(vulkanContext, modelManager, &m_tempMaterial);
 
 	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 
 	return 0;
 }
 
-void PlatformerGame::Update(float dt, VulkanContext& engine, const InputManager* inputManager)
+void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager)
 {
 	if (m_gameState.gameOver)
 	{
@@ -62,28 +62,28 @@ void PlatformerGame::Update(float dt, VulkanContext& engine, const InputManager*
 	}
 }
 
-void PlatformerGame::Render(VulkanContext& engine, ModelManager& modelManager)
+void PlatformerGame::Render(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	//modelManager.DrawModel()
 }
 
-void PlatformerGame::Exit(VulkanContext& engine, ModelManager& modelManager)
+void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	for (auto& light: m_pointLights)
 	{
-		vmaDestroyBuffer(engine.GetAllocator(), light.buffer, light.allocation);
+		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 
-	m_camera.DestroyCameraUBOBuffer(engine.GetAllocator());
+	m_camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator());
 
 	auto basicPipeline = modelManager.GetPipelines()["basic"];
-	engine.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
-	engine.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
+	vulkanContext.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
+	vulkanContext.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
 }
 
-void PlatformerGame::InitializeGameObjects(VulkanContext& engine, ModelManager& modelManager, Material* material)
+void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager, Material* material)
 {
-	VmaAllocator allocator = engine.GetAllocator();
+	VmaAllocator allocator = vulkanContext.GetAllocator();
 	std::string pipelineName = "basic";
 
 	// Initialize player
@@ -124,7 +124,7 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& engine, ModelManager& 
 	modelManager.AddModel("Light", &m_lightCube);
 }
 
-void PlatformerGame::SetupShaders(VulkanContext& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	ResourcePathManager resourcePaths;
 
@@ -132,16 +132,16 @@ void PlatformerGame::SetupShaders(VulkanContext& engine, ModelManager& modelMana
 	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
 	std::string fragShaderPath = resourcePaths.GetShaderPath("basic.frag.spv");
 
-	auto vertexShaderModule = shaderManager.LoadShader(engine.GetDevice(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
-	auto fragmentShaderModule = shaderManager.LoadShader(engine.GetDevice(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDevice(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDevice(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
 	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
 	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
 	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
 
 	// Set up descriptor set layout
-	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(engine.GetDevice(), combinedResources);
+	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDevice(), combinedResources);
 
-	PipelineGenerator pipelineGenerator(engine);
+	PipelineGenerator pipelineGenerator(vulkanContext);
 	pipelineGenerator.SetName("Basic");
 	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
 	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);

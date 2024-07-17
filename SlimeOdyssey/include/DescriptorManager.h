@@ -50,7 +50,7 @@ public:
 	// Cleanup
 	void Cleanup();
 
-	Material CreateMaterial(VulkanContext& engine, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
+	Material CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
 
 private:
 	// Private Methods

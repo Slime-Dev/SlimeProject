@@ -5,7 +5,7 @@ Application::Application()
 {
 	InitializeLogging();
 	InitializeWindow();
-	InitializeEngine();
+	InitializeVulkanContext();
 	InitializeManagers();
 	InitializeScene();
 }
@@ -15,16 +15,16 @@ void Application::Run()
 	while (!m_window.ShouldClose())
 	{
 		float dt = m_window.Update();
-		m_scene.Update(dt, m_engine, m_window.GetInputManager());
-		m_scene.Render(m_engine, m_modelManager);
-		m_engine.RenderFrame(m_modelManager, m_descriptorManager, &m_window, m_scene);
+		m_scene.Update(dt, m_vulkanContext, m_window.GetInputManager());
+		m_scene.Render(m_vulkanContext, m_modelManager);
+		m_vulkanContext.RenderFrame(m_modelManager, m_descriptorManager, &m_window, m_scene);
 	}
 }
 
 void Application::Cleanup()
 {
-	m_scene.Exit(m_engine, m_modelManager);
-	m_engine.Cleanup(m_shaderManager, m_modelManager, m_descriptorManager);
+	m_scene.Exit(m_vulkanContext, m_modelManager);
+	m_vulkanContext.Cleanup(m_shaderManager, m_modelManager, m_descriptorManager);
 }
 
 void Application::InitializeLogging()
@@ -35,14 +35,14 @@ void Application::InitializeLogging()
 
 void Application::InitializeWindow()
 {
-	m_window.SetResizeCallback([this](int width, int height) { m_engine.CreateSwapchain(&m_window); });
+	m_window.SetResizeCallback([this](int width, int height) { m_vulkanContext.CreateSwapchain(&m_window); });
 }
 
-void Application::InitializeEngine()
+void Application::InitializeVulkanContext()
 {
-	if (m_engine.CreateEngine(&m_window) != 0)
+	if (m_vulkanContext.CreateContext(&m_window) != 0)
 	{
-		throw std::runtime_error("Failed to create engine");
+		throw std::runtime_error("Failed to create Vulkan Context!");
 	}
 }
 
@@ -51,13 +51,13 @@ void Application::InitializeManagers()
 	m_resourcePathManager = ResourcePathManager();
 	m_shaderManager = ShaderManager();
 	m_modelManager = ModelManager(m_resourcePathManager);
-	m_descriptorManager = DescriptorManager(m_engine.GetDevice());
+	m_descriptorManager = DescriptorManager(m_vulkanContext.GetDevice());
 }
 
 void Application::InitializeScene()
 {
 	m_scene = PlatformerGame(&m_window);
-	if (m_scene.Enter(m_engine, m_modelManager, m_shaderManager, m_descriptorManager) != 0)
+	if (m_scene.Enter(m_vulkanContext, m_modelManager, m_shaderManager, m_descriptorManager) != 0)
 	{
 		throw std::runtime_error("Failed to initialize scene");
 	}

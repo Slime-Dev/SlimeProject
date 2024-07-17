@@ -18,15 +18,15 @@ class PlatformerGame : public Scene
 public:
 	PlatformerGame(SlimeWindow* window);
 
-	int Enter(VulkanContext& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
-	void Update(float dt, VulkanContext& engine, const InputManager* inputManager) override;
-	void Render(VulkanContext& engine, ModelManager& modelManager) override;
-	void Exit(VulkanContext& engine, ModelManager& modelManager) override;
+	int Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
+	void Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager) override;
+	void Render(VulkanContext& vulkanContext, ModelManager& modelManager) override;
+	void Exit(VulkanContext& vulkanContext, ModelManager& modelManager) override;
 
 private:
 	// Initialization methods
-	void InitializeGameObjects(VulkanContext& engine, ModelManager& modelManager, Material* material);
-	void SetupShaders(VulkanContext& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
+	void InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager, Material* material);
+	void SetupShaders(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
 
 	// Update methods
 	void UpdatePlayer(float dt, const InputManager* inputManager);

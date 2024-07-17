@@ -22,10 +22,10 @@
 VulkanContext::~VulkanContext()
 {
 	if (!m_cleanUpFinished)
-		spdlog::error("CLEANUP WAS NOT CALLED ON ENGINE!");
+		spdlog::error("CLEANUP WAS NOT CALLED ON THE VULKAN CONTEXT!");
 }
 
-int VulkanContext::CreateEngine(SlimeWindow* window)
+int VulkanContext::CreateContext(SlimeWindow* window)
 {
 	if (DeviceInit(window) != 0)
 		return -1;

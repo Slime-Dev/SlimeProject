@@ -24,7 +24,7 @@ public:
 	VulkanContext() = default;
 	~VulkanContext();
 
-	int CreateEngine(SlimeWindow* window);
+	int CreateContext(SlimeWindow* window);
 	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene);
 	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
