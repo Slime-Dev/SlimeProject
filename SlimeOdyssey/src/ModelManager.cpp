@@ -1,7 +1,6 @@
 #include "ModelManager.h"
 
 #include <Engine.h>
-#include <fstream>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <vk_mem_alloc.h>
@@ -19,6 +18,15 @@
 ModelManager::ModelManager(ResourcePathManager& pathManager)
       : m_pathManager(pathManager)
 {
+}
+
+ModelManager::~ModelManager()
+{
+	// Check for any remaining models or resources
+	if (!m_models.empty() || !m_modelResources.empty() || !m_textures.empty())
+	{
+		std::runtime_error("Model Manager not cleaned up correctly.");
+	}
 }
 
 void ModelManager::CenterModel(std::vector<Vertex>& vector)
@@ -256,11 +264,11 @@ void ModelManager::CalculateTangentSpace(Vertex& v0, Vertex& v1, Vertex& v2)
 	v2.bitangent += glm::cross(v2.normal, tangent);
 }
 
-void ModelManager::CreateBuffers(VmaAllocator allocator, ModelResource& model)
+void ModelManager::CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model)
 {
 	// Create vertex and index buffers
-	SlimeUtil::CreateBuffer(allocator, model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
-	SlimeUtil::CreateBuffer(allocator, model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
+	SlimeUtil::CreateBuffer("Vertex Buffer", allocator, model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
+	SlimeUtil::CreateBuffer("Index Buffer",  allocator, model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
 
 	// Copy vertex and index data to buffers
 	void* data;
@@ -273,7 +281,7 @@ void ModelManager::CreateBuffers(VmaAllocator allocator, ModelResource& model)
 	vmaUnmapMemory(allocator, model.indexAllocation);
 }
 
-ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string& name, const std::string& pipelineName)
+ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
 {
 	std::string fullPath = m_pathManager.GetModelPath(name);
 
@@ -304,19 +312,23 @@ ModelResource* ModelManager::LoadModel(VmaAllocator allocator, const std::string
 
 	CalculateTangentsAndBitangents(model);
 
-	CreateBuffers(allocator, model);
-
 	model.pipeLineName = pipelineName;
 
-	m_models[name] = std::move(model);
+	m_modelResources[name] = std::move(model);
 	spdlog::info("Model '{}' loaded successfully", name);
 
-	return &m_models[name];
+	return &m_modelResources[name];
 }
 
-bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
+const TextureResource* ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
 {
 	std::string fullPath = m_pathManager.GetTexturePath(name);
+
+	if (m_textures.contains(name))
+	{
+		spdlog::warn("Texture already exists: {}", name);
+		return &m_textures[name];
+	}
 
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels = stbi_load(fullPath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -324,7 +336,7 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 	if (!pixels)
 	{
 		spdlog::error("Failed to load texture '{}': {}", name, stbi_failure_reason());
-		return false;
+		return nullptr;
 	}
 
 	VkDeviceSize imageSize = texWidth * texHeight * 4;
@@ -336,7 +348,7 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 	// Create staging buffer
 	VkBuffer stagingBuffer;
 	VmaAllocation stagingAllocation;
-	SlimeUtil::CreateBuffer(allocator, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
+	SlimeUtil::CreateBuffer("Load Texture Staging Buffer", allocator, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
 
 	// Copy pixel data to staging buffer
 	void* data;
@@ -347,7 +359,7 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 	stbi_image_free(pixels);
 
 	// Create image
-	CreateImage(allocator, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
+	SlimeUtil::CreateImage(name.c_str(), allocator, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
 
 	// Transition image layout and copy buffer to image
 	TransitionImageLayout(device, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -365,17 +377,7 @@ bool ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommand
 
 	m_textures[name] = std::move(texture);
 	spdlog::info("Texture '{}' loaded successfully", name);
-	return true;
-}
-
-const ModelResource* ModelManager::GetModel(const std::string& name) const
-{
-	auto it = m_models.find(name);
-	if (it != m_models.end())
-	{
-		return &it->second;
-	}
-	return nullptr;
+	return &m_textures[name];
 }
 
 const TextureResource* ModelManager::GetTexture(const std::string& name) const
@@ -388,37 +390,14 @@ const TextureResource* ModelManager::GetTexture(const std::string& name) const
 	return nullptr;
 }
 
-void ModelManager::UnloadResource(VkDevice device, VmaAllocator allocator, const std::string& name)
-{
-	// Unload model
-	auto modelIt = m_models.find(name);
-	if (modelIt != m_models.end())
-	{
-		vmaDestroyBuffer(allocator, modelIt->second.vertexBuffer, modelIt->second.vertexAllocation);
-		vmaDestroyBuffer(allocator, modelIt->second.indexBuffer, modelIt->second.indexAllocation);
-		m_models.erase(modelIt);
-		spdlog::info("Model '{}' unloaded", name);
-	}
-
-	// Unload texture
-	auto textureIt = m_textures.find(name);
-	if (textureIt != m_textures.end())
-	{
-		vkDestroyImageView(device, textureIt->second.imageView, nullptr);
-		vmaDestroyImage(allocator, textureIt->second.image, textureIt->second.allocation);
-		m_textures.erase(textureIt);
-		spdlog::info("Texture '{}' unloaded", name);
-	}
-}
-
 void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
 {
-	for (const auto& model: m_models)
+	for (const auto& model: m_modelResources)
 	{
 		vmaDestroyBuffer(allocator, model.second.vertexBuffer, model.second.vertexAllocation);
 		vmaDestroyBuffer(allocator, model.second.indexBuffer, model.second.indexAllocation);
 	}
-	m_models.clear();
+	m_modelResources.clear();
 
 	for (const auto& texture: m_textures)
 	{
@@ -428,33 +407,33 @@ void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
 	}
 	m_textures.clear();
 
+	for (const auto& model : m_models)
+	{
+		Material* material = model.second->material;
+		if (!material->disposed)
+		{
+			vmaDestroyBuffer(allocator, material->configBuffer, material->configAllocation);
+			material->disposed = true;
+		}
+	}
+	m_models.clear();
+
 	spdlog::info("All resources unloaded");
 }
 
-void ModelManager::CreateImage(VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation)
+std::map<std::string, PipelineContainer>& ModelManager::GetPipelines()
 {
-	VkImageCreateInfo imageInfo{};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = width;
-	imageInfo.extent.height = height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format;
-	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageInfo.usage = usage;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	return m_pipelines;
+}
 
-	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = memoryUsage;
-
-	if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr) != VK_SUCCESS)
+void ModelManager::AddModel(const std::string& name, Model* model)
+{
+	if (m_models.contains(name))
 	{
-		throw std::runtime_error("failed to create image!");
+		throw std::runtime_error("Model already exists: " + name);
 	}
+
+	m_models[name] = model;
 }
 
 VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkFormat format)
@@ -477,20 +456,6 @@ VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkForm
 	}
 
 	return imageView;
-}
-
-void ModelManager::BindModel(const std::string& name, VkCommandBuffer commandBuffer)
-{
-	const ModelResource* model = GetModel(name);
-	if (!model)
-	{
-		throw std::runtime_error("Model not found: " + name);
-	}
-
-	VkBuffer vertexBuffers[] = { model->vertexBuffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, model->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
 void ModelManager::BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set)
@@ -662,22 +627,6 @@ void ModelManager::CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkC
 	SlimeUtil::EndSingleTimeCommands(device, graphicsQueue, commandPool, commandBuffer);
 }
 
-int ModelManager::DrawModel(VkCommandBuffer& cmd, const std::string& name)
-{
-	const ModelResource* model = GetModel(name);
-	if (!model)
-	{
-		spdlog::error("Model not found: {}", name);
-		return -1;
-	}
-
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(cmd, 0, 1, &model->vertexBuffer, offsets);
-	vkCmdBindIndexBuffer(cmd, model->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model->indices.size()), 1, 0, 0, 0);
-	return 0;
-}
-
 int ModelManager::DrawModel(VkCommandBuffer& cmd, const ModelResource& model)
 {
 	VkDeviceSize offsets[] = { 0 };
@@ -686,3 +635,29 @@ int ModelManager::DrawModel(VkCommandBuffer& cmd, const ModelResource& model)
 	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
 	return 0;
 }
+
+void ModelManager::AddModelMap(const std::unordered_map<std::string, Model*>& models)
+{
+	for (const auto& [name, model]: models)
+	{
+		if (m_models.contains(name))
+		{
+			throw std::runtime_error("Model already exists: " + name);
+		}
+		m_models[name] = model;
+	}
+}
+
+// This will create a new model if it doesn't exist
+Model* ModelManager::GetModel(const std::string& name)
+{
+	if (m_models.contains(name))
+	{
+		return m_models[name];
+	}
+
+	Model* model = new Model();
+	m_models[name] = model;
+	return model;
+}
+

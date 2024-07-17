@@ -11,32 +11,43 @@ layout(location = 4) in vec3 Bitangent;
 // Output
 layout(location = 0) out vec4 FragColor;
 
-// Material properties
-layout(set = 0, binding = 0) uniform MaterialUBO {
+// Camera and lighting properties
+layout(set = 0, binding = 0) uniform CameraUBO {
+    mat4 view;
+    mat4 projection;
+    mat4 viewProjection;
+    vec4 viewPos;
+} camera;
+
+layout(set = 0, binding = 1) uniform LightUBO {
+    vec3 position;
+    vec3 color;
+} light;
+
+// Material
+layout(set = 1, binding = 0) uniform MaterialUBO {
     vec4 albedo;
     float metallic;
     float roughness;
     float ao;
 } material;
 
-// Camera and lighting properties
-layout(set = 0, binding = 1) uniform CameraUBO {
-    vec3 viewPos;
-} camera;
+layout(set = 1, binding = 1) uniform sampler2D albedoMap;
+layout(set = 1, binding = 2) uniform sampler2D normalMap;
+layout(set = 1, binding = 3) uniform sampler2D metallicMap;
+layout(set = 1, binding = 4) uniform sampler2D roughnessMap;
+layout(set = 1, binding = 5) uniform sampler2D aoMap;
 
-layout(set = 0, binding = 2) uniform LightUBO {
-    vec3 position;
-    vec3 color;
-} light;
-
-// PBR textures
-layout(set = 1, binding = 0) uniform sampler2D albedoMap;
-layout(set = 1, binding = 1) uniform sampler2D normalMap;
-layout(set = 1, binding = 2) uniform sampler2D metallicMap;
-layout(set = 1, binding = 3) uniform sampler2D roughnessMap;
-layout(set = 1, binding = 4) uniform sampler2D aoMap;
+layout(set = 0, binding = 2) uniform DebugUBO {
+    int debugMode; // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
+    bool useNormalMap; // Toggle normal mapping
+} debug;
 
 vec3 calculateNormal() {
+    if (!debug.useNormalMap) {
+        return normalize(Normal);
+    }
+    
     vec3 tangentNormal = texture(normalMap, TexCoords).xyz * 2.0 - 1.0;
     vec3 Q1 = dFdx(FragPos);
     vec3 Q2 = dFdy(FragPos);
@@ -86,37 +97,52 @@ void main() {
     float metallic = texture(metallicMap, TexCoords).r * material.metallic;
     float roughness = texture(roughnessMap, TexCoords).r * material.roughness;
     float ao = texture(aoMap, TexCoords).r * material.ao;
-
+    
     vec3 N = calculateNormal();
-    vec3 V = normalize(camera.viewPos - FragPos);
+    vec3 V = normalize(camera.viewPos.xyz - FragPos);
     vec3 L = normalize(light.position - FragPos);
     vec3 H = normalize(V + L);
-
+    
+    // Debug output
+    if (debug.debugMode == 1) {
+        FragColor = vec4(N * 0.5 + 0.5, 1.0);
+        return;
+    } else if (debug.debugMode == 2) {
+        FragColor = vec4(L * 0.5 + 0.5, 1.0);
+        return;
+    } else if (debug.debugMode == 3) {
+        FragColor = vec4(V * 0.5 + 0.5, 1.0);
+        return;
+    }
+    
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
-
+    
     // Cook-Torrance BRDF
     float NDF = DistributionGGX(N, H, roughness);
     float G   = GeometrySmith(N, V, L, roughness);
     vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
+    
     vec3 numerator    = NDF * G * F;
     float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // + 0.0001 to prevent divide by zero
     vec3 specular = numerator / denominator;
-
+    
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
     kD *= 1.0 - metallic;
-
+    
     float NdotL = max(dot(N, L), 0.0);
-
     vec3 Lo = (kD * albedo / 3.14159265359 + specular) * light.color * NdotL;
-
+    
     vec3 ambient = vec3(0.03) * albedo * ao;
     vec3 color = ambient + Lo;
-
-    color = color / (color + vec3(1.0)); // HDR tonemapping
-    color = pow(color, vec3(1.0/2.2));  // gamma correction
-
+    
+    // Exposure tone mapping
+    float exposure = 1.0;
+    color = vec3(1.0) - exp(-color * exposure);
+    
+    // Gamma correction
+    color = pow(color, vec3(1.0/2.2));
+    
     FragColor = vec4(color, 1.0);
 }

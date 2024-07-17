@@ -4,18 +4,25 @@
 #include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan.h>
+#include "Model.h"
 
 // Forward declarations
 struct MVP;
 class DescriptorManager;
+class Engine;
+class ModelManager;
 
 // Structures
 struct MVP
 {
 	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 projection;
 	glm::mat3 normalMatrix;
+};
+
+struct ShaderDebug
+{
+	int debugMode = 0;     // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
+	bool useNormalMap = true; // Toggle normal mapping
 };
 
 class DescriptorManager
@@ -42,6 +49,8 @@ public:
 
 	// Cleanup
 	void Cleanup();
+
+	Material CreateMaterial(Engine& engine, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
 
 private:
 	// Private Methods

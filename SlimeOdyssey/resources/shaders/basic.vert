@@ -18,10 +18,15 @@ layout(location = 4) out vec3 Bitangent;
 // push constant Uniform buffer for transformation matrices
 layout(push_constant) uniform TransformUBO {
 	mat4 model;
-	mat4 view;
-	mat4 projection;
 	mat3 normalMatrix;
 } transform;
+
+layout(set = 0, binding = 0) uniform CameraUBO {
+	mat4 view;
+	mat4 projection;
+	mat4 viewProjection;
+	vec4 viewPos;
+} camera;
 
 void main() {
 	// Calculate vertex position in world space
@@ -36,5 +41,5 @@ void main() {
 	TexCoords = inTexCoords;
 
 	// Calculate final vertex position
-	gl_Position = transform.projection * transform.view * vec4(FragPos, 1.0);
+	gl_Position = camera.projection * camera.view * vec4(FragPos, 1.0);
 }

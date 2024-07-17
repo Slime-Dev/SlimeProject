@@ -40,6 +40,8 @@ public:
 	void SetCursorMode(int mode);
 	void SetResizeCallback(std::function<void(int, int)> callback);
 
+	bool WindowSuspended();
+
 	InputManager* GetInputManager();
 
 	SlimeWindow(const SlimeWindow&) = delete;

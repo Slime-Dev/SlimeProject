@@ -78,6 +78,23 @@ void SlimeWindow::SetResizeCallback(std::function<void(int, int)> callback)
 	m_ResizeCallback = std::move(callback);
 }
 
+bool SlimeWindow::WindowSuspended()
+{
+	if (!m_Window)
+		return true; // Window not even created, consider it suspended
+
+	// Check if the window is iconified (minimized)
+	if (glfwGetWindowAttrib(m_Window, GLFW_ICONIFIED))
+		return true;
+
+	// Check if the window is not visible
+	if (!glfwGetWindowAttrib(m_Window, GLFW_VISIBLE))
+		return true;
+
+	// If we've made it this far, the window is not suspended
+	return false;
+}
+
 InputManager* SlimeWindow::GetInputManager()
 {
 	return &m_InputManager;

@@ -1,6 +1,9 @@
 #include "DescriptorManager.h"
 
 #include <stdexcept>
+#include <Engine.h>
+#include "VulkanUtil.h"
+#include "ModelManager.h"
 
 DescriptorManager::DescriptorManager(VkDevice device)
       : m_device(device)
@@ -153,4 +156,37 @@ void DescriptorManager::CreateDescriptorPool()
 	{
 		throw std::runtime_error("Failed to create descriptor pool");
 	}
+}
+
+Material DescriptorManager::CreateMaterial(Engine& engine, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
+{
+	VkDevice device = engine.GetDevice();
+	VkCommandPool commandPool = engine.GetCommandPool();
+	VmaAllocator allocator = engine.GetAllocator();
+	VkQueue graphicsQueue = engine.GetGraphicsQueue();
+
+	Material::Config config;
+	VkBuffer configBuffer;
+	VmaAllocation configAllocation;
+	
+	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, configBuffer, configAllocation);
+
+	const TextureResource* albedoTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, albedo);
+	const TextureResource* normalTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, normal);
+	const TextureResource* metallicTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, metallic);
+	const TextureResource* roughnessTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, roughness);
+	const TextureResource* aoTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, ao);
+
+	return {
+		.albedoTex = albedoTex, 
+		.normalTex = normalTex, 
+		.metallicTex = metallicTex, 
+		.roughnessTex = roughnessTex, 
+		.aoTex = aoTex, 
+
+		.config = config, .configAllocation = configAllocation,
+		.configBuffer = configBuffer,
+
+		.disposed = false
+	};
 }
