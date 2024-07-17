@@ -103,16 +103,16 @@ jobs:
         if: success()
         run: |
           pip install defusedxml
-          python ${{ github.workspace }}/scripts/ConvertXMLtoJson.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --output ${{ github.workspace }}/scripts/finalresult.json
+          python ${{ github.workspace }}/scripts/ConvertAndCreateMD.py ${{ github.workspace }}/scripts/junitout.xml "Test Results"
 
       - name: Post results
         if: success()
         run: |
           npm install github-actions-ctrf@0.0.20
-          npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
+          npx github-actions-ctrf ${{ github.workspace }}/scripts/junitout_output.json
 
       - name: Discord Webhook Action
         uses: tsickert/discord-webhook@v5.3.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          filename: ${{ github.workspace }}/scripts/finalresult.json
+          raw-data: ${{ github.workspace }}/scripts/junitout_output.md

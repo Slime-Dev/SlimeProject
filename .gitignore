@@ -85,3 +85,7 @@ bin/
 obj/
 *.spv
 _deps/
+
+# Custom output files
+scripts/junitout_output.json
+scripts/junitout_output.md
