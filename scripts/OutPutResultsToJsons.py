@@ -116,6 +116,8 @@ def json_to_discord_json(json_data):
         for test in tests:
             if test["status"] == "failed":
                 failed_tests_summary += f"{test['name']}\n"
+                if 'message' in test:
+                    failed_tests_summary += f"{test['message'].strip()}\n"
         failed_tests_summary += "```\n"
 
     content = "See test summary and details below"
@@ -148,6 +150,7 @@ def json_to_discord_json(json_data):
     }
 
     return discord_json
+
 
 
 
