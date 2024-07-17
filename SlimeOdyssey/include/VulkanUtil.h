@@ -68,7 +68,7 @@ namespace SlimeUtil
 		vkFreeCommandBuffers(device, commandPool, 1, &command_buffer);
 	}
 
-	inline void CreateBuffer(VmaAllocator allocator, VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
+	inline void CreateBuffer(const char* name, VmaAllocator allocator, VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
 	{
 		VkBufferCreateInfo bufferInfo{};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -83,6 +83,8 @@ namespace SlimeUtil
 		{
 			throw std::runtime_error("failed to create buffer!");
 		}
+
+		vmaSetAllocationName(allocator, allocation, name);
 	}
 
 	inline int BeginCommandBuffer(const vkb::DispatchTable& disp, VkCommandBuffer& cmd)

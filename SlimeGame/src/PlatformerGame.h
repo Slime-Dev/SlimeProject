@@ -20,6 +20,7 @@ public:
 	void UpdateCamera(Engine& engine, const InputManager* inputManager, float deltaTime);
 
 	void Render(Engine& engine, ModelManager& modelManager) override;
+	void Exit(Engine& engine, ModelManager& modelManager) override;
 
 private:
 	void CreateDebugMaterials(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
@@ -27,7 +28,6 @@ private:
 
 	void ResetGame();
 
-	Model m_ground;
 	Model m_player;
 	Model m_obstacle;
 
@@ -35,10 +35,9 @@ private:
 	glm::vec3 m_playerVelocity;
 
 	float m_playerRotation = 0.0f;
-	float m_cameraDistance = 0.0f;
-	float m_cameraHeight = 0.0f;
-	float m_cameraYaw;
-	float m_cameraPitch;
+	float m_cameraDistance = 10.0f;
+	float m_cameraYaw = 0.0f;
+	float m_cameraPitch = 0.0f;
 	glm::vec3 m_cameraPosition;
 
 	bool m_isJumping;

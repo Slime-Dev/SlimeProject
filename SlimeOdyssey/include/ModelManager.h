@@ -21,15 +21,12 @@ class ModelManager
 public:
 	ModelManager() = default;
 	explicit ModelManager(ResourcePathManager& pathManager);
-	~ModelManager() = default;
+	~ModelManager();
 
 	ModelResource* LoadModel(VmaAllocator allocator, const std::string& name, const std::string& pipelineName);
 	bool LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
-	const ModelResource* GetModel(const std::string& name) const;
 	const TextureResource* GetTexture(const std::string& name) const;
-	void UnloadResource(VkDevice device, VmaAllocator allocator, const std::string& name);
 	void UnloadAllResources(VkDevice device, VmaAllocator allocator);
-	void BindModel(const std::string& name, VkCommandBuffer commandBuffer);
 	void BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set);
 	void TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	int DrawModel(VkCommandBuffer& cmd, const ModelResource& model);
@@ -38,6 +35,10 @@ public:
 	std::map<std::string, PipelineContainer>& GetPipelines();
 
 	void AddModel(const std::string& name, Model* model);
+	void AddModelMap(const std::unordered_map<std::string, Model*>& models);
+	
+	// This will create a new model if it doesn't exist
+	Model* GetModel(const std::string& name);
 
 	// Iterator for models
 	std::unordered_map<std::string, Model*>::iterator begin()
@@ -67,7 +68,6 @@ private:
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
 	std::map<std::string, PipelineContainer> m_pipelines;
-
 
 	void CenterModel(std::vector<Vertex>& vector);
 	void CalculateTexCoords(std::vector<Vertex>& vector, const std::vector<unsigned int>& indices);

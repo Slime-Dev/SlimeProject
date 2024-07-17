@@ -2,7 +2,6 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
 #include "vk_mem_alloc.h"
 
 struct CameraUBO
@@ -43,6 +42,7 @@ public:
 
 	// Vulkan stuff
 	void CreateCameraUBO(VmaAllocator allocator);
+	void DestroyCameraUBOBuffer(VmaAllocator allocator);
 	void UpdateCameraUBO(VmaAllocator allocator);
 	CameraUBO& GetCameraUBO();
 	VkBuffer GetCameraUBOBuffer() const { return m_cameraUBOBBuffer; }

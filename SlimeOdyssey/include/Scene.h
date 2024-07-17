@@ -21,6 +21,8 @@ public:
 	virtual void Update(float dt, Engine& engine, const InputManager* inputManager) = 0;
 	virtual void Render(Engine& engine, ModelManager& modelManager) = 0;
 
+	virtual void Exit(Engine& engine, ModelManager& modelManager) = 0;
+
 	std::array<PointLightObject, MAX_POINT_LIGHTS>& GetPointLights() { return m_pointLights; }
 	const DirectionalLightObject& GetDirectionalLight() const { return m_directionalLight; }
 

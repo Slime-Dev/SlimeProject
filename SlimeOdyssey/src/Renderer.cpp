@@ -5,6 +5,7 @@
 #include "PipelineGenerator.h"
 #include "Scene.h"
 #include "VulkanUtil.h"
+#include "vk_mem_alloc.h"
 
 void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd)
 {
@@ -31,7 +32,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 	if (light.buffer == VK_NULL_HANDLE)
 	{
-		SlimeUtil::CreateBuffer(allocator, sizeof(light.light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
+		SlimeUtil::CreateBuffer("Light Buffer", allocator, sizeof(light.light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
 	}
 
 	SlimeUtil::CopyStructToBuffer(light, allocator, light.allocation);
@@ -85,7 +86,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 				descriptorManager.BindBuffer(descSets[0], 1, light.buffer, 0, sizeof(light.light));
 
 				// Set material buffer
-				auto tempMaterial = model->material;
+				auto tempMaterial = *model->material;
 
 				SlimeUtil::CopyStructToBuffer(tempMaterial.config, allocator, tempMaterial.configAllocation);
 				descriptorManager.BindBuffer(descSets[1], 0, tempMaterial.configBuffer, 0, sizeof(Material::Config));

@@ -37,7 +37,7 @@ int main()
 		scene.Render(engine, modelManager);
 		engine.RenderFrame(modelManager, descriptorManager, &window, scene);
 	}
-
+	scene.Exit(engine, modelManager);
 	engine.Cleanup(shaderManager, modelManager, descriptorManager);
 
 	return 0;

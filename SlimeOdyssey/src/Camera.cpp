@@ -93,6 +93,11 @@ void Camera::CreateCameraUBO(VmaAllocator allocator)
 	}
 }
 
+void Camera::DestroyCameraUBOBuffer(VmaAllocator allocator)
+{
+	vmaDestroyBuffer(allocator, m_cameraUBOBBuffer, m_cameraUBOAllocation);
+}
+
 void Camera::UpdateCameraUBO(VmaAllocator allocator)
 {
 	if (m_cameraUBOBBuffer == VK_NULL_HANDLE)

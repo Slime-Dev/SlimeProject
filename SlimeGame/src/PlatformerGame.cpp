@@ -30,8 +30,7 @@ int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderMana
 	m_player.modelMat = glm::translate(m_player.modelMat, glm::vec3(1.75f, -0.75f, -2.0f));
 	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.0f, 10.0f, 10.0f));
 
-	m_ground.model = modelManager.LoadModel(engine.GetAllocator(), "cube.obj", "basic");
-	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(-4.0f, 0.0f, -5.0f));
+	ModelResource* cubeMesh = modelManager.LoadModel(engine.GetAllocator(), "cube.obj", "basic");
 
 	m_obstacle.model = modelManager.LoadModel(engine.GetAllocator(), "suzanne.obj", "basic");
 	m_obstacle.modelMat = glm::translate(m_obstacle.modelMat, glm::vec3(0.0f, 0.0f, -5.0f));
@@ -76,9 +75,6 @@ int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderMana
 	// PLATFORMER SETUP //
 
 	// Modify the existing models for our game
-	m_ground.modelMat = glm::scale(m_ground.modelMat, glm::vec3(20.0f, 0.5f, 20.0f));
-	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
-
 	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.5f));
 
 	m_obstacle.modelMat = glm::scale(m_obstacle.modelMat, glm::vec3(0.25f));
@@ -91,17 +87,18 @@ int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderMana
 	m_isJumping = false;
 	m_gameOver = false;
 
-	// Set up camera
-	m_cameraDistance = 5.0f;
-	m_cameraHeight = 5.0f;
-
 	CreateDebugMaterials(engine, modelManager, shaderManager, descriptorManager);
-	m_player.material = tempMaterial;
-	m_ground.material = tempMaterial;
-	m_obstacle.material = tempMaterial;
+	m_player.material = &tempMaterial;
+	m_obstacle.material = &tempMaterial;
+
+	// Setup the cube Enviroment
+	Model& ground = *modelManager.GetModel("ground");
+	ground.model = cubeMesh;
+	ground.modelMat = glm::scale(ground.modelMat, glm::vec3(20.0f, 0.5f, 20.0f));
+	ground.modelMat = glm::translate(ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
+	ground.material = &tempMaterial;
 
 	modelManager.AddModel("Player", &m_player);
-	modelManager.AddModel("Ground", &m_ground);
 	modelManager.AddModel("Obstacle", &m_obstacle);
 
 	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
@@ -226,7 +223,7 @@ void PlatformerGame::UpdateCamera(Engine& engine, const InputManager* inputManag
 	// Update camera angles
 	float mouseSensitivity = 0.1f;
 	m_cameraYaw += mouseX * mouseSensitivity;
-	m_cameraPitch += -mouseY * mouseSensitivity * -1.0f;
+	m_cameraPitch += -mouseY * mouseSensitivity;
 
 	// Clamp pitch to avoid flipping
 	m_cameraPitch = glm::clamp(m_cameraPitch, -89.0f, 89.0f);
@@ -271,6 +268,20 @@ void PlatformerGame::Render(Engine& engine, ModelManager& modelManager)
 	//modelManager.DrawModel()
 }
 
+void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
+{
+	for (auto& light: m_pointLights)
+	{
+		vmaDestroyBuffer(engine.GetAllocator(), light.buffer, light.allocation);
+	}
+
+	m_camera.DestroyCameraUBOBuffer(engine.GetAllocator());
+
+	auto basicPipeline = modelManager.GetPipelines()["basic"];
+	engine.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
+	engine.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
+}
+
 void PlatformerGame::CreateDebugMaterials(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	VkDevice device = engine.GetDevice();
@@ -279,7 +290,7 @@ void PlatformerGame::CreateDebugMaterials(Engine& engine, ModelManager& modelMan
 	VkQueue graphicsQueue = engine.GetGraphicsQueue();
 
 	// Create the temp material textures
-	SlimeUtil::CreateBuffer(allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, tempMaterial.configBuffer, tempMaterial.configAllocation);
+	SlimeUtil::CreateBuffer("Temp Material Buffer", allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, tempMaterial.configBuffer, tempMaterial.configAllocation);
 
 	modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, &descriptorManager, "albedo.png");
 	tempMaterial.albedoTex = modelManager.GetTexture("albedo.png");

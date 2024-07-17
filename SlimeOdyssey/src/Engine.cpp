@@ -21,7 +21,6 @@
 	}                                         \
 	while (0)
 
-#include <glm/glm.hpp>
 #include <vk_mem_alloc.h>
 
 #include "ModelManager.h"
@@ -330,6 +329,12 @@ int Engine::CreateRenderCommandBuffers()
 		return -1;
 	}
 
+	int index = 0;
+	for (auto& cmd: data.renderCommandBuffers)
+	{
+		m_debugUtils.SetObjectName(cmd, std::string("Render Command Buffer: " + std::to_string(index++)));
+	}
+
 	return 0;
 }
 
@@ -365,7 +370,7 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManage
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.renderArea = {
-		.offset = { 0, 0 },
+		.offset = {0, 0},
           .extent = m_swapchain.extent
 	};
 	renderingInfo.layerCount = 1;
@@ -387,6 +392,12 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManage
 
 int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene)
 {
+	if (window->WindowSuspended())
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		return 0;
+	}
+
 	// Wait for the frame to be finished
 	if (m_disp.waitForFences(1, &data.inFlightFences[data.currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
 	{
@@ -409,14 +420,21 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 		return -1;
 	}
 
+	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
+	if (data.imageInFlight[image_index] != VK_NULL_HANDLE)
+	{
+		m_disp.waitForFences(1, &data.imageInFlight[image_index], VK_TRUE, UINT64_MAX);
+	}
+
+	// Mark the image as now being in use by this frame
+	data.imageInFlight[image_index] = data.inFlightFences[data.currentFrame];
+
+
 	// Begin command buffer recording
 	VkCommandBuffer cmd = data.renderCommandBuffers[image_index];
 
 	if (Draw(cmd, image_index, modelManager, descriptorManager, scene) != 0)
 		return -1;
-
-	// Mark the image as now being in use by this frame
-	data.imageInFlight[image_index] = data.inFlightFences[data.currentFrame];
 
 	VkSubmitInfo submit_info = {};
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -468,6 +486,11 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	}
 
 	data.currentFrame = (data.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+	if (window->ShouldClose())
+	{
+		vkDeviceWaitIdle(m_device);
+	}
 
 	return 0;
 }

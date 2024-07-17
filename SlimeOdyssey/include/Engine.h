@@ -4,14 +4,11 @@
 
 #pragma once
 
-#include <map>
 #include <vector>
 #include <vk_mem_alloc.h>
 #include <VkBootstrap.h>
 
-#include "Camera.h"
 #include "DescriptorManager.h"
-#include "InputManager.h"
 #include "Renderer.h"
 #include "SlimeWindow.h"
 #include "VulkanDebugUtils.h"
