@@ -18,13 +18,13 @@ class ModelManager;
 
 struct GLFWwindow;
 
-class Engine
+class VulkanContext
 {
 public:
-	explicit Engine();
-	~Engine();
+	VulkanContext() = default;
+	~VulkanContext();
 
-	int CreateEngine(SlimeWindow* window);
+	int CreateContext(SlimeWindow* window);
 	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene);
 	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
@@ -52,25 +52,6 @@ private:
 	// Rendering methods
 	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene);
 
-	// Structs
-	struct RenderData
-	{
-		VkQueue graphicsQueue = VK_NULL_HANDLE;
-		VkQueue presentQueue = VK_NULL_HANDLE;
-		std::vector<VkImage> swapchainImages;
-		std::vector<VkImageView> swapchainImageViews;
-		VmaAllocation depthImageAllocation;
-		VkImage depthImage = VK_NULL_HANDLE;
-		VkImageView depthImageView = VK_NULL_HANDLE;
-		VkCommandPool commandPool = VK_NULL_HANDLE;
-		std::vector<VkCommandBuffer> renderCommandBuffers;
-		std::vector<VkSemaphore> availableSemaphores;
-		std::vector<VkSemaphore> finishedSemaphore;
-		std::vector<VkFence> inFlightFences;
-		std::vector<VkFence> imageInFlight;
-		size_t currentFrame = 0;
-	};
-
 	// Vulkan core
 	vkb::Instance m_instance;
 	vkb::InstanceDispatchTable m_instDisp;
@@ -79,9 +60,25 @@ private:
 	vkb::DispatchTable m_disp;
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
+	VkCommandPool m_commandPool = VK_NULL_HANDLE;
 
 	// Render data
-	RenderData data;
+	VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+	VkQueue m_presentQueue = VK_NULL_HANDLE;
+	std::vector<VkImage> m_swapchainImages;
+	std::vector<VkImageView> m_swapchainImageViews;
+	std::vector<VkCommandBuffer> m_renderCommandBuffers;
+	std::vector<VkSemaphore> m_availableSemaphores;
+	std::vector<VkSemaphore> m_finishedSemaphore;
+	std::vector<VkFence> m_inFlightFences;
+	std::vector<VkFence> m_imageInFlight;
+	size_t m_currentFrame = 0;
+
+	// Depth image might want this elsewhere?
+	VkImage m_depthImage = VK_NULL_HANDLE;
+	VkImageView m_depthImageView = VK_NULL_HANDLE;
+	VmaAllocation m_depthImageAllocation;
+
 	Renderer m_renderer;
 
 	// Resource managers
