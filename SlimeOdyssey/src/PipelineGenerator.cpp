@@ -3,10 +3,10 @@
 #include <fstream>
 #include <stdexcept>
 
-#include "Engine.h"
+#include "VulkanContext.h"
 #include "spdlog/spdlog.h"
 
-PipelineGenerator::PipelineGenerator(Engine& engine)
+PipelineGenerator::PipelineGenerator(VulkanContext& engine)
       : m_engine(engine), m_device(engine.GetDevice())
 {
 }

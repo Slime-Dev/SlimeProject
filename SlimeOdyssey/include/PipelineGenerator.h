@@ -10,7 +10,7 @@
 
 #include "ShaderManager.h"
 
-class Engine;
+class VulkanContext;
 
 struct PipelineContainer
 {
@@ -23,7 +23,7 @@ struct PipelineContainer
 class PipelineGenerator
 {
 public:
-	explicit PipelineGenerator(Engine& engine);
+	explicit PipelineGenerator(VulkanContext& engine);
 
 	~PipelineGenerator();
 
@@ -46,7 +46,7 @@ public:
 
 private:
 	VkDevice m_device;
-	Engine& m_engine;
+	VulkanContext& m_engine;
 	ShaderModule m_vertexShader;
 	ShaderModule m_fragmentShader;
 

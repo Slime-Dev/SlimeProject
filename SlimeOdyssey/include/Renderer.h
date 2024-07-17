@@ -13,7 +13,7 @@ namespace vkb
 } // namespace vkb
 
 class Scene;
-class Engine;
+class VulkanContext;
 class DescriptorManager;
 class ModelManager;
 

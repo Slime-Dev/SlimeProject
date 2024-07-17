@@ -2,10 +2,9 @@
 // Created by alexm on 3/07/24.
 //
 
-#include "Engine.h"
+#include "VulkanContext.h"
 
 #include <GLFW/glfw3.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <string>
 
@@ -20,19 +19,13 @@
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
-Engine::Engine()
-{
-	spdlog::set_level(spdlog::level::trace);
-	spdlog::stdout_color_mt("console");
-}
-
-Engine::~Engine()
+VulkanContext::~VulkanContext()
 {
 	if (!m_cleanUpFinished)
 		spdlog::error("CLEANUP WAS NOT CALLED ON ENGINE!");
 }
 
-int Engine::CreateEngine(SlimeWindow* window)
+int VulkanContext::CreateEngine(SlimeWindow* window)
 {
 	if (DeviceInit(window) != 0)
 		return -1;
@@ -50,7 +43,7 @@ int Engine::CreateEngine(SlimeWindow* window)
 	return 0;
 }
 
-int Engine::DeviceInit(SlimeWindow* window)
+int VulkanContext::DeviceInit(SlimeWindow* window)
 {
 	spdlog::info("Initializing Vulkan...");
 
@@ -169,7 +162,7 @@ int Engine::DeviceInit(SlimeWindow* window)
 	return 0;
 }
 
-int Engine::CreateSwapchain(SlimeWindow* window)
+int VulkanContext::CreateSwapchain(SlimeWindow* window)
 {
 	spdlog::info("Creating swapchain...");
 	vkDeviceWaitIdle(m_device);
@@ -194,25 +187,25 @@ int Engine::CreateSwapchain(SlimeWindow* window)
 	m_swapchain = swap_ret.value();
 
 	// Delete old image views
-	for (auto& image_view: data.swapchainImageViews)
+	for (auto& image_view: m_swapchainImageViews)
 	{
 		m_disp.destroyImageView(image_view, nullptr);
 	}
 
-	data.swapchainImages = m_swapchain.get_images().value();
-	data.swapchainImageViews = m_swapchain.get_image_views().value();
+	m_swapchainImages = m_swapchain.get_images().value();
+	m_swapchainImageViews = m_swapchain.get_image_views().value();
 
-	for (size_t i = 0; i < data.swapchainImages.size(); i++)
+	for (size_t i = 0; i < m_swapchainImages.size(); i++)
 	{
-		m_debugUtils.SetObjectName(data.swapchainImages[i], "SwapchainImage_" + std::to_string(i));
-		m_debugUtils.SetObjectName(data.swapchainImageViews[i], "SwapchainImageView_" + std::to_string(i));
+		m_debugUtils.SetObjectName(m_swapchainImages[i], "SwapchainImage_" + std::to_string(i));
+		m_debugUtils.SetObjectName(m_swapchainImageViews[i], "SwapchainImageView_" + std::to_string(i));
 	}
 
 	// Clean up old depth image and image view
-	if (data.depthImage)
+	if (m_depthImage)
 	{
-		vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
-		m_disp.destroyImageView(data.depthImageView, nullptr);
+		vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+		m_disp.destroyImageView(m_depthImageView, nullptr);
 	}
 
 	// Create the depth image
@@ -235,7 +228,7 @@ int Engine::CreateSwapchain(SlimeWindow* window)
 	VmaAllocationCreateInfo depthAllocInfo = {};
 	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	VkResult result = vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &data.depthImage, &data.depthImageAllocation, nullptr);
+	VkResult result = vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr);
 	if (result != VK_SUCCESS)
 	{
 		spdlog::error("Failed to create depth image!");
@@ -244,7 +237,7 @@ int Engine::CreateSwapchain(SlimeWindow* window)
 	// Create the depth image view
 	VkImageViewCreateInfo depthImageViewInfo = {};
 	depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	depthImageViewInfo.image = data.depthImage;
+	depthImageViewInfo.image = m_depthImage;
 	depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	depthImageViewInfo.format = depthFormat;
 	depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -253,7 +246,7 @@ int Engine::CreateSwapchain(SlimeWindow* window)
 	depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
 	depthImageViewInfo.subresourceRange.layerCount = 1;
 
-	result = m_disp.createImageView(&depthImageViewInfo, nullptr, &data.depthImageView);
+	result = m_disp.createImageView(&depthImageViewInfo, nullptr, &m_depthImageView);
 	if (result != VK_SUCCESS)
 	{
 		spdlog::error("Failed to create depth image View!");
@@ -262,7 +255,7 @@ int Engine::CreateSwapchain(SlimeWindow* window)
 	return 0;
 }
 
-int Engine::GetQueues()
+int VulkanContext::GetQueues()
 {
 	auto gq = m_device.get_queue(vkb::QueueType::graphics);
 	if (!gq.has_value())
@@ -270,7 +263,7 @@ int Engine::GetQueues()
 		spdlog::error("failed to get graphics queue: {}", gq.error().message());
 		return -1;
 	}
-	data.graphicsQueue = gq.value();
+	m_graphicsQueue = gq.value();
 
 	auto pq = m_device.get_queue(vkb::QueueType::present);
 	if (!pq.has_value())
@@ -278,14 +271,14 @@ int Engine::GetQueues()
 		spdlog::error("failed to get present queue: {}", pq.error().message());
 		return -1;
 	}
-	data.presentQueue = pq.value();
+	m_presentQueue = pq.value();
 
-	m_debugUtils.SetObjectName(data.graphicsQueue, "GraphicsQueue");
-	m_debugUtils.SetObjectName(data.presentQueue, "PresentQueue");
+	m_debugUtils.SetObjectName(m_graphicsQueue, "GraphicsQueue");
+	m_debugUtils.SetObjectName(m_presentQueue, "PresentQueue");
 	return 0;
 }
 
-int Engine::CreateCommandPool()
+int VulkanContext::CreateCommandPool()
 {
 	spdlog::info("Creating command pool...");
 	VkCommandPoolCreateInfo pool_info = {};
@@ -294,7 +287,7 @@ int Engine::CreateCommandPool()
 	// Assuming graphics queue family
 	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-	if (m_disp.createCommandPool(&pool_info, nullptr, &data.commandPool) != VK_SUCCESS)
+	if (m_disp.createCommandPool(&pool_info, nullptr, &m_commandPool) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to create command pool!");
 		return -1;
@@ -303,25 +296,25 @@ int Engine::CreateCommandPool()
 	return 0;
 }
 
-int Engine::CreateRenderCommandBuffers()
+int VulkanContext::CreateRenderCommandBuffers()
 {
 	spdlog::info("Recording command buffers...");
-	data.renderCommandBuffers.resize(m_swapchain.image_count);
+	m_renderCommandBuffers.resize(m_swapchain.image_count);
 
 	VkCommandBufferAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	alloc_info.commandPool = data.commandPool;
+	alloc_info.commandPool = m_commandPool;
 	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandBufferCount = static_cast<uint32_t>(data.renderCommandBuffers.size());
+	alloc_info.commandBufferCount = static_cast<uint32_t>(m_renderCommandBuffers.size());
 
-	if (m_disp.allocateCommandBuffers(&alloc_info, data.renderCommandBuffers.data()) != VK_SUCCESS)
+	if (m_disp.allocateCommandBuffers(&alloc_info, m_renderCommandBuffers.data()) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to allocate command buffers!");
 		return -1;
 	}
 
 	int index = 0;
-	for (auto& cmd: data.renderCommandBuffers)
+	for (auto& cmd: m_renderCommandBuffers)
 	{
 		m_debugUtils.SetObjectName(cmd, std::string("Render Command Buffer: " + std::to_string(index++)));
 	}
@@ -329,7 +322,7 @@ int Engine::CreateRenderCommandBuffers()
 	return 0;
 }
 
-int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
+int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
 {
 	if (SlimeUtil::BeginCommandBuffer(m_disp, cmd) != 0)
 		return -1;
@@ -338,13 +331,13 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManage
 	SlimeUtil::SetupDepthTestingAndLineWidth(m_disp, cmd);
 
 	// Transition color image to color attachment optimal
-	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	// Transition depth image to depth attachment optimal
-	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
 	VkRenderingAttachmentInfo colorAttachmentInfo = {};
 	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachmentInfo.imageView = data.swapchainImageViews[imageIndex];
+	colorAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
 	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -352,7 +345,7 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManage
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachmentInfo.imageView = data.depthImageView;
+	depthAttachmentInfo.imageView = m_depthImageView;
 	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -376,12 +369,12 @@ int Engine::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManage
 	m_disp.cmdEndRendering(cmd);
 
 	// Transition color image to present src layout
-	modelManager.TransitionImageLayout(m_device, data.graphicsQueue, data.commandPool, data.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	return SlimeUtil::EndCommandBuffer(m_disp, cmd);
 }
 
-int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene)
+int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene)
 {
 	if (window->WindowSuspended())
 	{
@@ -390,14 +383,14 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	}
 
 	// Wait for the frame to be finished
-	if (m_disp.waitForFences(1, &data.inFlightFences[data.currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
+	if (m_disp.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to wait for fence!");
 		return -1;
 	}
 
 	uint32_t image_index;
-	VkResult result = m_disp.acquireNextImageKHR(m_swapchain, UINT64_MAX, data.availableSemaphores[data.currentFrame], VK_NULL_HANDLE, &image_index);
+	VkResult result = m_disp.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_availableSemaphores[m_currentFrame], VK_NULL_HANDLE, &image_index);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
@@ -412,17 +405,16 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	}
 
 	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
-	if (data.imageInFlight[image_index] != VK_NULL_HANDLE)
+	if (m_imageInFlight[image_index] != VK_NULL_HANDLE)
 	{
-		m_disp.waitForFences(1, &data.imageInFlight[image_index], VK_TRUE, UINT64_MAX);
+		m_disp.waitForFences(1, &m_imageInFlight[image_index], VK_TRUE, UINT64_MAX);
 	}
 
 	// Mark the image as now being in use by this frame
-	data.imageInFlight[image_index] = data.inFlightFences[data.currentFrame];
-
+	m_imageInFlight[image_index] = m_inFlightFences[m_currentFrame];
 
 	// Begin command buffer recording
-	VkCommandBuffer cmd = data.renderCommandBuffers[image_index];
+	VkCommandBuffer cmd = m_renderCommandBuffers[image_index];
 
 	if (Draw(cmd, image_index, modelManager, descriptorManager, scene) != 0)
 		return -1;
@@ -430,7 +422,7 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	VkSubmitInfo submit_info = {};
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	VkSemaphore wait_semaphores[] = { data.availableSemaphores[data.currentFrame] };
+	VkSemaphore wait_semaphores[] = { m_availableSemaphores[m_currentFrame] };
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submit_info.waitSemaphoreCount = 1;
 	submit_info.pWaitSemaphores = wait_semaphores;
@@ -439,19 +431,19 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	submit_info.commandBufferCount = 1;
 	submit_info.pCommandBuffers = &cmd;
 
-	VkSemaphore signal_semaphores[] = { data.finishedSemaphore[data.currentFrame] };
+	VkSemaphore signal_semaphores[] = { m_finishedSemaphore[m_currentFrame] };
 	submit_info.signalSemaphoreCount = 1;
 	submit_info.pSignalSemaphores = signal_semaphores;
 
-	m_disp.resetFences(1, &data.inFlightFences[data.currentFrame]);
+	m_disp.resetFences(1, &m_inFlightFences[m_currentFrame]);
 
-	m_debugUtils.BeginQueueDebugMarker(data.graphicsQueue, "FrameSubmission", debugUtil_FrameSubmission);
-	if (m_disp.queueSubmit(data.graphicsQueue, 1, &submit_info, data.inFlightFences[data.currentFrame]) != VK_SUCCESS)
+	m_debugUtils.BeginQueueDebugMarker(m_graphicsQueue, "FrameSubmission", debugUtil_FrameSubmission);
+	if (m_disp.queueSubmit(m_graphicsQueue, 1, &submit_info, m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
 	{
 		spdlog::error("Failed to submit draw command buffer!");
 		return -1;
 	}
-	m_debugUtils.EndQueueDebugMarker(data.graphicsQueue);
+	m_debugUtils.EndQueueDebugMarker(m_graphicsQueue);
 
 	VkPresentInfoKHR present_info = {};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -463,7 +455,7 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	present_info.pSwapchains = swapchains;
 	present_info.pImageIndices = &image_index;
 
-	result = m_disp.queuePresentKHR(data.presentQueue, &present_info);
+	result = m_disp.queuePresentKHR(m_presentQueue, &present_info);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
@@ -476,7 +468,7 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 		return -1;
 	}
 
-	data.currentFrame = (data.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 	if (window->ShouldClose())
 	{
@@ -486,14 +478,14 @@ int Engine::RenderFrame(ModelManager& modelManager, DescriptorManager& descripto
 	return 0;
 }
 
-int Engine::InitSyncObjects()
+int VulkanContext::InitSyncObjects()
 {
 	spdlog::info("Initializing synchronization objects...");
 	// Create synchronization objects
-	data.availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	data.finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
-	data.inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-	data.imageInFlight.resize(m_swapchain.image_count, VK_NULL_HANDLE);
+	m_availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
+	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+	m_imageInFlight.resize(m_swapchain.image_count, VK_NULL_HANDLE);
 
 	VkSemaphoreCreateInfo semaphore_info = {};
 	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -504,7 +496,7 @@ int Engine::InitSyncObjects()
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (m_disp.createSemaphore(&semaphore_info, nullptr, &data.availableSemaphores[i]) != VK_SUCCESS || m_disp.createSemaphore(&semaphore_info, nullptr, &data.finishedSemaphore[i]) != VK_SUCCESS || m_disp.createFence(&fence_info, nullptr, &data.inFlightFences[i]) != VK_SUCCESS)
+		if (m_disp.createSemaphore(&semaphore_info, nullptr, &m_availableSemaphores[i]) != VK_SUCCESS || m_disp.createSemaphore(&semaphore_info, nullptr, &m_finishedSemaphore[i]) != VK_SUCCESS || m_disp.createFence(&fence_info, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
 		{
 			spdlog::error("Failed to create synchronization objects!");
 			return -1;
@@ -514,7 +506,7 @@ int Engine::InitSyncObjects()
 	return 0;
 }
 
-int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager)
+int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
 	spdlog::info("Cleaning up...");
 
@@ -523,12 +515,12 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 	// Destroy synchronization objects
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		m_disp.destroySemaphore(data.availableSemaphores[i], nullptr);
-		m_disp.destroySemaphore(data.finishedSemaphore[i], nullptr);
-		m_disp.destroyFence(data.inFlightFences[i], nullptr);
+		m_disp.destroySemaphore(m_availableSemaphores[i], nullptr);
+		m_disp.destroySemaphore(m_finishedSemaphore[i], nullptr);
+		m_disp.destroyFence(m_inFlightFences[i], nullptr);
 	}
 
-	for (auto& image_view: data.swapchainImageViews)
+	for (auto& image_view: m_swapchainImageViews)
 	{
 		m_disp.destroyImageView(image_view, nullptr);
 	}
@@ -542,12 +534,12 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 	m_renderer.CleanUp(m_allocator);
 
 	// Clean up old depth image and image view
-	vmaDestroyImage(m_allocator, data.depthImage, data.depthImageAllocation);
-	m_disp.destroyImageView(data.depthImageView, nullptr);
+	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+	m_disp.destroyImageView(m_depthImageView, nullptr);
 
 	shaderManager.CleanupShaderModules(m_device);
 
-	m_disp.destroyCommandPool(data.commandPool, nullptr);
+	m_disp.destroyCommandPool(m_commandPool, nullptr);
 
 	vkb::destroy_swapchain(m_swapchain);
 	vkb::destroy_surface(m_instance, m_surface);
@@ -565,42 +557,42 @@ int Engine::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, De
 
 // GETTERS //
 
-VulkanDebugUtils& Engine::GetDebugUtils()
+VulkanDebugUtils& VulkanContext::GetDebugUtils()
 {
 	return m_debugUtils;
 }
 
-VkDevice Engine::GetDevice() const
+VkDevice VulkanContext::GetDevice() const
 {
 	return m_device.device;
 }
 
-const vkb::Swapchain& Engine::GetSwapchain() const
+const vkb::Swapchain& VulkanContext::GetSwapchain() const
 {
 	return m_swapchain;
 }
 
-VkQueue Engine::GetGraphicsQueue() const
+VkQueue VulkanContext::GetGraphicsQueue() const
 {
-	return data.graphicsQueue;
+	return m_graphicsQueue;
 }
 
-VkQueue Engine::GetPresentQueue() const
+VkQueue VulkanContext::GetPresentQueue() const
 {
-	return data.presentQueue;
+	return m_presentQueue;
 }
 
-VkCommandPool Engine::GetCommandPool() const
+VkCommandPool VulkanContext::GetCommandPool() const
 {
-	return data.commandPool;
+	return m_commandPool;
 }
 
-VmaAllocator Engine::GetAllocator() const
+VmaAllocator VulkanContext::GetAllocator() const
 {
 	return m_allocator;
 }
 
-const vkb::DispatchTable& Engine::GetDispatchTable()
+const vkb::DispatchTable& VulkanContext::GetDispatchTable()
 {
 	return m_disp;
 }

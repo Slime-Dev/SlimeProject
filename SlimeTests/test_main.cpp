@@ -1,5 +1,5 @@
 #include <iostream>
-#include "Engine.h"
+#include "VulkanContext.h"
 #include "spdlog/spdlog.h"
 #include "ShaderManager.h"
 #include "PipelineGenerator.h"
@@ -12,7 +12,7 @@ void testEngineInitialization() {
 
 	// SlimeWindow window(windowProps);
 
-	// Engine engine(&window);
+	// VulkanContext engine(&window);
 
     // assert(engine.CreateEngine() == 0);
 

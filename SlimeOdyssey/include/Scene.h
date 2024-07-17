@@ -9,7 +9,7 @@ class ModelManager;
 class ShaderManager;
 class DescriptorManager;
 class InputManager;
-class Engine;
+class VulkanContext;
 
 class Scene
 {
@@ -17,11 +17,11 @@ public:
 	Scene() = default;
 	virtual ~Scene() = default;
 
-	virtual int Enter(Engine& engine, ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager) = 0;
-	virtual void Update(float dt, Engine& engine, const InputManager* inputManager) = 0;
-	virtual void Render(Engine& engine, ModelManager& modelManager) = 0;
+	virtual int Enter(VulkanContext& engine, ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager) = 0;
+	virtual void Update(float dt, VulkanContext& engine, const InputManager* inputManager) = 0;
+	virtual void Render(VulkanContext& engine, ModelManager& modelManager) = 0;
 
-	virtual void Exit(Engine& engine, ModelManager& modelManager) = 0;
+	virtual void Exit(VulkanContext& engine, ModelManager& modelManager) = 0;
 
 	std::array<PointLightObject, MAX_POINT_LIGHTS>& GetPointLights() { return m_pointLights; }
 	const DirectionalLightObject& GetDirectionalLight() const { return m_directionalLight; }

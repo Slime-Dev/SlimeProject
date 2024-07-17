@@ -2,7 +2,7 @@
 
 #include "Camera.h"
 #include "DescriptorManager.h"
-#include "Engine.h"
+#include "VulkanContext.h"
 #include "ModelManager.h"
 #include "SlimeWindow.h"
 #include "spdlog/spdlog.h"
@@ -26,7 +26,7 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 	ResetGame();
 }
 
-int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+int PlatformerGame::Enter(VulkanContext& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	SetupShaders(engine, modelManager, shaderManager, descriptorManager);
 	m_tempMaterial = descriptorManager.CreateMaterial(engine, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
@@ -37,7 +37,7 @@ int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderMana
 	return 0;
 }
 
-void PlatformerGame::Update(float dt, Engine& engine, const InputManager* inputManager)
+void PlatformerGame::Update(float dt, VulkanContext& engine, const InputManager* inputManager)
 {
 	if (m_gameState.gameOver)
 	{
@@ -62,12 +62,12 @@ void PlatformerGame::Update(float dt, Engine& engine, const InputManager* inputM
 	}
 }
 
-void PlatformerGame::Render(Engine& engine, ModelManager& modelManager)
+void PlatformerGame::Render(VulkanContext& engine, ModelManager& modelManager)
 {
 	//modelManager.DrawModel()
 }
 
-void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
+void PlatformerGame::Exit(VulkanContext& engine, ModelManager& modelManager)
 {
 	for (auto& light: m_pointLights)
 	{
@@ -81,7 +81,7 @@ void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
 	engine.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
 }
 
-void PlatformerGame::InitializeGameObjects(Engine& engine, ModelManager& modelManager, Material* material)
+void PlatformerGame::InitializeGameObjects(VulkanContext& engine, ModelManager& modelManager, Material* material)
 {
 	VmaAllocator allocator = engine.GetAllocator();
 	std::string pipelineName = "basic";
@@ -124,7 +124,7 @@ void PlatformerGame::InitializeGameObjects(Engine& engine, ModelManager& modelMa
 	modelManager.AddModel("Light", &m_lightCube);
 }
 
-void PlatformerGame::SetupShaders(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+void PlatformerGame::SetupShaders(VulkanContext& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	ResourcePathManager resourcePaths;
 
