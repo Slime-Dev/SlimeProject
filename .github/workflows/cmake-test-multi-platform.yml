@@ -111,14 +111,19 @@ jobs:
           npm install github-actions-ctrf@0.0.20
           npx github-actions-ctrf ${{ github.workspace }}/scripts/junitout_output.json
 
-      - name: Read Markdown content
-        id: read_markdown
-        run: |
-          $content = Get-Content -Path ${{ github.workspace }}/scripts/junitout_output.md -Raw
-          echo "::set-output name=markdown_content::$content"
+          - name: Set up PowerShell
+          uses: actions/setup-powershell@v2
 
-      - name: Discord Webhook Action
+      - name: Run tests and capture output
+        shell: pwsh
+        run: |
+          $content = Get-Content -Path D:\a\SlimeOdyssey\SlimeOdyssey\scripts\junitout_output.md -Raw
+          echo "markdown_content=$content" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Post results to Discord
         uses: tsickert/discord-webhook@v5.3.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content: ${{ steps.read_markdown.outputs.markdown_content }}
+          content: |
+            ### Test Summary
+            ${{ env.markdown_content }}
