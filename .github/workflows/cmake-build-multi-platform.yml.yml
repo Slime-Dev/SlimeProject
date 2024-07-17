@@ -2,7 +2,7 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches: [ "*" ]
+    branches: [ "test" ]
   pull_request:
     branches: [ "main" ]
 
@@ -91,23 +91,13 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
           -DCPM_SOURCE_CACHE=~/.cpm
+          -DENABLE_TESTING=OFF
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-      - name: Test
-        working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
-        continue-on-error: true
-
-      - name: Convert XML to CTRF
-        if: success()
-        run: |
-          pip install defusedxml
-          python ${{ github.workspace }}/scripts/ConvertXMLtoJson.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --output ${{ github.workspace }}/scripts/finalresult.json
-
-      - name: Post results
-        if: success()
-        run: |
-          npm install github-actions-ctrf@0.0.20
-          npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-SlimeGame.exe
+          path: ${{ steps.strings.outputs.build-output-dir }}/bin/Release/

@@ -5,9 +5,16 @@
 
 #include "spdlog/spdlog.h"
 
+void error_callback(int error, const char* description) {
+    fprintf(stderr, "Error: %s\n", description);
+}
+
+
 SlimeWindow::SlimeWindow(const WindowProps& props)
       : m_Width(props.width), m_Height(props.height), m_Props(props)
 {
+	glfwSetErrorCallback(error_callback);
+
 	if (!glfwInit())
 	{
 		throw std::runtime_error("Failed to initialize GLFW");
