@@ -1,49 +1,45 @@
 #include "PlatformerGame.h"
 
 #include "Camera.h"
+#include "DescriptorManager.h"
+#include "Engine.h"
 #include "ModelManager.h"
 #include "SlimeWindow.h"
 #include "spdlog/spdlog.h"
 
-int PlatformerGame::Setup(ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+PlatformerGame::PlatformerGame(SlimeWindow* window)
+      : Scene(), m_window(window)
 {
-	// Call the base class Setup
-	if (Scene::Setup(modelManager, shaderManager, descriptorManager) != 0)
-	{
-		return -1;
-	}
+	m_camera = Camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f);
 
-	// Modify the existing models for our game
-	m_ground = m_cube; // Use the cube as our ground
-	m_ground->model = glm::scale(m_ground->model, glm::vec3(20.0f, 0.5f, 20.0f));
-	m_ground->model = glm::translate(m_ground->model, glm::vec3(0.0f, -0.25f, 0.0f));
+	// Initialize game parameters
+	m_gameParams = { .moveSpeed = 2.0f, .rotationSpeed = 2.0f, .jumpForce = 5.0f, .gravity = 9.8f, .dragCoefficient = 2.0f, .frictionCoefficient = 0.9f };
 
-	m_player = m_bunny; // Use the bunny as our player
-	m_player->model = glm::scale(m_player->model, glm::vec3(10.5f));
+	// Initialize camera state
+	m_cameraState = { .distance = 10.0f, .yaw = 0.0f, .pitch = 0.0f, .position = glm::vec3(0.0f) };
 
-	m_obstacle = m_suzanne; // Use Suzanne as our obstacle
-	m_obstacle->model = glm::scale(m_obstacle->model, glm::vec3(0.25f));
-	m_obstacle->model = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 2.0f, 5.0f));
+	// Light
+	PointLight& light = m_pointLights.at(0).light;
+	light.pos = glm::vec3(-6, 6, 6);
+	light.colour = glm::vec3(1, 0.8, 0.95);
 
-	// Initialize game state
-	m_playerPosition = glm::vec3(0.0f, 0.25f, 0.0f);
-	m_playerRotation = 0.0f;
-	m_playerVelocity = glm::vec3(0.0f);
-	m_isJumping = false;
-	m_gameOver = false;
+	ResetGame();
+}
 
-	// Set up camera
-	m_cameraDistance = 5.0f;
-	m_cameraHeight = 5.0f;
+int PlatformerGame::Enter(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	SetupShaders(engine, modelManager, shaderManager, descriptorManager);
+	m_tempMaterial = descriptorManager.CreateMaterial(engine, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	InitializeGameObjects(engine, modelManager, &m_tempMaterial);
 
 	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 
 	return 0;
 }
 
-void PlatformerGame::Update(float dt, const InputManager* inputManager)
+void PlatformerGame::Update(float dt, Engine& engine, const InputManager* inputManager)
 {
-	if (m_gameOver)
+	if (m_gameState.gameOver)
 	{
 		if (inputManager->IsKeyJustPressed(GLFW_KEY_R))
 		{
@@ -52,158 +48,262 @@ void PlatformerGame::Update(float dt, const InputManager* inputManager)
 		return;
 	}
 
-	// Player movement
-	float moveSpeed = 2.0f;
-	float rotationSpeed = 2.0f;
+	UpdatePlayer(dt, inputManager);
+	UpdateCamera(dt, inputManager);
+	CheckCollisions();
+	CheckWinCondition();
 
-	glm::vec3 moveDirection(0.0f);
-	if (inputManager->IsKeyPressed(GLFW_KEY_W))
-	{
-		moveDirection += -glm::vec3(sin(m_playerRotation), 0, cos(m_playerRotation));
-	}
-	else if (inputManager->IsKeyPressed(GLFW_KEY_S))
-	{
-		moveDirection += glm::vec3(sin(m_playerRotation), 0, cos(m_playerRotation));
-	}
+	// Update obstacle rotation
+	m_obstacle.modelMat = glm::rotate(m_obstacle.modelMat, dt, glm::vec3(0.0f, 1.0f, 0.0f));
 
-	// Normalize move direction to prevent diagonal movement from being faster
-	if (glm::length(moveDirection) > 0.0f)
-	{
-		moveDirection = glm::normalize(moveDirection) * moveSpeed;
-	}
-
-	// Apply acceleration instead of directly setting velocity
-	float acceleration = 10.0f;
-	m_playerVelocity += moveDirection * acceleration * dt;
-
-	if (inputManager->IsKeyPressed(GLFW_KEY_A))
-	{
-		m_playerRotation += rotationSpeed * dt;
-	}
-	else if (inputManager->IsKeyPressed(GLFW_KEY_D))
-	{
-		m_playerRotation -= rotationSpeed * dt;
-	}
-
-	// Jumping
-	if (inputManager->IsKeyJustPressed(GLFW_KEY_SPACE) && !m_isJumping)
-	{
-		m_playerVelocity.y = 5.0f;
-		m_isJumping = true;
-	}
-
-	// Apply gravity
-	m_playerVelocity.y -= 9.8f * dt;
-
-	// Apply drag to slow down the player
-	float dragCoefficient = 2.0f;
-	m_playerVelocity *= (1.0f / (1.0f + dragCoefficient * dt));
-
-	// Clamp velocity
-	float maxSpeed = 5.0f;
-	if (glm::length(m_playerVelocity) > maxSpeed)
-	{
-		m_playerVelocity = glm::normalize(m_playerVelocity) * maxSpeed;
-	}
-
-	// Update position
-	m_playerPosition += m_playerVelocity * dt;
-
-	// Ground collision
-	if (m_playerPosition.y < 1.2f)
-	{
-		m_playerPosition.y = 1.2f;
-		m_playerVelocity.y = 0.0f;
-		m_isJumping = false;
-
-		// Apply friction
-		float frictionCoefficient = 0.9f;
-		m_playerVelocity.x *= frictionCoefficient;
-		m_playerVelocity.z *= frictionCoefficient;
-	}
-
-	// Update player model
-	m_player->model = glm::translate(glm::mat4(1.0f), m_playerPosition);
-	m_player->model = glm::rotate(m_player->model, m_playerRotation, glm::vec3(0, 1, 0));
-	m_player->model = glm::scale(m_player->model, glm::vec3(10.5f));
-
-	// Check for win condition (reaching the obstacle)
-	if (glm::distance(m_playerPosition, glm::vec3(5.0f, 0.5f, 5.0f)) < 1.0f)
-	{
-		spdlog::info("You win! Press R to play again.");
-		m_gameOver = true;
-	}
-
-	// Update camera
-	UpdateCamera(inputManager, dt);
-
-	// Rotate obstacle
-	m_obstacle->model = glm::rotate(m_obstacle->model, dt, glm::vec3(0.0f, 1.0f, 0.0f));
-
-	// Handle escape key
-	if (inputManager->IsKeyJustPressed(GLFW_KEY_ESCAPE))
+	if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
 	{
 		m_window->Close();
 	}
 }
 
-void PlatformerGame::UpdateCamera(const InputManager* inputManager, float deltaTime)
+void PlatformerGame::Render(Engine& engine, ModelManager& modelManager)
+{
+	//modelManager.DrawModel()
+}
+
+void PlatformerGame::Exit(Engine& engine, ModelManager& modelManager)
+{
+	for (auto& light: m_pointLights)
+	{
+		vmaDestroyBuffer(engine.GetAllocator(), light.buffer, light.allocation);
+	}
+
+	m_camera.DestroyCameraUBOBuffer(engine.GetAllocator());
+
+	auto basicPipeline = modelManager.GetPipelines()["basic"];
+	engine.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
+	engine.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
+}
+
+void PlatformerGame::InitializeGameObjects(Engine& engine, ModelManager& modelManager, Material* material)
+{
+	VmaAllocator allocator = engine.GetAllocator();
+	std::string pipelineName = "basic";
+
+	// Initialize player
+	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", pipelineName);
+	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
+
+	m_player.model = bunnyMesh;
+	m_player.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(10.5f));
+	m_player.material = material;
+
+	// Initialize obstacle
+	auto suzanneMesh = modelManager.LoadModel("suzanne.obj", pipelineName);
+	modelManager.CreateBuffersForMesh(allocator, *suzanneMesh);
+
+	m_obstacle.model = suzanneMesh;
+	m_obstacle.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(0.75f));
+	m_obstacle.modelMat = glm::translate(m_obstacle.modelMat, glm::vec3(5.0f, 4.0f, 5.0f));
+	m_obstacle.material = material;
+
+	// Initialize ground
+	auto cubeMesh = modelManager.LoadModel("cube.obj", pipelineName);
+	modelManager.CreateBuffersForMesh(allocator, *cubeMesh);
+	
+	m_ground.model = cubeMesh;
+	m_ground.modelMat = glm::scale(glm::mat4(1.0f), glm::vec3(20.0f, 0.5f, 20.0f));
+	m_ground.modelMat = glm::translate(m_ground.modelMat, glm::vec3(0.0f, -0.25f, 0.0f));
+	m_ground.material = material;
+
+	// Light cube
+	PointLight& light = m_pointLights.at(0).light;
+	m_lightCube.modelMat = glm::translate(glm::mat4(1.0f), light.pos);
+	m_lightCube.material = material;
+	m_lightCube.model = cubeMesh;
+
+	modelManager.AddModel("Player", &m_player);
+	modelManager.AddModel("Obstacle", &m_obstacle);
+	modelManager.AddModel("Ground", &m_ground);
+	modelManager.AddModel("Light", &m_lightCube);
+}
+
+void PlatformerGame::SetupShaders(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	ResourcePathManager resourcePaths;
+
+	// Load and parse shaders
+	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
+	std::string fragShaderPath = resourcePaths.GetShaderPath("basic.frag.spv");
+
+	auto vertexShaderModule = shaderManager.LoadShader(engine.GetDevice(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+	auto fragmentShaderModule = shaderManager.LoadShader(engine.GetDevice(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
+	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
+	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+
+	// Set up descriptor set layout
+	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(engine.GetDevice(), combinedResources);
+
+	PipelineGenerator pipelineGenerator(engine);
+	pipelineGenerator.SetName("Basic");
+	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
+	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
+	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+	pipelineGenerator.Generate();
+
+	// Descriptor set layout
+	descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts);
+
+	std::vector<VkDescriptorSet> descriptorSets;
+	for (int i = descriptorSetLayouts.size() - 1; i >= 0; i--)
+	{
+		descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
+	}
+
+	// Sort the descriptor sets in the order of the layout
+	std::reverse(descriptorSets.begin(), descriptorSets.end());
+
+	pipelineGenerator.SetDescriptorSets(descriptorSets);
+
+	modelManager.GetPipelines()["basic"] = pipelineGenerator.GetPipelineContainer();
+}
+
+void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)
+{
+	glm::vec3 moveDirection(0.0f);
+	if (inputManager->IsKeyPressed(GLFW_KEY_W))
+	{
+		moveDirection += -glm::vec3(sin(m_gameState.playerRotation), 0, cos(m_gameState.playerRotation));
+	}
+	else if (inputManager->IsKeyPressed(GLFW_KEY_S))
+	{
+		moveDirection += glm::vec3(sin(m_gameState.playerRotation), 0, cos(m_gameState.playerRotation));
+	}
+
+	// Normalize move direction
+	if (glm::length(moveDirection) > 0.0f)
+	{
+		moveDirection = glm::normalize(moveDirection) * m_gameParams.moveSpeed;
+	}
+
+	// Apply acceleration
+	float acceleration = 10.0f;
+	m_gameState.playerVelocity += moveDirection * acceleration * dt;
+
+	// Handle rotation
+	if (inputManager->IsKeyPressed(GLFW_KEY_A))
+	{
+		m_gameState.playerRotation += m_gameParams.rotationSpeed * dt;
+	}
+	else if (inputManager->IsKeyPressed(GLFW_KEY_D))
+	{
+		m_gameState.playerRotation -= m_gameParams.rotationSpeed * dt;
+	}
+
+	// Handle jumping
+	if (inputManager->IsKeyJustPressed(GLFW_KEY_SPACE) && !m_gameState.isJumping)
+	{
+		m_gameState.playerVelocity.y = m_gameParams.jumpForce;
+		m_gameState.isJumping = true;
+	}
+
+	// Apply gravity
+	m_gameState.playerVelocity.y -= m_gameParams.gravity * dt;
+
+	// Apply drag
+	m_gameState.playerVelocity *= (1.0f / (1.0f + m_gameParams.dragCoefficient * dt));
+
+	// Clamp velocity
+	float maxSpeed = 5.0f;
+	if (glm::length(m_gameState.playerVelocity) > maxSpeed)
+	{
+		m_gameState.playerVelocity = glm::normalize(m_gameState.playerVelocity) * maxSpeed;
+	}
+
+	// Update position
+	m_gameState.playerPosition += m_gameState.playerVelocity * dt;
+
+	// Update player model matrix
+	m_player.modelMat = glm::translate(glm::mat4(1.0f), m_gameState.playerPosition);
+	m_player.modelMat = glm::rotate(m_player.modelMat, m_gameState.playerRotation, glm::vec3(0, 1, 0));
+	m_player.modelMat = glm::scale(m_player.modelMat, glm::vec3(10.5f));
+}
+
+void PlatformerGame::UpdateCamera(float dt, const InputManager* inputManager)
 {
 	// Get mouse delta
 	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
 
 	// Scroll to zoom in/out
 	float scrollY = inputManager->GetScrollDelta();
-	m_cameraDistance -= scrollY;
+	m_cameraState.distance -= scrollY;
 
 	// Update camera angles
 	float mouseSensitivity = 0.1f;
-	m_cameraYaw += mouseX * mouseSensitivity;
-	m_cameraPitch += -mouseY * mouseSensitivity * -1.0f;
+	m_cameraState.yaw += mouseX * mouseSensitivity;
+	m_cameraState.pitch += -mouseY * mouseSensitivity;
 
 	// Clamp pitch to avoid flipping
-	m_cameraPitch = glm::clamp(m_cameraPitch, -89.0f, 89.0f);
+	m_cameraState.pitch = glm::clamp(m_cameraState.pitch, -89.0f, 89.0f);
 
 	// Calculate new camera position
-	float horizontalDistance = m_cameraDistance * cos(glm::radians(m_cameraPitch));
-	float verticalDistance = m_cameraDistance * sin(glm::radians(m_cameraPitch));
+	float horizontalDistance = m_cameraState.distance * cos(glm::radians(m_cameraState.pitch));
+	float verticalDistance = m_cameraState.distance * sin(glm::radians(m_cameraState.pitch));
 
-	float camX = horizontalDistance * sin(glm::radians(m_cameraYaw));
-	float camZ = horizontalDistance * cos(glm::radians(m_cameraYaw));
+	float camX = horizontalDistance * sin(glm::radians(m_cameraState.yaw));
+	float camZ = horizontalDistance * cos(glm::radians(m_cameraState.yaw));
 
-	glm::vec3 targetCamPos = m_playerPosition + glm::vec3(camX, verticalDistance, camZ);
+	glm::vec3 targetCamPos = m_gameState.playerPosition + glm::vec3(camX, verticalDistance, camZ);
 
 	// Smoothly interpolate camera position
-	float smoothFactor = 1.0f - std::pow(0.001f, deltaTime);
-	m_cameraPosition = glm::mix(m_cameraPosition, targetCamPos, smoothFactor);
+	float smoothFactor = 1.0f - std::pow(0.001f, dt);
+	m_cameraState.position = glm::mix(m_cameraState.position, targetCamPos, smoothFactor);
 
 	// Weight camera yaw towards player rotation
 	float weightFactor = 0.2f; // Adjust this value to change how much the camera follows the player's rotation
-	float weightedYaw = glm::mix(m_cameraYaw, m_playerRotation, weightFactor);
+	float weightedYaw = glm::mix(m_cameraState.yaw, m_gameState.playerRotation, weightFactor);
 
 	// Calculate camera front vector
 	glm::vec3 front;
-	front.x = cos(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraPitch));
-	front.y = sin(glm::radians(m_cameraPitch));
-	front.z = sin(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraPitch));
+	front.x = cos(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraState.pitch));
+	front.y = sin(glm::radians(m_cameraState.pitch));
+	front.z = sin(glm::radians(weightedYaw)) * cos(glm::radians(m_cameraState.pitch));
 	glm::vec3 cameraFront = glm::normalize(front);
 
 	// Make sure camera is not below the ground
-	if (m_cameraPosition.y < 1.0f)
+	if (m_cameraState.position.y < 1.0f)
 	{
-		m_cameraPosition.y = 1.0f;
+		m_cameraState.position.y = 1.0f;
 	}
 
 	// Set camera position and target
-	m_camera.SetPosition(m_cameraPosition);
-	m_camera.SetTarget(m_playerPosition + glm::vec3(0.0f, 1.0f, 0.0f));
+	m_camera.SetPosition(m_cameraState.position);
+	m_camera.SetTarget(m_gameState.playerPosition + glm::vec3(0.0f, 1.0f, 0.0f));
+}
+
+void PlatformerGame::CheckCollisions()
+{
+	// Ground collision
+	if (m_gameState.playerPosition.y < 1.2f)
+	{
+		m_gameState.playerPosition.y = 1.2f;
+		m_gameState.playerVelocity.y = 0.0f;
+		m_gameState.isJumping = false;
+
+		// Apply friction
+		m_gameState.playerVelocity.x *= m_gameParams.frictionCoefficient;
+		m_gameState.playerVelocity.z *= m_gameParams.frictionCoefficient;
+	}
+}
+
+void PlatformerGame::CheckWinCondition()
+{
+	if (glm::distance(m_gameState.playerPosition, glm::vec3(5.0f, 0.5f, 5.0f)) < 1.0f)
+	{
+		spdlog::info("You win! Press R to play again.");
+		m_gameState.gameOver = true;
+	}
 }
 
 void PlatformerGame::ResetGame()
 {
-	m_playerPosition = glm::vec3(0.0f, 0.25f, 0.0f);
-	m_playerRotation = 0.0f;
-	m_playerVelocity = glm::vec3(0.0f);
-	m_isJumping = false;
-	m_gameOver = false;
+	m_gameState = { .playerPosition = glm::vec3(0.0f, 0.25f, 0.0f), .playerVelocity = glm::vec3(0.0f), .playerRotation = 0.0f, .isJumping = false, .gameOver = false };
 }

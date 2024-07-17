@@ -2,6 +2,15 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "vk_mem_alloc.h"
+
+struct CameraUBO
+{
+	glm::mat4 view;
+	glm::mat4 projection;
+	glm::mat4 viewProjection;
+	glm::vec4 viewPos;
+};
 
 class Camera
 {
@@ -31,6 +40,14 @@ public:
 	// Camera properties
 	void SetAspectRatio(float aspect);
 
+	// Vulkan stuff
+	void CreateCameraUBO(VmaAllocator allocator);
+	void DestroyCameraUBOBuffer(VmaAllocator allocator);
+	void UpdateCameraUBO(VmaAllocator allocator);
+	CameraUBO& GetCameraUBO();
+	VkBuffer GetCameraUBOBuffer() const { return m_cameraUBOBBuffer; }
+	VmaAllocation GetCameraUBOAllocation() const { return m_cameraUBOAllocation; }
+
 private:
 	// Helper method
 	void UpdateCameraVectors();
@@ -47,4 +64,9 @@ private:
 	float m_farZ;
 	float m_yaw;
 	float m_pitch;
+
+	// Vulkan stuff
+	CameraUBO m_cameraUBO;
+	VkBuffer m_cameraUBOBBuffer = VK_NULL_HANDLE;
+	VmaAllocation m_cameraUBOAllocation = VK_NULL_HANDLE;
 };
