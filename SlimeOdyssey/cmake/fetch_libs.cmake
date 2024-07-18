@@ -59,18 +59,11 @@ CPMFindPackage(
         VERSION 3.1.0
 )
 
-# Link libraries
-target_link_libraries(${PROJECT_NAME}
-        PUBLIC
-        glfw
-        vk-bootstrap::vk-bootstrap
-        spdlog::spdlog
-        glm::glm
-        Microsoft.GSL::GSL
-        Vulkan::Vulkan
-        spirv-cross-glsl
-        VulkanMemoryAllocator
-        tinyobjloader
+CPMFINDPACKAGE(
+        NAME IMGUI
+        GITHUB_REPOSITORY ocornut/imgui
+        GIT_TAG v1.90.9-docking
+        options
+        "IMGUI_IMPL_VULKAN_NO_PROTOTYPES ON"
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${SPIRV_CROSS_INCLUDE_DIRS})

@@ -25,7 +25,7 @@ public:
 	~VulkanContext();
 
 	int CreateContext(SlimeWindow* window);
-	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene);
+	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene);
 	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
 	// Getters
@@ -48,9 +48,10 @@ private:
 	int CreateCommandPool();
 	int CreateRenderCommandBuffers();
 	int InitSyncObjects();
+	int InitImGui(SlimeWindow* window);
 
 	// Rendering methods
-	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene);
+	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
 
 	// Vulkan core
 	vkb::Instance m_instance;
@@ -61,6 +62,7 @@ private:
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;
+	VkDescriptorPool m_imguiDescriptorPool = VK_NULL_HANDLE;
 
 	// Render data
 	VkQueue m_graphicsQueue = VK_NULL_HANDLE;

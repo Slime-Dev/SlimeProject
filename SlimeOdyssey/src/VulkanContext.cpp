@@ -15,9 +15,15 @@
 
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
+#include "Scene.h"
 #include "VulkanUtil.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
+
+// IMGUI
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
+#include "imgui.h"
 
 VulkanContext::~VulkanContext()
 {
@@ -38,6 +44,8 @@ int VulkanContext::CreateContext(SlimeWindow* window)
 	if (CreateRenderCommandBuffers() != 0)
 		return -1;
 	if (InitSyncObjects() != 0)
+		return -1;
+	if (InitImGui(window) != 0) // Add this line
 		return -1;
 
 	return 0;
@@ -322,7 +330,120 @@ int VulkanContext::CreateRenderCommandBuffers()
 	return 0;
 }
 
-int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
+int VulkanContext::InitSyncObjects()
+{
+	spdlog::info("Initializing synchronization objects...");
+	// Create synchronization objects
+	m_availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
+	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+	m_imageInFlight.resize(m_swapchain.image_count, VK_NULL_HANDLE);
+
+	VkSemaphoreCreateInfo semaphore_info = {};
+	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fence_info = {};
+	fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		if (m_disp.createSemaphore(&semaphore_info, nullptr, &m_availableSemaphores[i]) != VK_SUCCESS || m_disp.createSemaphore(&semaphore_info, nullptr, &m_finishedSemaphore[i]) != VK_SUCCESS || m_disp.createFence(&fence_info, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+		{
+			spdlog::error("Failed to create synchronization objects!");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int VulkanContext::InitImGui(SlimeWindow* window)
+{
+	// Create Descriptor Pool for ImGui
+	VkDescriptorPoolSize poolSizes[] = {
+		{		       VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+		{         VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+		{         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+		{  VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+		{  VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+		{        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+		{        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+		{      VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+	};
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	poolInfo.maxSets = 1000;
+	poolInfo.poolSizeCount = std::size(poolSizes);
+	poolInfo.pPoolSizes = poolSizes;
+
+	if (m_disp.createDescriptorPool(&poolInfo, nullptr, &m_imguiDescriptorPool) != VK_SUCCESS)
+	{
+		spdlog::error("Failed to create descriptor pool for ImGui!");
+		return -1;
+	}
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	(void) io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+	// io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
+
+	// Load Vulkan functions
+	ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void* vulkan_instance) { return vkGetInstanceProcAddr(static_cast<VkInstance>(vulkan_instance), function_name); }, m_instance);
+
+	ImGui_ImplVulkan_InitInfo initInfo = {};
+	initInfo.Instance = m_instance;
+	initInfo.PhysicalDevice = m_device.physical_device;
+	initInfo.Device = m_device.device;
+	initInfo.QueueFamily = m_device.get_queue_index(vkb::QueueType::graphics).value();
+	initInfo.Queue = m_graphicsQueue;
+	initInfo.PipelineCache = VK_NULL_HANDLE;
+	initInfo.DescriptorPool = m_imguiDescriptorPool;
+	initInfo.Subpass = 0;
+	initInfo.MinImageCount = m_swapchain.image_count;
+	initInfo.ImageCount = m_swapchain.image_count;
+	initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	initInfo.Allocator = nullptr;
+	initInfo.CheckVkResultFn = nullptr;
+	initInfo.UseDynamicRendering = true;
+
+    VkPipelineRenderingCreateInfoKHR imguiPipelineInfo = {};
+	imguiPipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+	imguiPipelineInfo.pNext = nullptr;
+	imguiPipelineInfo.viewMask = 0;
+	imguiPipelineInfo.colorAttachmentCount = 1;
+	imguiPipelineInfo.pColorAttachmentFormats = &m_swapchain.image_format;
+	imguiPipelineInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	imguiPipelineInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+	initInfo.PipelineRenderingCreateInfo = imguiPipelineInfo;
+
+	ImGui_ImplVulkan_Init(&initInfo);
+
+	// Upload Fonts
+	{
+		ImGui_ImplVulkan_CreateFontsTexture();
+	}
+
+	return 0;
+}
+
+int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
 {
 	if (SlimeUtil::BeginCommandBuffer(m_disp, cmd) != 0)
 		return -1;
@@ -364,7 +485,31 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-	m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
+	if (scene)
+	{
+		scene->Render(*this, modelManager);
+		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
+	}
+
+	// Start the Dear ImGui frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+	static bool showDemoWindow = true;
+	ImGui::ShowDemoWindow(&showDemoWindow);
+	ImGui::ShowDemoWindow(&showDemoWindow);
+
+	// Rendering
+	ImGui::Render();
+	ImDrawData* drawData = ImGui::GetDrawData();
+	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
+	if (!isMinimized)
+	{
+		// Record dear imgui primitives into command buffer
+		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
+	}
 
 	m_disp.cmdEndRendering(cmd);
 
@@ -374,7 +519,7 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	return SlimeUtil::EndCommandBuffer(m_disp, cmd);
 }
 
-int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene)
+int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene)
 {
 	if (window->WindowSuspended())
 	{
@@ -478,39 +623,19 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	return 0;
 }
 
-int VulkanContext::InitSyncObjects()
-{
-	spdlog::info("Initializing synchronization objects...");
-	// Create synchronization objects
-	m_availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
-	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-	m_imageInFlight.resize(m_swapchain.image_count, VK_NULL_HANDLE);
-
-	VkSemaphoreCreateInfo semaphore_info = {};
-	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fence_info = {};
-	fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		if (m_disp.createSemaphore(&semaphore_info, nullptr, &m_availableSemaphores[i]) != VK_SUCCESS || m_disp.createSemaphore(&semaphore_info, nullptr, &m_finishedSemaphore[i]) != VK_SUCCESS || m_disp.createFence(&fence_info, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to create synchronization objects!");
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
 int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
 	spdlog::info("Cleaning up...");
 
 	vkDeviceWaitIdle(m_device);
+
+	// Cleanup ImGui
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+
+	// Destroy ImGui descriptor pool
+	m_disp.destroyDescriptorPool(m_imguiDescriptorPool, nullptr);
 
 	// Destroy synchronization objects
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
