@@ -2,7 +2,7 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches: [ "PostTestResultsToGithub" ]
+    branches: [ "main" ]
 
 jobs:
   build:

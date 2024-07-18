@@ -120,7 +120,7 @@ def json_to_discord_json(json_data):
                     failed_tests_summary += f"{test['message'].strip()}\n"
         failed_tests_summary += "```\n"
 
-    content = "See test summary and details below"
+    content = "Test Results"
     embeds = [
         {
             "title": "Test Summary",
