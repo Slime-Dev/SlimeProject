@@ -3,8 +3,6 @@ name: Building for multiple platforms
 on:
   push:
     branches: [ "PostTestResultsToGithub" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
@@ -118,4 +116,4 @@ jobs:
         uses: tsickert/discord-webhook@v6.0.0
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          raw-data: ${{ github.workspace }}/scripts/discordJson_output.md
+          raw-data: ${{ github.workspace }}/scripts/discordJson_output.json
