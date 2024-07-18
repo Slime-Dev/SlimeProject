@@ -32,7 +32,7 @@ int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManag
 	m_tempMaterial = descriptorManager.CreateMaterial(vulkanContext, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
 	InitializeGameObjects(vulkanContext, modelManager, &m_tempMaterial);
 
-	m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
+	//m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
 
 	return 0;
 }

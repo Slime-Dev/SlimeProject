@@ -48,6 +48,7 @@ private:
 	int CreateCommandPool();
 	int CreateRenderCommandBuffers();
 	int InitSyncObjects();
+	int InitImGui(SlimeWindow* window);
 
 	// Rendering methods
 	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
@@ -61,6 +62,7 @@ private:
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;
+	VkDescriptorPool m_imguiDescriptorPool = VK_NULL_HANDLE;
 
 	// Render data
 	VkQueue m_graphicsQueue = VK_NULL_HANDLE;
