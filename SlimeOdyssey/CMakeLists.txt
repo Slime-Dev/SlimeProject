@@ -11,6 +11,9 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
+# Fetch libraries
+include(cmake/fetch_libs.cmake)
+
 # Source files
 file(GLOB_RECURSE SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -21,7 +24,21 @@ file(GLOB_RECURSE SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/external/*.h"
 )
 
-# Create library instead of executable
+# ImGui Setup
+add_definitions(-DIMGUI_IMPL_VULKAN_DYNAMIC_LOADER=glfwGetInstanceProcAddress)
+add_definitions(-DIMGUI_IMPL_VULKAN_NO_PROTOTYPES)
+set(IMGUI_SOURCES
+    ${IMGUI_SOURCE_DIR}/imgui.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_demo.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+    ${IMGUI_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+set(SOURCES ${SOURCES} ${IMGUI_SOURCES})
+
+# Create SlimeOdyssey library
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
 
 # Call shader compilation function
@@ -35,7 +52,23 @@ include(cmake/compile_shaders.cmake)
 compile_shaders()
 
 # LIBRARIES AND DEPENDENCIES ################################################
-include(cmake/link_libs.cmake)
+
+# Link libraries
+target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+        glfw
+        vk-bootstrap::vk-bootstrap
+        spdlog::spdlog
+        glm::glm
+        Microsoft.GSL::GSL
+        Vulkan::Vulkan
+        spirv-cross-glsl
+        VulkanMemoryAllocator
+        tinyobjloader
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE ${SPIRV_CROSS_INCLUDE_DIRS})
 
 if(Vulkan_FOUND)
     target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
