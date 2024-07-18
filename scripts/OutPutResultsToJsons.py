@@ -88,7 +88,7 @@ def xml_to_json(xml_file, tool_name):
 
     return json_structure
 
-def json_to_discord_json(json_data):
+def json_to_discord_json(json_data, os):
     summary = json_data["results"]["summary"]
     tests = json_data["results"]["tests"]
 
@@ -120,7 +120,7 @@ def json_to_discord_json(json_data):
                     failed_tests_summary += f"{test['message'].strip()}\n"
         failed_tests_summary += "```\n"
 
-    content = "Test Results"
+    content = f"Test Results for {os}"
     embeds = [
         {
             "title": "Test Summary",
@@ -160,6 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('tool_name', help='Name of the testing tool.')
     parser.add_argument('--json_output', help='Path to the output JSON file.')
     parser.add_argument('--discord_json_output', help='Path to the output Discord JSON file.')
+    parser.add_argument('--os', help="Runners operating system")
 
     args = parser.parse_args()
 
@@ -181,7 +182,7 @@ if __name__ == "__main__":
         print(f"JSON output has been written to {json_output_file}")
 
         # Generate Discord JSON output
-        discord_json = json_to_discord_json(json_data)
+        discord_json = json_to_discord_json(json_data, args.os)
 
         # Write Discord JSON output to file
         with open(discord_json_output_file, 'w') as discord_json_file:
