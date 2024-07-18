@@ -6,7 +6,7 @@
 #include "Model.h"
 #include "Scene.h"
 
-class Engine;
+class VulkanContext;
 class SlimeWindow;
 class InputManager;
 class ModelManager;
@@ -18,15 +18,15 @@ class PlatformerGame : public Scene
 public:
 	PlatformerGame(SlimeWindow* window);
 
-	int Enter(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
-	void Update(float dt, Engine& engine, const InputManager* inputManager) override;
-	void Render(Engine& engine, ModelManager& modelManager) override;
-	void Exit(Engine& engine, ModelManager& modelManager) override;
+	int Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
+	void Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager) override;
+	void Render(VulkanContext& vulkanContext, ModelManager& modelManager) override;
+	void Exit(VulkanContext& vulkanContext, ModelManager& modelManager) override;
 
 private:
 	// Initialization methods
-	void InitializeGameObjects(Engine& engine, ModelManager& modelManager, Material* material);
-	void SetupShaders(Engine& engine, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
+	void InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager, Material* material);
+	void SetupShaders(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
 
 	// Update methods
 	void UpdatePlayer(float dt, const InputManager* inputManager);

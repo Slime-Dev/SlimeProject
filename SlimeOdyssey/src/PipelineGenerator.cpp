@@ -3,11 +3,11 @@
 #include <fstream>
 #include <stdexcept>
 
-#include "Engine.h"
+#include "VulkanContext.h"
 #include "spdlog/spdlog.h"
 
-PipelineGenerator::PipelineGenerator(Engine& engine)
-      : m_engine(engine), m_device(engine.GetDevice())
+PipelineGenerator::PipelineGenerator(VulkanContext& vulkanContext)
+      : m_vulkanContext(vulkanContext), m_device(vulkanContext.GetDevice())
 {
 }
 
@@ -143,7 +143,7 @@ void PipelineGenerator::CreatePipelineLayout()
 		throw std::runtime_error("failed to create pipeline layout!");
 	}
 
-	m_engine.GetDebugUtils().SetObjectName(m_pipelineContainer.pipelineLayout, (m_pipelineContainer.name + " Pipeline Layout"));
+	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipelineLayout, (m_pipelineContainer.name + " Pipeline Layout"));
 	spdlog::info("Created pipeline layout: {}", (void*) m_pipelineContainer.pipelineLayout);
 }
 
@@ -261,5 +261,5 @@ void PipelineGenerator::CreatePipeline()
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
 
-	m_engine.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
+	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
 }

@@ -11,7 +11,7 @@
 #include "vk_mem_alloc.h"
 
 class DescriptorManager;
-class Engine;
+class VulkanContext;
 class ResourcePathManager;
 struct VmaAllocator_T;
 using VmaAllocator = VmaAllocator_T*;
