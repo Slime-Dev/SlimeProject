@@ -20,7 +20,7 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
+void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
 {
 	m_shaderDebug.debugMode = 0;
 
@@ -35,7 +35,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	}
 
 	// Light
-	auto& lights = scene.GetPointLights();
+	auto& lights = scene->GetPointLights();
 	auto& light = lights.at(0);
 
 	if (light.buffer == VK_NULL_HANDLE)
@@ -46,7 +46,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	SlimeUtil::CopyStructToBuffer(light, allocator, light.allocation);
 
 	// Camera
-	Camera& camera = scene.GetCamera();
+	Camera& camera = scene->GetCamera();
 	camera.UpdateCameraUBO(allocator);
 	SlimeUtil::CopyStructToBuffer(camera.GetCameraUBO(), allocator, camera.GetCameraUBOAllocation());
 

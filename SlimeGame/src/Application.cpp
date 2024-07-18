@@ -16,8 +16,7 @@ void Application::Run()
 	{
 		float dt = m_window.Update();
 		m_scene.Update(dt, m_vulkanContext, m_window.GetInputManager());
-		m_scene.Render(m_vulkanContext, m_modelManager);
-		m_vulkanContext.RenderFrame(m_modelManager, m_descriptorManager, &m_window, m_scene);
+		m_vulkanContext.RenderFrame(m_modelManager, m_descriptorManager, &m_window, &m_scene);
 	}
 }
 

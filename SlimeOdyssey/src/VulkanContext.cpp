@@ -17,6 +17,8 @@
 #include "PipelineGenerator.h"
 #include "VulkanUtil.h"
 
+#include "Scene.h"
+
 #define MAX_FRAMES_IN_FLIGHT 2
 
 VulkanContext::~VulkanContext()
@@ -322,7 +324,7 @@ int VulkanContext::CreateRenderCommandBuffers()
 	return 0;
 }
 
-int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene)
+int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
 {
 	if (SlimeUtil::BeginCommandBuffer(m_disp, cmd) != 0)
 		return -1;
@@ -364,7 +366,11 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-	m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
+	if (scene)
+	{
+		scene->Render(*this, modelManager);
+		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
+	}
 
 	m_disp.cmdEndRendering(cmd);
 
@@ -374,7 +380,7 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	return SlimeUtil::EndCommandBuffer(m_disp, cmd);
 }
 
-int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene)
+int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene)
 {
 	if (window->WindowSuspended())
 	{

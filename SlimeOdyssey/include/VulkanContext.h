@@ -25,7 +25,7 @@ public:
 	~VulkanContext();
 
 	int CreateContext(SlimeWindow* window);
-	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene& scene);
+	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene);
 	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
 
 	// Getters
@@ -50,7 +50,7 @@ private:
 	int InitSyncObjects();
 
 	// Rendering methods
-	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene& scene);
+	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
 
 	// Vulkan core
 	vkb::Instance m_instance;
