@@ -81,8 +81,10 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 	// Create instance with VK_KHR_dynamic_rendering extension
 	spdlog::info("Creating Vulkan instance...");
+	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME };
+
 	vkb::InstanceBuilder instance_builder;
-	auto instance_ret = instance_builder.request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
+	auto instance_ret = instance_builder.enable_extensions(deviceExtensions).request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
 
 	if (!instance_ret)
 	{
@@ -119,13 +121,17 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	features12.bufferDeviceAddress = VK_TRUE;
 	features12.descriptorIndexing = VK_TRUE;
 
+	VkPhysicalDeviceVulkan11Features features11 = {};
+	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+	features11.multiview = VK_TRUE;
+
 	VkPhysicalDeviceFeatures features = {};
 	features.fillModeNonSolid = VK_TRUE;
 	features.wideLines = VK_TRUE;
 
 	vkb::PhysicalDeviceSelector phys_device_selector(m_instance);
 
-	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3).set_required_features_13(features13).set_required_features_12(features12).set_required_features(features).set_surface(m_surface).select();
+	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3).set_required_features_11(features11).set_required_features_13(features13).set_required_features_12(features12).set_required_features(features).set_surface(m_surface).select();
 
 	if (!phys_device_ret)
 	{
@@ -307,7 +313,7 @@ int VulkanContext::CreateCommandPool()
 int VulkanContext::CreateRenderCommandBuffers()
 {
 	spdlog::info("Recording command buffers...");
-	m_renderCommandBuffers.resize(m_swapchain.image_count);
+	m_renderCommandBuffers.resize(m_swapchain.image_count + 10);
 
 	VkCommandBufferAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -396,16 +402,35 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
-	// io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends
-	ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
+	ImGuiStyle& style = ImGui::GetStyle();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
 
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
 	// Load Vulkan functions
-	ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void* vulkan_instance) { return vkGetInstanceProcAddr(static_cast<VkInstance>(vulkan_instance), function_name); }, m_instance);
+	ImGui_ImplVulkan_LoadFunctions(
+	        [](const char* function_name, void* user_data)
+	        {
+		        VulkanContext* context = static_cast<VulkanContext*>(user_data);
+
+				        // Map KHR variants to core functions
+		        if (strcmp(function_name, "vkCmdBeginRenderingKHR") == 0)
+			        return context->m_instDisp.getInstanceProcAddr("vkCmdBeginRendering");
+		        if (strcmp(function_name, "vkCmdEndRenderingKHR") == 0)
+			        return context->m_instDisp.getInstanceProcAddr("vkCmdEndRendering");
+
+		        return context->m_instDisp.getInstanceProcAddr(function_name);
+	        },
+	        this);
 
 	ImGui_ImplVulkan_InitInfo initInfo = {};
 	initInfo.Instance = m_instance;
@@ -423,7 +448,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	initInfo.CheckVkResultFn = nullptr;
 	initInfo.UseDynamicRendering = true;
 
-    VkPipelineRenderingCreateInfoKHR imguiPipelineInfo = {};
+	VkPipelineRenderingCreateInfoKHR imguiPipelineInfo = {};
 	imguiPipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
 	imguiPipelineInfo.pNext = nullptr;
 	imguiPipelineInfo.viewMask = 0;
@@ -496,12 +521,15 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
+	// Create a full screen docking space for ImGui
+	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
+
 	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
 	static bool showDemoWindow = true;
 	ImGui::ShowDemoWindow(&showDemoWindow);
 	ImGui::ShowDemoWindow(&showDemoWindow);
 
-	// Rendering
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();
 	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
@@ -516,7 +544,18 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	// Transition color image to present src layout
 	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-	return SlimeUtil::EndCommandBuffer(m_disp, cmd);
+	if (SlimeUtil::EndCommandBuffer(m_disp, cmd) != 0)
+		return -1;
+
+	// Handle multi-viewport rendering here, outside of the main command buffer
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
+
+	return 0;
 }
 
 int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene)
