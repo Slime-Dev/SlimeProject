@@ -2,8 +2,6 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches: [ "*" ]
-  pull_request:
     branches: [ "main" ]
 
 jobs:
@@ -91,6 +89,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
           -DCPM_SOURCE_CACHE=~/.cpm
+          -DENABLE_TESTING=ON
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
@@ -104,10 +103,17 @@ jobs:
         if: success()
         run: |
           pip install defusedxml
-          python ${{ github.workspace }}/scripts/ConvertXMLtoJson.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --output ${{ github.workspace }}/scripts/finalresult.json
+          python ${{ github.workspace }}/scripts/OutPutResultsToJsons.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --json_output ${{ github.workspace }}/scripts/finalresult.json --discord_json_output ${{ github.workspace }}/scripts/discordJson_output.json --os ${{ runner.os }}
 
       - name: Post results
         if: success()
         run: |
           npm install github-actions-ctrf@0.0.20
           npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
+
+      - name: Post results to Discord
+        if: success()
+        uses: tsickert/discord-webhook@v6.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          raw-data: ${{ github.workspace }}/scripts/discordJson_output.json
