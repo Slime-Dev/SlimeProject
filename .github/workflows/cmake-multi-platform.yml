@@ -2,6 +2,8 @@ name: Building for multiple platforms
 
 on:
   push:
+    branches: [ "*" ]
+  pull_request:
     branches: [ "main" ]
 
 jobs:
