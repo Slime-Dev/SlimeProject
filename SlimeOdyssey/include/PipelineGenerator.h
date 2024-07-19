@@ -11,6 +11,7 @@
 #include "ShaderManager.h"
 
 class VulkanContext;
+namespace vkb { struct DispatchTable; }
 
 struct PipelineContainer
 {
@@ -45,7 +46,7 @@ public:
 	[[nodiscard]] PipelineContainer GetPipelineContainer() const;
 
 private:
-	VkDevice m_device;
+	const vkb::DispatchTable& m_disp;
 	VulkanContext& m_vulkanContext;
 	ShaderModule m_vertexShader;
 	ShaderModule m_fragmentShader;

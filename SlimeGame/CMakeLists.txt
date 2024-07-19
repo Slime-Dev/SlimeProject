@@ -24,6 +24,9 @@ file(GLOB_RECURSE SOURCES
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+# Enable Unity Build
+set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
+
 # Link SlimeOdyssey library
 target_link_libraries(${PROJECT_NAME} PRIVATE SlimeOdyssey)
 
@@ -37,3 +40,5 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 set_target_properties(${PROJECT_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+target_precompile_headers(${PROJECT_NAME} REUSE_FROM SlimeOdyssey)

@@ -7,7 +7,7 @@
 #include "spdlog/spdlog.h"
 
 PipelineGenerator::PipelineGenerator(VulkanContext& vulkanContext)
-      : m_vulkanContext(vulkanContext), m_device(vulkanContext.GetDevice())
+      : m_vulkanContext(vulkanContext), m_disp(vulkanContext.GetDispatchTable())
 {
 }
 
@@ -86,7 +86,7 @@ void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderR
 	// Clear existing layouts
 	for (auto layout: m_descriptorSetLayouts)
 	{
-		vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
+		m_disp.destroyDescriptorSetLayout(layout, nullptr);
 	}
 	m_descriptorSetLayouts.clear();
 
@@ -99,7 +99,7 @@ void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderR
 		layoutInfo.pBindings = bindings.data();
 
 		VkDescriptorSetLayout setLayout;
-		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &setLayout) != VK_SUCCESS)
+		if (m_disp.createDescriptorSetLayout(&layoutInfo, nullptr, &setLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
@@ -138,7 +138,7 @@ void PipelineGenerator::CreatePipelineLayout()
 		spdlog::info("Push constant range: offset: {}, size: {}, stage flags: {}", offset, size, static_cast<int>(stageFlags));
 	}
 
-	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout) != VK_SUCCESS)
+	if (m_disp.createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create pipeline layout!");
 	}
@@ -256,7 +256,7 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.pDepthStencilState = &depthStencilStateCreateInfo;
 	pipelineInfo.pNext = &pipelineRenderingCreateInfo;
 
-	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline) != VK_SUCCESS)
+	if (m_disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}

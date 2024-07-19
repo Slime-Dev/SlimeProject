@@ -56,9 +56,9 @@ private:
 	// Vulkan core
 	vkb::Instance m_instance;
 	vkb::InstanceDispatchTable m_instDisp;
+	vkb::DispatchTable m_disp;
 	VkSurfaceKHR m_surface{};
 	vkb::Device m_device;
-	vkb::DispatchTable m_disp;
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;

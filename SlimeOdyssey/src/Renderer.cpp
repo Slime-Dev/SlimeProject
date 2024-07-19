@@ -117,7 +117,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 		debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 
 		debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
-		modelManager.DrawModel(cmd, *model->model);
+		modelManager.DrawModel(disp, cmd, *model->model);
 		debugUtils.EndDebugMarker(cmd); // End "Draw Model"
 
 		debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"

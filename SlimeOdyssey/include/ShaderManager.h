@@ -11,6 +11,7 @@
 #include <vulkan/vulkan.h>
 
 #include "spirv_common.hpp"
+#include "VkBootstrapDispatch.h"
 
 struct ShaderModule
 {
@@ -47,16 +48,16 @@ public:
 	ShaderManager() = default;
 	~ShaderManager() = default;
 
-	void CleanUp(VkDevice device);
+	void CleanUp(vkb::DispatchTable disp);
 
-	ShaderModule LoadShader(VkDevice device, const std::string& path, VkShaderStageFlagBits stage);
+	ShaderModule LoadShader(vkb::DispatchTable disp, const std::string& path, VkShaderStageFlagBits stage);
 	ShaderResources ParseShader(const ShaderModule& shaderModule);
 	ShaderResources CombineResources(const std::vector<ShaderModule>& shaderModules);
 
-	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(VkDevice device, const ShaderResources& resources);
+	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources);
 
-	void CleanupShaderModules(VkDevice device);
-	void CleanupDescriptorSetLayouts(VkDevice device);
+	void CleanupShaderModules(vkb::DispatchTable disp);
+	void CleanupDescriptorSetLayouts(vkb::DispatchTable disp);
 
 private:
 	std::unordered_map<std::string, ShaderModule> m_shaderModules;
@@ -64,7 +65,7 @@ private:
 	std::map<uint32_t, uint32_t> bindingOffsets;
 
 	std::vector<uint32_t> ReadFile(const std::string& filename);
-	VkShaderModule CreateShaderModule(VkDevice device, const std::vector<uint32_t>& code);
+	VkShaderModule CreateShaderModule(vkb::DispatchTable disp, const std::vector<uint32_t>& code);
 	VkFormat GetVkFormat(const spirv_cross::SPIRType& type);
 	uint32_t GetFormatSize(VkFormat format);
 };

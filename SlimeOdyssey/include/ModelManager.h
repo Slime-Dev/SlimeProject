@@ -14,6 +14,7 @@ class DescriptorManager;
 class VulkanContext;
 class ResourcePathManager;
 struct VmaAllocator_T;
+namespace vkb { struct DispatchTable; }
 using VmaAllocator = VmaAllocator_T*;
 
 class ModelManager
@@ -24,12 +25,12 @@ public:
 	~ModelManager();
 
 	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
-	const TextureResource* LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
+	const TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
-	void UnloadAllResources(VkDevice device, VmaAllocator allocator);
-	void BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set);
-	void TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
-	int DrawModel(VkCommandBuffer& cmd, const ModelResource& model);
+	void UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator);
+	void BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set);
+	void TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+	int DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model);
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
 
 	std::map<std::string, PipelineContainer>& GetPipelines();
@@ -88,8 +89,8 @@ private:
 	glm::vec3 ExtractNormal(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);
 	void CalculateFaceNormals(const ModelResource& model, std::vector<glm::vec3>& faceNormals, std::vector<std::vector<uint32_t>>& vertexFaces);
 	void AverageVertexNormals(ModelResource& model, const std::vector<glm::vec3>& faceNormals, const std::vector<std::vector<uint32_t>>& vertexFaces);
-	VkImageView CreateImageView(VkDevice device, VkImage image, VkFormat format);
-	void CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+	VkImageView CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format);
+	void CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 };
 
 template<>

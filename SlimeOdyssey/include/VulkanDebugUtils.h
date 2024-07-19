@@ -14,25 +14,25 @@ public:
 		float r, g, b, a;
 	};
 
-	VulkanDebugUtils(const vkb::Instance& instance, const vkb::Device& device)
-	      : m_instance(instance), m_device(device)
+	VulkanDebugUtils(const vkb::InstanceDispatchTable& instDisp, const vkb::Device& device)
+	      : m_device(device)
 	{
-		LoadDebugUtilsFunctions();
+		LoadDebugUtilsFunctions(instDisp);
 	}
 
 	VulkanDebugUtils() = default;
 
-	void LoadDebugUtilsFunctions()
+	void LoadDebugUtilsFunctions(const vkb::InstanceDispatchTable& instDisp)
 	{
 #if defined(VK_EXT_debug_utils)
-		fp_vkCmdBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkCmdBeginDebugUtilsLabelEXT"));
-		fp_vkCmdEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkCmdEndDebugUtilsLabelEXT"));
-		fp_vkCmdInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdInsertDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkCmdInsertDebugUtilsLabelEXT"));
-		fp_vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkSetDebugUtilsObjectNameEXT"));
-		fp_vkSetDebugUtilsObjectTagEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectTagEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkSetDebugUtilsObjectTagEXT"));
-		fp_vkQueueBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueBeginDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkQueueBeginDebugUtilsLabelEXT"));
-		fp_vkQueueEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueEndDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkQueueEndDebugUtilsLabelEXT"));
-		fp_vkQueueInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueInsertDebugUtilsLabelEXT>(vkGetInstanceProcAddr(m_instance.instance, "vkQueueInsertDebugUtilsLabelEXT"));
+		fp_vkCmdBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(instDisp.getInstanceProcAddr("vkCmdBeginDebugUtilsLabelEXT"));
+		fp_vkCmdEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(instDisp.getInstanceProcAddr("vkCmdEndDebugUtilsLabelEXT"));
+		fp_vkCmdInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdInsertDebugUtilsLabelEXT>(instDisp.getInstanceProcAddr("vkCmdInsertDebugUtilsLabelEXT"));
+		fp_vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(instDisp.getInstanceProcAddr("vkSetDebugUtilsObjectNameEXT"));
+		fp_vkSetDebugUtilsObjectTagEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectTagEXT>(instDisp.getInstanceProcAddr("vkSetDebugUtilsObjectTagEXT"));
+		fp_vkQueueBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueBeginDebugUtilsLabelEXT>(instDisp.getInstanceProcAddr("vkQueueBeginDebugUtilsLabelEXT"));
+		fp_vkQueueEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueEndDebugUtilsLabelEXT>(instDisp.getInstanceProcAddr("vkQueueEndDebugUtilsLabelEXT"));
+		fp_vkQueueInsertDebugUtilsLabelEXT = reinterpret_cast<PFN_vkQueueInsertDebugUtilsLabelEXT>(instDisp.getInstanceProcAddr("vkQueueInsertDebugUtilsLabelEXT"));
 #endif
 	}
 
@@ -284,7 +284,6 @@ public:
 	}
 
 private:
-	vkb::Instance m_instance;
 	vkb::Device m_device;
 	PFN_vkCmdBeginDebugUtilsLabelEXT fp_vkCmdBeginDebugUtilsLabelEXT = nullptr;
 	PFN_vkCmdEndDebugUtilsLabelEXT fp_vkCmdEndDebugUtilsLabelEXT = nullptr;

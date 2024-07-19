@@ -27,6 +27,6 @@ private:
 	ResourcePathManager m_resourcePathManager;
 	ShaderManager m_shaderManager;
 	ModelManager m_modelManager;
-	DescriptorManager m_descriptorManager;
+	DescriptorManager* m_descriptorManager = nullptr;
 	PlatformerGame m_scene;
 };
