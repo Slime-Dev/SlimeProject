@@ -1,5 +1,6 @@
 #include <iostream>
 #include "Camera.h"
+#include <spdlog/spdlog.h>
 #include <vector>
 
 void SecondTest()
@@ -16,13 +17,15 @@ int main()
 {
     try {
         SecondTest();
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
+    }
+    catch (const std::exception& e) {
+        spdlog::info("Test failed with exception: {}", e.what());
         return 1;
-    } catch (...) {
-        std::cerr << "Unknown exception occurred during testing." << std::endl;
+    }
+    catch (...) {
+        spdlog::info("Unknown exception occurred during testing.");
         return 2;
     }
-    std::cout << "All tests passed!" << std::endl;
+    spdlog::info("All Tests Passed!");
     return 0;
 }

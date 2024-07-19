@@ -1,9 +1,10 @@
 #include <iostream>
 #include "ResourcePathManager.h"
 #include "ModelManager.h"
+#include <spdlog/spdlog.h>
 #include <vector>
 
-void testEngineInitialization() {
+void LoadBunny() {
     ResourcePathManager resourcePathManager;
     ModelManager modelManager = ModelManager(resourcePathManager);
 
@@ -13,14 +14,22 @@ void testEngineInitialization() {
     assert(bunnyMesh->vertices.size() != 0);
 
     assert(bunnyMesh->indices.size() != 0);
+}
 
+void LoadMonkey() {
+    ResourcePathManager resourcePathManager;
+    ModelManager modelManager = ModelManager(resourcePathManager);
     auto suzanneMesh = modelManager.LoadModel("suzanne.obj", "basic");
     assert(suzanneMesh != NULL);
 
     assert(suzanneMesh->vertices.size() != 0);
 
     assert(suzanneMesh->indices.size() != 0);
+}
 
+void LoadCube() {
+    ResourcePathManager resourcePathManager;
+    ModelManager modelManager = ModelManager(resourcePathManager);
     auto cubeMesh = modelManager.LoadModel("cube.obj", "basic");
     assert(cubeMesh != NULL);
 
@@ -29,16 +38,21 @@ void testEngineInitialization() {
     assert(cubeMesh->indices.size() != 0);
 }
 
+
 int main() {
     try {
-        testEngineInitialization();
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
+        LoadBunny();
+        LoadMonkey();
+        LoadCube();
+    }
+    catch (const std::exception& e) {
+        spdlog::info("Test failed with exception: {}", e.what());
         return 1;
-    } catch (...) {
-        std::cerr << "Unknown exception occurred during testing." << std::endl;
+    }
+    catch (...) {
+        spdlog::info("Unknown exception occurred during testing.");
         return 2;
     }
-    std::cout << "All tests passed!" << std::endl;
+    spdlog::info("All Tests Passed!");
     return 0;
 }
