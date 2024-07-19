@@ -7,7 +7,6 @@
 void LoadBunny() {
     ResourcePathManager resourcePathManager;
     ModelManager modelManager = ModelManager(resourcePathManager);
-
     auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
     assert(bunnyMesh != NULL);
 
