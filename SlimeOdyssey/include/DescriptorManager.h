@@ -5,10 +5,10 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "Model.h"
+#include "VkBootstrapDispatch.h"
 
 // Forward declarations
 struct MVP;
-class DescriptorManager;
 class VulkanContext;
 class ModelManager;
 
@@ -30,7 +30,7 @@ class DescriptorManager
 public:
 	// Constructors and Destructor
 	DescriptorManager() = default;
-	explicit DescriptorManager(VkDevice device);
+	explicit DescriptorManager(const vkb::DispatchTable& disp);
 	~DescriptorManager() = default;
 
 	// Descriptor Set Management
@@ -57,7 +57,8 @@ private:
 	void CreateDescriptorPool();
 
 	// Member Variables
-	VkDevice m_device;
+	const vkb::DispatchTable& m_disp;
+
 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
 	std::unordered_map<uint32_t, VkDescriptorSet> m_descriptorSets;

@@ -164,12 +164,40 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	allocatorInfo.device = m_device.device;
 	allocatorInfo.instance = m_instance.instance;
 
+
+	VmaVulkanFunctions vulkanFunctions = {};
+	vulkanFunctions.vkGetInstanceProcAddr = m_instance.fp_vkGetInstanceProcAddr;
+	vulkanFunctions.vkGetDeviceProcAddr = m_device.fp_vkGetDeviceProcAddr;
+	
+	// Instance functions
+	vulkanFunctions.vkGetPhysicalDeviceProperties = m_instDisp.fp_vkGetPhysicalDeviceProperties;
+	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = m_instDisp.fp_vkGetPhysicalDeviceMemoryProperties;
+
+	// Device functions
+	vulkanFunctions.vkAllocateMemory = m_disp.fp_vkAllocateMemory;
+	vulkanFunctions.vkFreeMemory = m_disp.fp_vkFreeMemory;
+	vulkanFunctions.vkMapMemory = m_disp.fp_vkMapMemory;
+	vulkanFunctions.vkUnmapMemory = m_disp.fp_vkUnmapMemory;
+	vulkanFunctions.vkFlushMappedMemoryRanges = m_disp.fp_vkFlushMappedMemoryRanges;
+	vulkanFunctions.vkInvalidateMappedMemoryRanges = m_disp.fp_vkInvalidateMappedMemoryRanges;
+	vulkanFunctions.vkBindBufferMemory = m_disp.fp_vkBindBufferMemory;
+	vulkanFunctions.vkBindImageMemory = m_disp.fp_vkBindImageMemory;
+	vulkanFunctions.vkGetBufferMemoryRequirements = m_disp.fp_vkGetBufferMemoryRequirements;
+	vulkanFunctions.vkGetImageMemoryRequirements = m_disp.fp_vkGetImageMemoryRequirements;
+	vulkanFunctions.vkCreateBuffer = m_disp.fp_vkCreateBuffer;
+	vulkanFunctions.vkDestroyBuffer = m_disp.fp_vkDestroyBuffer;
+	vulkanFunctions.vkCreateImage = m_disp.fp_vkCreateImage;
+	vulkanFunctions.vkDestroyImage = m_disp.fp_vkDestroyImage;
+	vulkanFunctions.vkCmdCopyBuffer = m_disp.fp_vkCmdCopyBuffer;
+
+	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
+	
 	if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create VMA allocator");
 	}
 
-	m_debugUtils = VulkanDebugUtils(m_instance, m_device);
+	m_debugUtils = VulkanDebugUtils(m_instDisp, m_device);
 
 	m_debugUtils.SetObjectName(m_device.device, "MainDevice");
 
@@ -179,7 +207,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 int VulkanContext::CreateSwapchain(SlimeWindow* window)
 {
 	spdlog::info("Creating swapchain...");
-	vkDeviceWaitIdle(m_device);
+	m_disp.deviceWaitIdle();
 
 	vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
 
@@ -477,9 +505,9 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	SlimeUtil::SetupDepthTestingAndLineWidth(m_disp, cmd);
 
 	// Transition color image to color attachment optimal
-	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	// Transition depth image to depth attachment optimal
-	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
 	VkRenderingAttachmentInfo colorAttachmentInfo = {};
 	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -542,7 +570,7 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	m_disp.cmdEndRendering(cmd);
 
 	// Transition color image to present src layout
-	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	if (SlimeUtil::EndCommandBuffer(m_disp, cmd) != 0)
 		return -1;
@@ -656,7 +684,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 
 	if (window->ShouldClose())
 	{
-		vkDeviceWaitIdle(m_device);
+		m_disp.deviceWaitIdle();
 	}
 
 	return 0;
@@ -666,7 +694,7 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 {
 	spdlog::info("Cleaning up...");
 
-	vkDeviceWaitIdle(m_device);
+	m_disp.deviceWaitIdle();
 
 	// Cleanup ImGui
 	ImGui_ImplVulkan_Shutdown();
@@ -689,9 +717,9 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 		m_disp.destroyImageView(image_view, nullptr);
 	}
 
-	modelManager.UnloadAllResources(m_device, m_allocator);
+	modelManager.UnloadAllResources(m_disp, m_allocator);
 
-	shaderManager.CleanupDescriptorSetLayouts(m_device);
+	shaderManager.CleanupDescriptorSetLayouts(m_disp);
 
 	descriptorManager.Cleanup();
 
@@ -701,7 +729,7 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 	m_disp.destroyImageView(m_depthImageView, nullptr);
 
-	shaderManager.CleanupShaderModules(m_device);
+	shaderManager.CleanupShaderModules(m_disp);
 
 	m_disp.destroyCommandPool(m_commandPool, nullptr);
 

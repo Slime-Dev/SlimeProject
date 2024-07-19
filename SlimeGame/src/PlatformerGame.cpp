@@ -132,14 +132,14 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 	std::string vertShaderPath = resourcePaths.GetShaderPath("basic.vert.spv");
 	std::string fragShaderPath = resourcePaths.GetShaderPath("basic.frag.spv");
 
-	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDevice(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
-	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDevice(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
 	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
 	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
 	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
 
 	// Set up descriptor set layout
-	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDevice(), combinedResources);
+	auto descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
 
 	PipelineGenerator pipelineGenerator(vulkanContext);
 	pipelineGenerator.SetName("Basic");

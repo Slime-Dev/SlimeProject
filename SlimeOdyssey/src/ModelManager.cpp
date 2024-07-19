@@ -320,7 +320,7 @@ ModelResource* ModelManager::LoadModel(const std::string& name, const std::strin
 	return &m_modelResources[name];
 }
 
-const TextureResource* ModelManager::LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
+const TextureResource* ModelManager::LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
 {
 	std::string fullPath = m_pathManager.GetTexturePath(name);
 
@@ -362,12 +362,12 @@ const TextureResource* ModelManager::LoadTexture(VkDevice device, VkQueue graphi
 	SlimeUtil::CreateImage(name.c_str(), allocator, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, texture.image, texture.allocation);
 
 	// Transition image layout and copy buffer to image
-	TransitionImageLayout(device, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	CopyBufferToImage(device, graphicsQueue, commandPool, stagingBuffer, texture.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	TransitionImageLayout(device, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	TransitionImageLayout(disp, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	CopyBufferToImage(disp, graphicsQueue, commandPool, stagingBuffer, texture.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	TransitionImageLayout(disp, graphicsQueue, commandPool, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Create image view
-	texture.imageView = CreateImageView(device, texture.image, VK_FORMAT_R8G8B8A8_SRGB);
+	texture.imageView = CreateImageView(disp, texture.image, VK_FORMAT_R8G8B8A8_SRGB);
 
 	// Create sampler
 	texture.sampler = descriptorManager->CreateSampler();
@@ -390,7 +390,7 @@ const TextureResource* ModelManager::GetTexture(const std::string& name) const
 	return nullptr;
 }
 
-void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
+void ModelManager::UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator)
 {
 	for (const auto& model: m_modelResources)
 	{
@@ -401,9 +401,9 @@ void ModelManager::UnloadAllResources(VkDevice device, VmaAllocator allocator)
 
 	for (const auto& texture: m_textures)
 	{
-		vkDestroyImageView(device, texture.second.imageView, nullptr);
+		disp.destroyImageView(texture.second.imageView, nullptr);
 		vmaDestroyImage(allocator, texture.second.image, texture.second.allocation);
-		vkDestroySampler(device, texture.second.sampler, nullptr);
+		disp.destroySampler(texture.second.sampler, nullptr);
 	}
 	m_textures.clear();
 
@@ -436,7 +436,7 @@ void ModelManager::AddModel(const std::string& name, Model* model)
 	m_models[name] = model;
 }
 
-VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkFormat format)
+VkImageView ModelManager::CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format)
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -450,7 +450,7 @@ VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkForm
 	viewInfo.subresourceRange.layerCount = 1;
 
 	VkImageView imageView;
-	if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
+	if (disp.createImageView(&viewInfo, nullptr, &imageView) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create texture image view!");
 	}
@@ -458,7 +458,7 @@ VkImageView ModelManager::CreateImageView(VkDevice device, VkImage image, VkForm
 	return imageView;
 }
 
-void ModelManager::BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set)
+void ModelManager::BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set)
 {
 	const TextureResource* texture = GetTexture(name);
 	if (!texture)
@@ -480,12 +480,12 @@ void ModelManager::BindTexture(VkDevice device, const std::string& name, uint32_
 	descriptorWrite.descriptorCount = 1;
 	descriptorWrite.pImageInfo = &imageInfo;
 
-	vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+	disp.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
 }
 
-void ModelManager::TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
+void ModelManager::TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
-	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(device, commandPool);
+	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(disp, commandPool);
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -602,14 +602,14 @@ void ModelManager::TransitionImageLayout(VkDevice device, VkQueue graphicsQueue,
 		throw std::invalid_argument("unsupported layout transition!");
 	}
 
-	vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	disp.cmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-	SlimeUtil::EndSingleTimeCommands(device, graphicsQueue, commandPool, commandBuffer);
+	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
-void ModelManager::CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
-	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(device, commandPool);
+	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(disp, commandPool);
 
 	VkBufferImageCopy region{};
 	region.bufferOffset = 0;
@@ -622,17 +622,17 @@ void ModelManager::CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkC
 	region.imageOffset = { 0, 0, 0 };
 	region.imageExtent = { width, height, 1 };
 
-	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	disp.cmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	SlimeUtil::EndSingleTimeCommands(device, graphicsQueue, commandPool, commandBuffer);
+	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
-int ModelManager::DrawModel(VkCommandBuffer& cmd, const ModelResource& model)
+int ModelManager::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model)
 {
 	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(cmd, 0, 1, &model.vertexBuffer, offsets);
-	vkCmdBindIndexBuffer(cmd, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
+	disp.cmdBindVertexBuffers(cmd, 0, 1, &model.vertexBuffer, offsets);
+	disp.cmdBindIndexBuffer(cmd, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	disp.cmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
 	return 0;
 }
 

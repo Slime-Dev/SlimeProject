@@ -16,14 +16,15 @@ void Application::Run()
 	{
 		float dt = m_window.Update();
 		m_scene.Update(dt, m_vulkanContext, m_window.GetInputManager());
-		m_vulkanContext.RenderFrame(m_modelManager, m_descriptorManager, &m_window, &m_scene);
+		m_vulkanContext.RenderFrame(m_modelManager, *m_descriptorManager, &m_window, &m_scene);
 	}
 }
 
 void Application::Cleanup()
 {
 	m_scene.Exit(m_vulkanContext, m_modelManager);
-	m_vulkanContext.Cleanup(m_shaderManager, m_modelManager, m_descriptorManager);
+	m_vulkanContext.Cleanup(m_shaderManager, m_modelManager, *m_descriptorManager);
+	delete m_descriptorManager;
 }
 
 void Application::InitializeLogging()
@@ -50,13 +51,13 @@ void Application::InitializeManagers()
 	m_resourcePathManager = ResourcePathManager();
 	m_shaderManager = ShaderManager();
 	m_modelManager = ModelManager(m_resourcePathManager);
-	m_descriptorManager = DescriptorManager(m_vulkanContext.GetDevice());
+	m_descriptorManager = new DescriptorManager(m_vulkanContext.GetDispatchTable());
 }
 
 void Application::InitializeScene()
 {
 	m_scene = PlatformerGame(&m_window);
-	if (m_scene.Enter(m_vulkanContext, m_modelManager, m_shaderManager, m_descriptorManager) != 0)
+	if (m_scene.Enter(m_vulkanContext, m_modelManager, m_shaderManager, *m_descriptorManager) != 0)
 	{
 		throw std::runtime_error("Failed to initialize scene");
 	}

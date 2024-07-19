@@ -5,8 +5,8 @@
 #include "VulkanUtil.h"
 #include "ModelManager.h"
 
-DescriptorManager::DescriptorManager(VkDevice device)
-      : m_device(device)
+DescriptorManager::DescriptorManager(const vkb::DispatchTable& disp)
+      : m_disp(disp)
 {
 	CreateDescriptorPool();
 }
@@ -15,7 +15,7 @@ void DescriptorManager::Cleanup()
 {
 	if (m_descriptorPool != VK_NULL_HANDLE)
 	{
-		vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+		m_disp.destroyDescriptorPool(m_descriptorPool, nullptr);
 	}
 }
 
@@ -33,7 +33,7 @@ VkDescriptorSet DescriptorManager::AllocateDescriptorSet(uint32_t layoutIndex)
 	allocInfo.pSetLayouts = &m_descriptorSetLayouts[layoutIndex];
 
 	VkDescriptorSet descriptorSet;
-	if (vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet) != VK_SUCCESS)
+	if (m_disp.allocateDescriptorSets(&allocInfo, &descriptorSet) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate descriptor set");
 	}
@@ -82,7 +82,7 @@ void DescriptorManager::BindBuffer(VkDescriptorSet descriptorSet, uint32_t bindi
 	descriptorWrite.descriptorCount = 1;
 	descriptorWrite.pBufferInfo = &bufferInfo;
 
-	vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+	m_disp.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
 }
 
 VkSampler DescriptorManager::CreateSampler()
@@ -106,7 +106,7 @@ VkSampler DescriptorManager::CreateSampler()
 	samplerInfo.maxLod = 0.0f;
 
 	VkSampler sampler;
-	if (vkCreateSampler(m_device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS)
+	if (m_disp.createSampler(&samplerInfo, nullptr, &sampler) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create texture sampler");
 	}
@@ -117,7 +117,7 @@ VkSampler DescriptorManager::CreateSampler()
 void DescriptorManager::DestroySampler(VkSampler sampler)
 {
 	// Destroy the sampler
-	vkDestroySampler(m_device, sampler, nullptr);
+	m_disp.destroySampler(sampler, nullptr);
 }
 
 void DescriptorManager::BindImage(VkDescriptorSet descriptorSet, uint32_t binding, VkImageView imageView, VkSampler sampler)
@@ -136,7 +136,7 @@ void DescriptorManager::BindImage(VkDescriptorSet descriptorSet, uint32_t bindin
 	descriptorWrite.descriptorCount = 1;
 	descriptorWrite.pImageInfo = &imageInfo;
 
-	vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+	m_disp.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
 }
 
 void DescriptorManager::CreateDescriptorPool()
@@ -152,7 +152,7 @@ void DescriptorManager::CreateDescriptorPool()
 	poolInfo.pPoolSizes = poolSizes;
 	poolInfo.maxSets = 100; // Adjust this based on your needs
 
-	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
+	if (m_disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create descriptor pool");
 	}
@@ -164,6 +164,7 @@ Material DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelMa
 	VkCommandPool commandPool = vulkanContext.GetCommandPool();
 	VmaAllocator allocator = vulkanContext.GetAllocator();
 	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
+	vkb::DispatchTable disp = vulkanContext.GetDispatchTable();
 
 	Material::Config config;
 	VkBuffer configBuffer;
@@ -171,11 +172,11 @@ Material DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelMa
 	
 	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, configBuffer, configAllocation);
 
-	const TextureResource* albedoTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, albedo);
-	const TextureResource* normalTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, normal);
-	const TextureResource* metallicTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, metallic);
-	const TextureResource* roughnessTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, roughness);
-	const TextureResource* aoTex = modelManager.LoadTexture(device, graphicsQueue, commandPool, allocator, this, ao);
+	const TextureResource* albedoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, albedo);
+	const TextureResource* normalTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, normal);
+	const TextureResource* metallicTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, metallic);
+	const TextureResource* roughnessTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, roughness);
+	const TextureResource* aoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, ao);
 
 	return {
 		.albedoTex = albedoTex, 
