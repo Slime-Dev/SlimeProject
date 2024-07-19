@@ -94,56 +94,71 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-      - name: List files in directory (Windows)
+      # - name: List files in directory (Windows)
+      #   if: matrix.os == 'windows-latest'
+      #   run: |
+      #     $directory = "${{ steps.strings.outputs.build-output-dir }}"
+      #     Write-Output "Listing files in $directory:"
+      #     Get-ChildItem -Path $directory -Recurse
+      #   shell: pwsh
+
+      # - name: List files in directory (Linux)
+      #   if: matrix.os == 'ubuntu-latest'
+      #   run: |
+      #     directory="${{ steps.strings.outputs.build-output-dir }}"
+      #     echo "Listing files in $directory:"
+      #     ls -R $directory
+
+      - name: Check if directory is empty (Windows)
         if: matrix.os == 'windows-latest'
+        id: check_directory_windows
         run: |
-          $directory = "${{ steps.strings.outputs.build-output-dir }}"
-          Write-Output "Listing files in $directory:"
-          Get-ChildItem -Path $directory -Recurse
+          $directory = "${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}"
+          if ((Get-ChildItem -Path $directory -Recurse | Measure-Object).Count -eq 0) {
+            Write-Output "Directory is empty."
+            exit 1
+          } else {
+            Write-Output "Directory is not empty."
+          }
         shell: pwsh
 
-      - name: List files in directory (Linux)
+      - name: Check if directory is empty (Linux)
         if: matrix.os == 'ubuntu-latest'
+        id: check_directory_linux
         run: |
-          directory="${{ steps.strings.outputs.build-output-dir }}"
-          echo "Listing files in $directory:"
-          ls -R $directory
+          if [ -z "$(find ${{ steps.strings.outputs.build-output-dir }}/bin -mindepth 1 -print -quit)" ]; then
+            echo "Directory is empty."
+            exit 1
+          else
+            echo "Directory is not empty."
+          fi
 
-    #   - name: Check if directory is empty (Windows)
-    #     if: matrix.os == 'windows-latest'
-    #     id: check_directory_windows
-    #     run: |
-    #       $directory = "${{ steps.strings.outputs.build-output-dir }}/bin/Debug"
-    #       if ((Get-ChildItem -Path $directory -Recurse | Measure-Object).Count -eq 0) {
-    #         Write-Output "Directory is empty."
-    #         exit 1
-    #       } else {
-    #         Write-Output "Directory is not empty."
-    #       }
-    #     shell: pwsh
+      - name: Upload Windows Artifact
+        if: success() && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        id: windows-artifact-upload-step
+        with:
+            name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
+            path: ${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}
 
-    #   - name: Check if directory is empty (Linux)
-    #     if: matrix.os == 'ubuntu-latest'
-    #     id: check_directory_linux
-    #     run: |
-    #       if [ -z "$(find ${{ steps.strings.outputs.build-output-dir }}/bin/Debug -mindepth 1 -print -quit)" ]; then
-    #         echo "Directory is empty."
-    #         exit 1
-    #       else
-    #         echo "Directory is not empty."
-    #       fi
+      - name: Upload Linux Artifact
+        if: success() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        id: linux-artifact-upload-step
+        with:
+            name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
+            path: ${{ steps.strings.outputs.build-output-dir }}/bin
 
-    #   - name: Upload Artifact
-    #     if: success()
-    #     uses: actions/upload-artifact@v4
-    #     id: artifact-upload-step
-    #     with:
-    #         name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
-    #         path: ${{ steps.strings.outputs.build-output-dir }}/bin/Debug
+      - name: Post results to Discord
+        if: success() && matrix.os == 'windows-latest'
+        uses: tsickert/discord-webhook@v6.0.0
+        with:
+            webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+            content: 'Windows build URL is ${{ steps.windows-artifact-upload-step.outputs.artifact-url }}'
 
-    #   - name: Post results to Discord
-    #     if: success()
-    #     uses: tsickert/discord-webhook@v6.0.0
-    #     with:
-    #         webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-    #         content: 'Build URL is ${{ steps.artifact-upload-step.outputs.artifact-url }}'
+      - name: Post results to Discord
+        if: success() && matrix.os == 'linux-latest'
+        uses: tsickert/discord-webhook@v6.0.0
+        with:
+            webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+            content: 'Windows build URL is ${{ steps.linux-artifact-upload-step.outputs.artifact-url }}'
