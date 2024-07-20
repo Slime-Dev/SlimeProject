@@ -83,7 +83,6 @@ private:
 
 	Renderer m_renderer;
 
-	// Resource managers
 	VulkanDebugUtils m_debugUtils;
 
 	// Safety checks

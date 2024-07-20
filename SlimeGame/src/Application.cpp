@@ -56,7 +56,6 @@ void Application::InitializeManagers()
 
 void Application::InitializeScene()
 {
-	m_scene = PlatformerGame(&m_window);
 	if (m_scene.Enter(m_vulkanContext, m_modelManager, m_shaderManager, *m_descriptorManager) != 0)
 	{
 		throw std::runtime_error("Failed to initialize scene");

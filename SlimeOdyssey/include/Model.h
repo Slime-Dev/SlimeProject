@@ -4,6 +4,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+#include "Component.h"
 #include "vk_mem_alloc.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -50,7 +51,7 @@ struct TextureResource
 	uint32_t height;
 };
 
-struct Material
+struct MaterialResource
 {
 	struct Config
 	{
@@ -73,10 +74,40 @@ struct Material
 	bool disposed = false;
 };
 
-struct Model
+struct Material : public Component
 {
-	ModelResource* model;
-	glm::mat4 modelMat = glm::mat4(1.0f);
-	Material* material = nullptr;
-	bool isActive = true;
+	Material() = default;
+	Material(MaterialResource* material)
+	      : materialResource(material){};
+	MaterialResource* materialResource;
+	void ImGuiDebug();
+};
+
+struct Model : public Component
+{
+	Model() = default;
+	Model(ModelResource* model)
+	      : modelResource(model){};
+	ModelResource* modelResource;
+	void ImGuiDebug();
+};
+
+struct Transform : public Component
+{
+	glm::vec3 position = glm::vec3(0.0f);
+	glm::vec3 rotation = glm::vec3(0.0f);
+	glm::vec3 scale = glm::vec3(1.0f);
+
+	glm::mat4 GetModelMatrix() const
+	{
+		glm::mat4 model = glm::mat4(1.0f);
+		model = glm::translate(model, position);
+		model = glm::rotate(model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+		model = glm::rotate(model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+		model = glm::rotate(model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		model = glm::scale(model, scale);
+		return model;
+	}
+
+	void ImGuiDebug();
 };

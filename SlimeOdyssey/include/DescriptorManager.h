@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 #include "Model.h"
 #include "VkBootstrapDispatch.h"
+#include <memory>
 
 // Forward declarations
 struct MVP;
@@ -50,7 +51,7 @@ public:
 	// Cleanup
 	void Cleanup();
 
-	Material CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
+	std::shared_ptr<MaterialResource> CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
 
 private:
 	// Private Methods

@@ -23,7 +23,7 @@ ModelManager::ModelManager(ResourcePathManager& pathManager)
 ModelManager::~ModelManager()
 {
 	// Check for any remaining models or resources
-	if (!m_models.empty() || !m_modelResources.empty() || !m_textures.empty())
+	if (!m_modelResources.empty() || !m_textures.empty())
 	{
 		std::runtime_error("Model Manager not cleaned up correctly.");
 	}
@@ -407,33 +407,12 @@ void ModelManager::UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator all
 	}
 	m_textures.clear();
 
-	for (const auto& model : m_models)
-	{
-		Material* material = model.second->material;
-		if (!material->disposed)
-		{
-			vmaDestroyBuffer(allocator, material->configBuffer, material->configAllocation);
-			material->disposed = true;
-		}
-	}
-	m_models.clear();
-
 	spdlog::info("All resources unloaded");
 }
 
 std::map<std::string, PipelineContainer>& ModelManager::GetPipelines()
 {
 	return m_pipelines;
-}
-
-void ModelManager::AddModel(const std::string& name, Model* model)
-{
-	if (m_models.contains(name))
-	{
-		throw std::runtime_error("Model already exists: " + name);
-	}
-
-	m_models[name] = model;
 }
 
 VkImageView ModelManager::CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format)
@@ -635,29 +614,3 @@ int ModelManager::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, cons
 	disp.cmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
 	return 0;
 }
-
-void ModelManager::AddModelMap(const std::unordered_map<std::string, Model*>& models)
-{
-	for (const auto& [name, model]: models)
-	{
-		if (m_models.contains(name))
-		{
-			throw std::runtime_error("Model already exists: " + name);
-		}
-		m_models[name] = model;
-	}
-}
-
-// This will create a new model if it doesn't exist
-Model* ModelManager::GetModel(const std::string& name)
-{
-	if (m_models.contains(name))
-	{
-		return m_models[name];
-	}
-
-	Model* model = new Model();
-	m_models[name] = model;
-	return model;
-}
-

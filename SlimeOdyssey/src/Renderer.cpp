@@ -6,6 +6,8 @@
 #include "Scene.h"
 #include "VulkanUtil.h"
 #include "vk_mem_alloc.h"
+#include <Camera.h>
+#include <Light.h>
 
 void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd)
 {
@@ -34,19 +36,19 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 		SlimeUtil::CreateBuffer("ShaderDebug", allocator, sizeof(ShaderDebug), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shaderDebugBuffer, m_shaderDebugAllocation);
 	}
 
-	// Light
-	auto& lights = scene->GetPointLights();
-	auto& light = lights.at(0);
+	EntityManager& entityManager = scene->m_entityManager;
 
+	// Light
+	PointLightObject& light = entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>();
 	if (light.buffer == VK_NULL_HANDLE)
 	{
 		SlimeUtil::CreateBuffer("Light Buffer", allocator, sizeof(light.light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
 	}
 
-	SlimeUtil::CopyStructToBuffer(light, allocator, light.allocation);
+	SlimeUtil::CopyStructToBuffer(light.light, allocator, light.allocation);
 
 	// Camera
-	Camera& camera = scene->GetCamera();
+	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
 	camera.UpdateCameraUBO(allocator);
 	SlimeUtil::CopyStructToBuffer(camera.GetCameraUBO(), allocator, camera.GetCameraUBOAllocation());
 
@@ -57,11 +59,16 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	std::string lastUsedPipeline;
 	PipelineContainer* pipelineContainer = nullptr;
 
-	for (const auto& [name, model]: modelManager)
+	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Material, Transform>();
+	for (const auto& entity: modelEntities)
 	{
-		debugUtils.BeginDebugMarker(cmd, ("Process Model: " + name).c_str(), debugUtil_StartDrawColour);
+		ModelResource* model = entity->GetComponent<Model>().modelResource;
+		MaterialResource* material = entity->GetComponent<Material>().materialResource;
+		Transform& transform = entity->GetComponent<Transform>();
 
-		std::string pipelineName = model->model->pipeLineName;
+		debugUtils.BeginDebugMarker(cmd, ("Process Model: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
+
+		std::string pipelineName = model->pipeLineName;
 		if (pipelineName != lastUsedPipeline)
 		{
 			auto pipelineIt = modelManager.GetPipelines().find(pipelineName);
@@ -97,27 +104,25 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 				descriptorManager.BindBuffer(descSets[0], 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
 
 				// Set material buffer
-				auto tempMaterial = *model->material;
-
-				SlimeUtil::CopyStructToBuffer(tempMaterial.config, allocator, tempMaterial.configAllocation);
-				descriptorManager.BindBuffer(descSets[1], 0, tempMaterial.configBuffer, 0, sizeof(Material::Config));
+				SlimeUtil::CopyStructToBuffer(material->config, allocator, material->configAllocation);
+				descriptorManager.BindBuffer(descSets[1], 0, material->configBuffer, 0, sizeof(MaterialResource::Config));
 
 				// Bind the sampler2D textures
-				descriptorManager.BindImage(descSets[1], 1, tempMaterial.albedoTex->imageView, tempMaterial.albedoTex->sampler);
-				descriptorManager.BindImage(descSets[1], 2, tempMaterial.normalTex->imageView, tempMaterial.normalTex->sampler);
-				descriptorManager.BindImage(descSets[1], 3, tempMaterial.metallicTex->imageView, tempMaterial.metallicTex->sampler);
-				descriptorManager.BindImage(descSets[1], 4, tempMaterial.roughnessTex->imageView, tempMaterial.roughnessTex->sampler);
-				descriptorManager.BindImage(descSets[1], 5, tempMaterial.aoTex->imageView, tempMaterial.aoTex->sampler);
+				descriptorManager.BindImage(descSets[1], 1, material->albedoTex->imageView, material->albedoTex->sampler);
+				descriptorManager.BindImage(descSets[1], 2, material->normalTex->imageView, material->normalTex->sampler);
+				descriptorManager.BindImage(descSets[1], 3, material->metallicTex->imageView, material->metallicTex->sampler);
+				descriptorManager.BindImage(descSets[1], 4, material->roughnessTex->imageView, material->roughnessTex->sampler);
+				descriptorManager.BindImage(descSets[1], 5, material->aoTex->imageView, material->aoTex->sampler);
 			}
 		}
 
-		m_mvp.model = model->modelMat;
+		m_mvp.model = transform.GetModelMatrix();
 		m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
 		disp.cmdPushConstants(cmd, pipelineContainer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
 		debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 
 		debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
-		modelManager.DrawModel(disp, cmd, *model->model);
+		modelManager.DrawModel(disp, cmd, *model);
 		debugUtils.EndDebugMarker(cmd); // End "Draw Model"
 
 		debugUtils.EndDebugMarker(cmd); // End "Process Model: [name]"

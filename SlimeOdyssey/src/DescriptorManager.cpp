@@ -158,7 +158,7 @@ void DescriptorManager::CreateDescriptorPool()
 	}
 }
 
-Material DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
+std::shared_ptr<MaterialResource> DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
 {
 	VkDevice device = vulkanContext.GetDevice();
 	VkCommandPool commandPool = vulkanContext.GetCommandPool();
@@ -166,28 +166,17 @@ Material DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelMa
 	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
 	vkb::DispatchTable disp = vulkanContext.GetDispatchTable();
 
-	Material::Config config;
-	VkBuffer configBuffer;
-	VmaAllocation configAllocation;
+	auto mat = std::make_shared<MaterialResource>();
 	
-	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(Material::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, configBuffer, configAllocation);
+	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(MaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
 
-	const TextureResource* albedoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, albedo);
-	const TextureResource* normalTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, normal);
-	const TextureResource* metallicTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, metallic);
-	const TextureResource* roughnessTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, roughness);
-	const TextureResource* aoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, ao);
+	mat->albedoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, albedo);
+	mat->normalTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, normal);
+	mat->metallicTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, metallic);
+	mat->roughnessTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, roughness);
+	mat->aoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, ao);
 
-	return {
-		.albedoTex = albedoTex, 
-		.normalTex = normalTex, 
-		.metallicTex = metallicTex, 
-		.roughnessTex = roughnessTex, 
-		.aoTex = aoTex, 
+	mat->disposed = false;
 
-		.config = config, .configAllocation = configAllocation,
-		.configBuffer = configBuffer,
-
-		.disposed = false
-	};
+	return mat;
 }

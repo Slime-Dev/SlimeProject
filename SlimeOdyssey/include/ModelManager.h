@@ -35,37 +35,9 @@ public:
 
 	std::map<std::string, PipelineContainer>& GetPipelines();
 
-	void AddModel(const std::string& name, Model* model);
-	void AddModelMap(const std::unordered_map<std::string, Model*>& models);
-	
-	// This will create a new model if it doesn't exist
-	Model* GetModel(const std::string& name);
-
-	// Iterator for models
-	std::unordered_map<std::string, Model*>::iterator begin()
-	{
-		return m_models.begin();
-	}
-
-	std::unordered_map<std::string, Model*>::iterator end()
-	{
-		return m_models.end();
-	}
-
-	std::unordered_map<std::string, Model*>::const_iterator begin() const
-	{
-		return m_models.begin();
-	}
-
-	std::unordered_map<std::string, Model*>::const_iterator end() const
-	{
-		return m_models.end();
-	}
-
 private:
 	ResourcePathManager m_pathManager;
 
-	std::unordered_map<std::string, Model*> m_models;
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
 	std::map<std::string, PipelineContainer> m_pipelines;

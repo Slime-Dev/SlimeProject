@@ -12,20 +12,24 @@ layout(location = 4) in vec3 Bitangent;
 layout(location = 0) out vec4 FragColor;
 
 // Camera and lighting properties
-layout(set = 0, binding = 0) uniform CameraUBO {
+layout(set = 0, binding = 0, scalar) uniform CameraUBO {
     mat4 view;
     mat4 projection;
     mat4 viewProjection;
     vec4 viewPos;
 } camera;
 
-layout(set = 0, binding = 1) uniform LightUBO {
-    vec3 position;
-    vec3 color;
+layout(set = 0, binding = 1, scalar) uniform LightUBO {
+	vec3 position;
+	vec3 color;
+	vec3 view;
+	float ambientStrength;
+	float specularStrength;
+	float shininess;
 } light;
 
 // Material
-layout(set = 1, binding = 0) uniform MaterialUBO {
+layout(set = 1, binding = 0, scalar) uniform MaterialUBO {
     vec4 albedo;
     float metallic;
     float roughness;
@@ -38,7 +42,7 @@ layout(set = 1, binding = 3) uniform sampler2D metallicMap;
 layout(set = 1, binding = 4) uniform sampler2D roughnessMap;
 layout(set = 1, binding = 5) uniform sampler2D aoMap;
 
-layout(set = 0, binding = 2) uniform DebugUBO {
+layout(set = 0, binding = 2, scalar) uniform DebugUBO {
     int debugMode; // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
     bool useNormalMap; // Toggle normal mapping
 } debug;

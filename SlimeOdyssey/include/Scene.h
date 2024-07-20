@@ -1,9 +1,6 @@
 #pragma once
-#include "Light.h"
-#include "Camera.h"
-#include <array>
-
-constexpr int MAX_POINT_LIGHTS = 10;
+#include "EntityManager.h"
+#include "Entity.h"
 
 class ModelManager;
 class ShaderManager;
@@ -14,7 +11,6 @@ class VulkanContext;
 class Scene
 {
 public:
-	Scene() = default;
 	virtual ~Scene() = default;
 
 	virtual int Enter(VulkanContext& vulkanContext, ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager) = 0;
@@ -23,14 +19,5 @@ public:
 
 	virtual void Exit(VulkanContext& vulkanContext, ModelManager& modelManager) = 0;
 
-	std::array<PointLightObject, MAX_POINT_LIGHTS>& GetPointLights() { return m_pointLights; }
-	const DirectionalLightObject& GetDirectionalLight() const { return m_directionalLight; }
-
-	[[nodiscard]] Camera& GetCamera() { return m_camera; }
-
-protected:
-	std::array<PointLightObject, MAX_POINT_LIGHTS> m_pointLights;
-	DirectionalLightObject m_directionalLight;
-
-	Camera m_camera = Camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f);
+	EntityManager m_entityManager;
 };
