@@ -63,6 +63,11 @@ private:
 	};
 	CameraState m_cameraState;
 
+    bool m_cameraMouseControl = false;
+    float m_manualYaw = 0.0f;
+    float m_manualPitch = 10.0f;
+    float m_manualDistance = 10.0f;
+
 	// Game parameters
 	struct GameParameters
 	{

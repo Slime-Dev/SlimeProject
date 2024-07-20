@@ -30,10 +30,18 @@ set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
 # Link SlimeOdyssey library
 target_link_libraries(${PROJECT_NAME} PRIVATE SlimeOdyssey)
 
-# Add include directories for SlimeOdyssey
+# Add include directories for SlimeOdyssey and ImGui
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/../SlimeOdyssey/include
+        ${SLIME_INCLUDE_DIRS}
+)
+
+# Add ImGui-related compile definitions
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    VK_NO_PROTOTYPES
+    IMGUI_IMPL_VULKAN_DYNAMIC_LOADER=glfwGetInstanceProcAddress
+    IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+    IMGUI_DEFINE_MATH_OPERATORS
 )
 
 # Set output directories

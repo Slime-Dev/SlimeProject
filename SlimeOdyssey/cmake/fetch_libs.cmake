@@ -63,6 +63,7 @@ CPMFINDPACKAGE(
         NAME IMGUI
         GITHUB_REPOSITORY ocornut/imgui
         GIT_TAG v1.90.9-docking
+        DOWNLOAD_ONLY YES
         options
         "IMGUI_IMPL_VULKAN_NO_PROTOTYPES ON"
 )

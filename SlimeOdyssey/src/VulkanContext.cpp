@@ -538,12 +538,6 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-	if (scene)
-	{
-		scene->Render(*this, modelManager);
-		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
-	}
-
 	// Start the Dear ImGui frame
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
@@ -553,10 +547,11 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
 	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
 
-	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-	static bool showDemoWindow = true;
-	ImGui::ShowDemoWindow(&showDemoWindow);
-	ImGui::ShowDemoWindow(&showDemoWindow);
+	if (scene)
+	{
+		scene->Render(*this, modelManager);
+		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
+	}
 
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();

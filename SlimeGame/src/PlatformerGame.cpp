@@ -6,6 +6,7 @@
 #include "ModelManager.h"
 #include "SlimeWindow.h"
 #include "spdlog/spdlog.h"
+#include "imgui.h"
 
 PlatformerGame::PlatformerGame(SlimeWindow* window)
       : Scene(), m_window(window)
@@ -64,7 +65,34 @@ void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputM
 
 void PlatformerGame::Render(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
-	//modelManager.DrawModel()
+	// Light editor window
+	ImGui::Begin("Light Editor");
+	ImGui::SliderFloat3("Light Position", &m_pointLights.at(0).light.pos.x, -10.0f, 10.0f);
+	ImGui::ColorEdit3("Light Colour", &m_pointLights.at(0).light.colour.x);
+	ImGui::End();
+
+	// Cube editor window
+	ImGui::Begin("Cube Editor");
+	ImGui::SliderFloat3("Cube Position", &m_lightCube.modelMat[3].x, -10.0f, 10.0f);
+	ImGui::End();
+
+	ImGui::Begin("Camera Control");
+    
+    ImGui::Checkbox("Mouse Control", &m_cameraMouseControl);
+    
+    if (!m_cameraMouseControl)
+    {
+        ImGui::SliderFloat("Yaw", &m_manualYaw, -180.0f, 180.0f);
+        ImGui::SliderFloat("Pitch", &m_manualPitch, -89.0f, 89.0f);
+        ImGui::SliderFloat("Distance", &m_manualDistance, 1.0f, 20.0f);
+    }
+    
+    ImGui::Text("Current Camera State:");
+    ImGui::Text("Yaw: %.2f", m_cameraState.yaw);
+    ImGui::Text("Pitch: %.2f", m_cameraState.pitch);
+    ImGui::Text("Distance: %.2f", m_cameraState.distance);
+    
+    ImGui::End();
 }
 
 void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -229,17 +257,26 @@ void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)
 
 void PlatformerGame::UpdateCamera(float dt, const InputManager* inputManager)
 {
-	// Get mouse delta
-	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
+    if (m_cameraMouseControl)
+    {
+        // Existing mouse control logic
+        auto [mouseX, mouseY] = inputManager->GetMouseDelta();
 
-	// Scroll to zoom in/out
-	float scrollY = inputManager->GetScrollDelta();
-	m_cameraState.distance -= scrollY;
+        float mouseSensitivity = 0.1f;
+        m_cameraState.yaw += mouseX * mouseSensitivity;
+        m_cameraState.pitch += -mouseY * mouseSensitivity;
+    }
+    else
+    {
+        // Use manual controls
+        m_cameraState.yaw = m_manualYaw;
+        m_cameraState.pitch = m_manualPitch;
+        m_cameraState.distance = m_manualDistance;
+    }
 
-	// Update camera angles
-	float mouseSensitivity = 0.1f;
-	m_cameraState.yaw += mouseX * mouseSensitivity;
-	m_cameraState.pitch += -mouseY * mouseSensitivity;
+    // Scroll to zoom in/out (keep this for both modes)
+    float scrollY = inputManager->GetScrollDelta();
+    m_cameraState.distance -= scrollY;
 
 	// Clamp pitch to avoid flipping
 	m_cameraState.pitch = glm::clamp(m_cameraState.pitch, -89.0f, 89.0f);
