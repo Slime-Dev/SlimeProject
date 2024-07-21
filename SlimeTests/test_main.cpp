@@ -1,4 +1,5 @@
 #include <iostream>
+#include <stdexcept>
 #include "ResourcePathManager.h"
 #include "ModelManager.h"
 #include <spdlog/spdlog.h>
@@ -8,35 +9,52 @@ void LoadBunny() {
     ResourcePathManager resourcePathManager;
     ModelManager modelManager = ModelManager(resourcePathManager);
     auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
-    assert(bunnyMesh != NULL);
+    if (bunnyMesh == nullptr) {
+        throw std::runtime_error("Failed to load model 'Stanford-bunny.obj'");
+    }
 
-    assert(bunnyMesh->vertices.size() != 0);
+    if (bunnyMesh->vertices.size() == 0) {
+        throw std::runtime_error("Model 'Stanford-bunny.obj' has no vertices");
+    }
 
-    assert(bunnyMesh->indices.size() != 0);
+    if (bunnyMesh->indices.size() == 0) {
+        throw std::runtime_error("Model 'Stanford-bunny.obj' has no indices");
+    }
 }
 
 void LoadMonkey() {
     ResourcePathManager resourcePathManager;
     ModelManager modelManager = ModelManager(resourcePathManager);
     auto suzanneMesh = modelManager.LoadModel("suzanne.obj", "basic");
-    assert(suzanneMesh != NULL);
+    if (suzanneMesh == nullptr) {
+        throw std::runtime_error("Failed to load model 'suzanne.obj'");
+    }
 
-    assert(suzanneMesh->vertices.size() != 0);
+    if (suzanneMesh->vertices.size() == 0) {
+        throw std::runtime_error("Model 'suzanne.obj' has no vertices");
+    }
 
-    assert(suzanneMesh->indices.size() != 0);
+    if (suzanneMesh->indices.size() == 0) {
+        throw std::runtime_error("Model 'suzanne.obj' has no indices");
+    }
 }
 
 void LoadCube() {
     ResourcePathManager resourcePathManager;
     ModelManager modelManager = ModelManager(resourcePathManager);
     auto cubeMesh = modelManager.LoadModel("cube.obj", "basic");
-    assert(cubeMesh != NULL);
+    if (cubeMesh == nullptr) {
+        throw std::runtime_error("Failed to load model 'cube.obj'");
+    }
 
-    assert(cubeMesh->vertices.size() != 0);
+    if (cubeMesh->vertices.size() == 0) {
+        throw std::runtime_error("Model 'cube.obj' has no vertices");
+    }
 
-    assert(cubeMesh->indices.size() != 0);
+    if (cubeMesh->indices.size() == 0) {
+        throw std::runtime_error("Model 'cube.obj' has no indices");
+    }
 }
-
 
 int main() {
     try {
@@ -45,11 +63,11 @@ int main() {
         LoadCube();
     }
     catch (const std::exception& e) {
-        spdlog::info("Test failed with exception: {}", e.what());
+        spdlog::error("Test failed with exception: {}", e.what());
         return 1;
     }
     catch (...) {
-        spdlog::info("Unknown exception occurred during testing.");
+        spdlog::error("Unknown exception occurred during testing.");
         return 2;
     }
     spdlog::info("All Tests Passed!");
