@@ -28,6 +28,11 @@ layout(set = 0, binding = 1, scalar) uniform LightUBO {
 	float shininess;
 } light;
 
+layout(set = 0, binding = 2, scalar) uniform DebugUBO {
+    int debugMode; // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
+    bool useNormalMap; // Toggle normal mapping
+} debug;
+
 // Material
 layout(set = 1, binding = 0, scalar) uniform MaterialUBO {
     vec4 albedo;
@@ -41,11 +46,6 @@ layout(set = 1, binding = 2) uniform sampler2D normalMap;
 layout(set = 1, binding = 3) uniform sampler2D metallicMap;
 layout(set = 1, binding = 4) uniform sampler2D roughnessMap;
 layout(set = 1, binding = 5) uniform sampler2D aoMap;
-
-layout(set = 0, binding = 2, scalar) uniform DebugUBO {
-    int debugMode; // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
-    bool useNormalMap; // Toggle normal mapping
-} debug;
 
 vec3 calculateNormal() {
     if (!debug.useNormalMap) {

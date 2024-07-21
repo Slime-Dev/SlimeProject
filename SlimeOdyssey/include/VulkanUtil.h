@@ -153,6 +153,6 @@ namespace SlimeUtil
 		disp.cmdSetDepthTestEnable(cmd, VK_TRUE);
 		disp.cmdSetDepthWriteEnable(cmd, VK_TRUE);
 		disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
-		disp.cmdSetLineWidth(cmd, 10.0f);
+		disp.cmdSetLineWidth(cmd, 3.0f);
 	}
 }; // namespace SlimeUtil

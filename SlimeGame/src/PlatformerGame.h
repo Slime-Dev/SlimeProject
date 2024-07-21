@@ -25,7 +25,7 @@ public:
 
 private:
 	// Initialization methods
-	void InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager, std::shared_ptr<MaterialResource> material);
+	void InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager);
 	void SetupShaders(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
 
 	// Update methods

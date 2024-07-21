@@ -62,6 +62,7 @@ public:
 			return *std::static_pointer_cast<T>(it->second);
 		}
 		spdlog::error("Component of type '{}' not found for entity '{}'", typeid(T).name(), m_name);
+		throw;
 	}
 
 	template<typename T>

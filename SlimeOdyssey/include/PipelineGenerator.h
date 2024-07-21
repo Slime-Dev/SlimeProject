@@ -19,6 +19,7 @@ struct PipelineContainer
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
 	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 };
 
 class PipelineGenerator
@@ -35,6 +36,7 @@ public:
 	void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
 	void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
 	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
+	void SetPolygonMode(VkPolygonMode polygonMode);
 
 	void Generate();
 
@@ -66,6 +68,8 @@ private:
 	VkPipelineColorBlendAttachmentState m_colorBlendAttachment{};
 	VkPipelineColorBlendStateCreateInfo m_colorBlending{};
 	VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
+
+	VkPolygonMode m_vkPolygonMode = VK_POLYGON_MODE_FILL;
 
 	PipelineContainer m_pipelineContainer;
 

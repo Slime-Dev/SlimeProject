@@ -872,7 +872,7 @@ VmaAllocator VulkanContext::GetAllocator() const
 	return m_allocator;
 }
 
-const vkb::DispatchTable& VulkanContext::GetDispatchTable()
+vkb::DispatchTable& VulkanContext::GetDispatchTable()
 {
 	return m_disp;
 }

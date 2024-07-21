@@ -55,6 +55,7 @@ void PipelineGenerator::SetVertexInputState(const std::vector<VkVertexInputAttri
 void PipelineGenerator::SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts)
 {
 	m_descriptorSetLayouts = descriptorSetLayouts;
+	m_pipelineContainer.descriptorSetLayouts = descriptorSetLayouts;
 }
 
 void PipelineGenerator::SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges)
@@ -71,6 +72,11 @@ void PipelineGenerator::Generate()
 void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets)
 {
 	m_pipelineContainer.descriptorSets = descriptorSets;
+}
+
+void PipelineGenerator::SetPolygonMode(VkPolygonMode polygonMode)
+{
+	m_vkPolygonMode = polygonMode;
 }
 
 void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderResources& resources)
@@ -193,9 +199,9 @@ void PipelineGenerator::CreatePipeline()
 	m_rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	m_rasterizer.depthClampEnable = VK_FALSE;
 	m_rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	m_rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	m_rasterizer.polygonMode = m_vkPolygonMode;
 	m_rasterizer.lineWidth = 1.0f; // Set later dynamically
-	m_rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	m_rasterizer.cullMode = m_vkPolygonMode == VK_POLYGON_MODE_FILL ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
 	m_rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	m_rasterizer.depthBiasEnable = VK_FALSE;
 

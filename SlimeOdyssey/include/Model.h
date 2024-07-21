@@ -74,12 +74,21 @@ struct MaterialResource
 	bool disposed = false;
 };
 
+enum class MaterialType
+{
+	PBR,
+	LINE,
+	COUNT
+};
+
 struct Material : public Component
 {
 	Material() = default;
 	Material(MaterialResource* material)
 	      : materialResource(material){};
-	MaterialResource* materialResource;
+	MaterialResource* materialResource = nullptr;
+
+	MaterialType type = MaterialType::COUNT;
 	void ImGuiDebug();
 };
 

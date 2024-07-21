@@ -36,7 +36,7 @@ public:
 	VkQueue GetPresentQueue() const;
 	VkCommandPool GetCommandPool() const;
 	VmaAllocator GetAllocator() const;
-	const vkb::DispatchTable& GetDispatchTable();
+	vkb::DispatchTable& GetDispatchTable();
 
 	// Helper methods
 	int CreateSwapchain(SlimeWindow* window); // Needs to be public for window resize callback

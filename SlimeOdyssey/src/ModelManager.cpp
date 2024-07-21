@@ -606,6 +606,331 @@ void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQ
 	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
+void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, VkPolygonMode polygonMode)
+{
+	if (m_pipelines.contains(pipelineName))
+	{
+		spdlog::error("Pipeline with that name already exists.");
+		return;
+	}
+
+	// Load and parse shaders
+	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
+	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
+	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+
+	// Set up descriptor set layout
+	std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkDescriptorSetLayoutCreateInfo>> descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
+
+	PipelineGenerator pipelineGenerator(vulkanContext);
+	pipelineGenerator.SetName(pipelineName);
+	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
+	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts.first);
+	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+	pipelineGenerator.SetPolygonMode(polygonMode);
+	pipelineGenerator.Generate();
+
+	// Descriptor set layout
+	descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts.first);
+	std::vector<VkDescriptorSet> descriptorSets;
+	for (int i = descriptorSetLayouts.first.size() - 1; i >= 0; i--)
+	{
+		descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
+	}
+	// Sort the descriptor sets in the order of the layout
+	std::reverse(descriptorSets.begin(), descriptorSets.end());
+	pipelineGenerator.SetDescriptorSets(descriptorSets);
+
+	m_pipelines[pipelineName] = pipelineGenerator.GetPipelineContainer();
+}
+
+ModelResource* ModelManager::CreateDebugWireGround(VmaAllocator allocator, float size, int divisions)
+{
+	std::string name = "debug_wire" + std::to_string(size) + "_" + std::to_string(divisions); 
+	if (m_modelResources.contains(name))
+	{
+		return &m_modelResources[name];
+	}
+
+	ModelResource model;
+	model.pipeLineName = "debug_wire";
+
+// Calculate the step size
+	float step = size / divisions;
+
+	// Create vertices
+	for (int i = 0; i <= divisions; ++i)
+	{
+		for (int j = 0; j <= divisions; ++j)
+		{
+			float x = -size / 2 + i * step;
+			float z = -size / 2 + j * step;
+			Vertex vertex;
+			vertex.pos = glm::vec3(x, 0.0f, z);
+			vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+			vertex.texCoord = glm::vec2(static_cast<float>(i) / divisions, static_cast<float>(j) / divisions);
+			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+			vertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
+			model.vertices.push_back(vertex);
+		}
+	}
+
+	// Create indices for triangles
+	for (int i = 0; i < divisions; ++i)
+	{
+		for (int j = 0; j < divisions; ++j)
+		{
+			int topLeft = i * (divisions + 1) + j;
+			int topRight = topLeft + 1;
+			int bottomLeft = (i + 1) * (divisions + 1) + j;
+			int bottomRight = bottomLeft + 1;
+
+			// First triangle
+			model.indices.push_back(topLeft);
+			model.indices.push_back(bottomLeft);
+			model.indices.push_back(topRight);
+
+			// Second triangle
+			model.indices.push_back(topRight);
+			model.indices.push_back(bottomLeft);
+			model.indices.push_back(bottomRight);
+		}
+	}
+
+	m_modelResources[name] = std::move(model);
+	spdlog::info("{} generated.", name);
+
+	return &m_modelResources[name];
+}
+
+ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
+{
+	std::string name = "debug_cube" + std::to_string(size);
+	if (m_modelResources.contains(name))
+	{
+		return &m_modelResources[name];
+	}
+
+    ModelResource model;
+    model.pipeLineName = "default"; // Assume a default pipeline for basic shapes can be cahnged after
+
+    float halfSize = size / 2.0f;
+
+    // Define the 8 vertices of the cube
+    std::vector<glm::vec3> positions = {
+        {-halfSize, -halfSize, -halfSize}, {halfSize, -halfSize, -halfSize},
+        {halfSize, halfSize, -halfSize}, {-halfSize, halfSize, -halfSize},
+        {-halfSize, -halfSize, halfSize}, {halfSize, -halfSize, halfSize},
+        {halfSize, halfSize, halfSize}, {-halfSize, halfSize, halfSize}
+    };
+
+    // Define the 6 face normals
+    std::vector<glm::vec3> normals = {
+        {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f},
+        {1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}
+    };
+
+    // Define the indices for each face of the cube
+    std::vector<uint32_t> cubeIndices = {
+        0, 1, 2, 2, 3, 0,  // Front face
+        4, 5, 6, 6, 7, 4,  // Back face
+        1, 5, 6, 6, 2, 1,  // Right face
+        0, 4, 7, 7, 3, 0,  // Left face
+        3, 2, 6, 6, 7, 3,  // Top face
+        0, 1, 5, 5, 4, 0   // Bottom face
+    };
+
+    // Create vertices
+    for (int face = 0; face < 6; ++face)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            Vertex vertex;
+            vertex.pos = positions[cubeIndices[face * 6 + i]];
+            vertex.normal = normals[face];
+            vertex.texCoord = glm::vec2((i & 1) ? 1.0f : 0.0f, (i & 2) ? 1.0f : 0.0f);
+            // Simple tangent space calculation (not accurate for all faces)
+            vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+            vertex.bitangent = glm::cross(vertex.normal, vertex.tangent);
+            model.vertices.push_back(vertex);
+        }
+    }
+
+    // Create indices
+    model.indices = cubeIndices;
+
+	m_modelResources[name] = std::move(model);
+	spdlog::info("{} generated.", name);
+
+	return &m_modelResources[name];
+}
+
+ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, int segments, int rings)
+{
+	std::string name = "debug_sphere" + std::to_string(radius) + "_" + std::to_string(segments) + "_" + std::to_string(rings);
+	if (m_modelResources.contains(name))
+	{
+		return &m_modelResources[name];
+	}
+
+	ModelResource model;
+	model.pipeLineName = "basic";
+
+	for (int ring = 0; ring <= rings; ++ring)
+	{
+		float theta = ring * glm::pi<float>() / rings;
+		float sinTheta = std::sin(theta);
+		float cosTheta = std::cos(theta);
+
+		for (int segment = 0; segment <= segments; ++segment)
+		{
+			float phi = segment * 2 * glm::pi<float>() / segments;
+			float sinPhi = std::sin(phi);
+			float cosPhi = std::cos(phi);
+
+			float x = cosPhi * sinTheta;
+			float y = cosTheta;
+			float z = sinPhi * sinTheta;
+
+			Vertex vertex;
+			vertex.pos = glm::vec3(x, y, z) * radius;
+			vertex.normal = glm::vec3(x, y, z);
+			vertex.texCoord = glm::vec2(static_cast<float>(segment) / segments, static_cast<float>(ring) / rings);
+			vertex.tangent = glm::normalize(glm::vec3(-z, 0, x));
+			vertex.bitangent = glm::cross(vertex.normal, vertex.tangent);
+
+			model.vertices.push_back(vertex);
+		}
+	}
+
+	for (int ring = 0; ring < rings; ++ring)
+	{
+		for (int segment = 0; segment < segments; ++segment)
+		{
+			int current = ring * (segments + 1) + segment;
+			int next = current + segments + 1;
+
+			model.indices.push_back(current);
+			model.indices.push_back(next);
+			model.indices.push_back(current + 1);
+
+			model.indices.push_back(current + 1);
+			model.indices.push_back(next);
+			model.indices.push_back(next + 1);
+		}
+	}
+
+	m_modelResources[name] = std::move(model);
+	spdlog::info("{} generated.", name);
+
+	return &m_modelResources[name];	
+}
+
+ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius, float height, int segments)
+{
+	std::string name = "debug_cylinder" + std::to_string(radius) + "_" + std::to_string(height) + "_" + std::to_string(segments);
+	if (m_modelResources.contains(name))
+	{
+		return &m_modelResources[name];
+	}
+
+	ModelResource model;
+	model.pipeLineName = "debug_wire";
+
+	float halfHeight = height / 2.0f;
+
+	// Create vertices for the sides
+	for (int i = 0; i <= segments; ++i)
+	{
+		float angle = i * 2 * glm::pi<float>() / segments;
+		float x = std::cos(angle) * radius;
+		float z = std::sin(angle) * radius;
+
+		glm::vec3 normal(x, 0.0f, z);
+		normal = glm::normalize(normal);
+
+		// Bottom vertex
+		Vertex bottomVertex;
+		bottomVertex.pos = glm::vec3(x, -halfHeight, z);
+		bottomVertex.normal = normal;
+		bottomVertex.texCoord = glm::vec2(static_cast<float>(i) / segments, 0.0f);
+		bottomVertex.tangent = glm::vec3(-z, 0.0f, x);
+		bottomVertex.bitangent = glm::cross(bottomVertex.normal, bottomVertex.tangent);
+		model.vertices.push_back(bottomVertex);
+
+		// Top vertex
+		Vertex topVertex = bottomVertex;
+		topVertex.pos.y = halfHeight;
+		topVertex.texCoord.y = 1.0f;
+		model.vertices.push_back(topVertex);
+	}
+
+	// Create indices for the sides
+	for (int i = 0; i < segments; ++i)
+	{
+		int current = i * 2;
+		int next = (i + 1) * 2;
+
+		model.indices.push_back(current);
+		model.indices.push_back(next);
+		model.indices.push_back(current + 1);
+
+		model.indices.push_back(current + 1);
+		model.indices.push_back(next);
+		model.indices.push_back(next + 1);
+	}
+
+	// Create vertices and indices for the top and bottom caps
+	for (int cap = 0; cap < 2; ++cap)
+	{
+		int centerIndex = model.vertices.size();
+		Vertex centerVertex;
+		centerVertex.pos = glm::vec3(0.0f, cap == 0 ? -halfHeight : halfHeight, 0.0f);
+		centerVertex.normal = glm::vec3(0.0f, cap == 0 ? -1.0f : 1.0f, 0.0f);
+		centerVertex.texCoord = glm::vec2(0.5f, 0.5f);
+		centerVertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+		centerVertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
+		model.vertices.push_back(centerVertex);
+
+		for (int i = 0; i <= segments; ++i)
+		{
+			float angle = i * 2 * glm::pi<float>() / segments;
+			float x = std::cos(angle) * radius;
+			float z = std::sin(angle) * radius;
+
+			Vertex vertex = centerVertex;
+			vertex.pos = glm::vec3(x, centerVertex.pos.y, z);
+			vertex.texCoord = glm::vec2((std::cos(angle) + 1.0f) / 2.0f, (std::sin(angle) + 1.0f) / 2.0f);
+			model.vertices.push_back(vertex);
+
+			if (i < segments)
+			{
+				if (cap == 0)
+				{
+					model.indices.push_back(centerIndex);
+					model.indices.push_back(centerIndex + i + 1);
+					model.indices.push_back(centerIndex + i + 2);
+				}
+				else
+				{
+					model.indices.push_back(centerIndex);
+					model.indices.push_back(centerIndex + i + 2);
+					model.indices.push_back(centerIndex + i + 1);
+				}
+			}
+		}
+	}
+
+	m_modelResources[name] = std::move(model);
+	spdlog::info("{} generated.", name);
+
+	return &m_modelResources[name];
+}
+
 int ModelManager::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model)
 {
 	VkDeviceSize offsets[] = { 0 };
