@@ -2,6 +2,9 @@
 
 SlimeProject is a game development project consisting of two main components: SlimeOdyssey (a game engine library) and SlimeGame (a game using the SlimeOdyssey engine).
 
+![image](https://github.com/user-attachments/assets/be0031a9-1443-4b8e-a600-4aa9e0f7ca75)
+
+
 ## Project Structure
 
 ```
