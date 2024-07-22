@@ -39,6 +39,7 @@ public:
 	void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
 	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
 	void SetDepthTestEnabled(bool enabled);
+	void SetCullMode(VkCullModeFlags mode);
 	void SetPolygonMode(VkPolygonMode polygonMode);
 
 	void Generate();
@@ -75,9 +76,11 @@ private:
 	VkPolygonMode m_vkPolygonMode = VK_POLYGON_MODE_FILL;
 
 	bool m_dephtestEnabled = true;
+	VkCullModeFlags m_cullMode = VK_CULL_MODE_BACK_BIT;
 
 	PipelineContainer m_pipelineContainer;
 
 	void CreatePipelineLayout();
 	void CreatePipeline();
+
 };

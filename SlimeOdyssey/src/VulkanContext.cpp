@@ -81,7 +81,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 	// Create instance with VK_KHR_dynamic_rendering extension
 	spdlog::info("Creating Vulkan instance...");
-	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME };
+	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
 
 	vkb::InstanceBuilder instance_builder;
 	auto instance_ret = instance_builder.enable_extensions(deviceExtensions).request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
@@ -124,7 +124,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	VkPhysicalDeviceVulkan11Features features11 = {};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 	features11.multiview = VK_TRUE;
-
+	
 	VkPhysicalDeviceFeatures features = {};
 	features.fillModeNonSolid = VK_TRUE;
 	features.wideLines = VK_TRUE;
@@ -608,7 +608,7 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
+	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 0.0f } } };
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;

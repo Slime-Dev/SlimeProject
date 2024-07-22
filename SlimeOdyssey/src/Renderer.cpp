@@ -30,10 +30,6 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 	UpdateCommonBuffers(debugUtils, allocator, cmd, scene);
 
-	Camera& camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
-	PipelineContainer& infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
-	DrawInfiniteGrid(disp, cmd, camera, infiniteGridPipeline.pipeline, infiniteGridPipeline.pipelineLayout);
-
 	EntityManager& entityManager = scene->m_entityManager;
 	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Material, Transform>();
 
@@ -80,6 +76,10 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 		debugUtils.EndDebugMarker(cmd);
 	}
+
+	Camera& camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	PipelineContainer& infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
+	DrawInfiniteGrid(disp, cmd, camera, infiniteGridPipeline.pipeline, infiniteGridPipeline.pipelineLayout);
 
 	debugUtils.EndDebugMarker(cmd);
 }
@@ -149,6 +149,8 @@ void Renderer::BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd
 		return;
 	}
 	
+	// If we only have 1 type of descriptorset layouts then this will cause alot of validation layer errors
+	// TODO: Look into this
 	if (m_boundDescriptorSet == descSets[0])
 	{
 		return;

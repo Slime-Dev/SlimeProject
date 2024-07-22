@@ -70,14 +70,35 @@ void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputM
 		return;
 	}
 
+	// Toggle fly cam with 'F' key
+	if (inputManager->IsKeyJustPressed(GLFW_KEY_F))
+	{
+		m_flyCamEnabled = !m_flyCamEnabled;
+		if (m_flyCamEnabled)
+		{
+			m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
+		}
+		else
+		{
+			m_window->SetCursorMode(GLFW_CURSOR_NORMAL);
+		}
+	}
+
 	PointLight& light = m_entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>().light;
 	auto& lightCubeTransform = m_lightCube->AddComponent<Transform>();
 	lightCubeTransform.position = light.pos;
 
-	UpdatePlayer(dt, inputManager);
-	UpdateCamera(dt, inputManager);
-	CheckCollisions();
-	CheckWinCondition();
+	if (m_flyCamEnabled)
+	{
+		UpdateFlyCam(dt, inputManager);
+	}
+	else
+	{
+		UpdatePlayer(dt, inputManager);
+		UpdateCamera(dt, inputManager);
+		CheckCollisions();
+		CheckWinCondition();
+	}
 
 	// Update obstacle rotation
 	m_obstacle->GetComponent<Transform>().rotation = glm::vec3(0.0f, 1.0f, 0.0f) * dt;
@@ -92,9 +113,19 @@ void PlatformerGame::Render(VulkanContext& vulkanContext, ModelManager& modelMan
 {
 	ImGui::Begin("Scene Controls");
 	ImGui::Text("WASD to move, Space to jump");
+	ImGui::Text("F to toggle fly cam");
 	ImGui::Text("Escape to quit");
 	ImGui::Separator();
-	// Toogle camera control mode
+	// Toggle fly cam
+	ImGui::Checkbox("Fly Cam Enabled", &m_flyCamEnabled);
+	if (m_flyCamEnabled)
+	{
+		ImGui::Text("Fly Cam Controls:");
+		ImGui::Text("WASD - Move, E/Q - Up/Down");
+		ImGui::Text("Mouse - Look around");
+	}
+	ImGui::Separator();
+	// Existing camera control toggle
 	if (ImGui::Checkbox("Camera Mouse Control", &m_cameraMouseControl))
 	{
 		if (m_cameraMouseControl)
@@ -158,8 +189,9 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	auto cubeMesh = modelManager.LoadModel("cube.obj", pipelineName);
 	modelManager.CreateBuffersForMesh(allocator, *cubeMesh);
 
-	auto debugMesh = modelManager.CreateLinePlane(allocator);
+	auto debugMesh = modelManager.CreateCube(allocator);
 	modelManager.CreateBuffersForMesh(allocator, *debugMesh);
+	debugMesh->pipeLineName = "debug_wire";
 
 	// Initialize player
 	m_player->AddComponent<Model>(bunnyMesh);
@@ -192,18 +224,17 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	lightCubeTransform.position = light.pos;
 
 	// Debug ground
-	Entity debugGround = Entity("DebugGround");
+	Entity debugGround = Entity("DebugCube");
 	debugGround.AddComponent<Model>(debugMesh);
 	debugGround.AddComponent<Material>().type = MaterialType::LINE;
 	auto& debugGroundTransform = debugGround.AddComponent<Transform>();
-	debugGroundTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-	debugGroundTransform.scale = glm::vec3(20.0f, 0.5f, 20.0f);
 	m_entityManager.AddEntity(debugGround);
-	
+	debugGroundTransform.position = glm::vec3(-4.0f, 0.0f, -4.0f);
+	debugGroundTransform.scale = glm::vec3(4.0f, 1.0f, 4.0f);
 
 	m_entityManager.AddEntity(m_player);
 	m_entityManager.AddEntity(m_obstacle);
-	m_entityManager.AddEntity(m_ground);
+	//m_entityManager.AddEntity(m_ground);
 	m_entityManager.AddEntity(m_lightCube);
 }
 
@@ -215,10 +246,10 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 	modelManager.CreatePipeline("basic", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"), true);
 
 	// Set up a debug_wire pipeline
-	modelManager.CreatePipeline("debug_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true, VK_POLYGON_MODE_LINE);
-	
+	modelManager.CreatePipeline("debug_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true, VK_CULL_MODE_NONE, VK_POLYGON_MODE_LINE);
+
 	// Set up InfiniteGrid pipeline
-	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("grid.vert.spv"), resourcePaths.GetShaderPath("grid.frag.spv"), true);
+	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("grid.vert.spv"), resourcePaths.GetShaderPath("grid.frag.spv"), false, VK_CULL_MODE_NONE);
 }
 
 void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)
@@ -394,6 +425,50 @@ void PlatformerGame::UpdateCamera(float dt, const InputManager* inputManager)
 		auto& camera = cameraEntity->GetComponent<Camera>();
 		camera.SetPosition(m_cameraState.position);
 		camera.SetTarget(playerTransform.position + glm::vec3(0.0f, 1.0f, 0.0f));
+	}
+}
+
+void PlatformerGame::UpdateFlyCam(float dt, const InputManager* inputManager)
+{
+	float moveSpeed = 10.0f * dt;
+	float mouseSensitivity = 0.1f;
+
+	// Mouse look
+	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
+	m_flyCamYaw += mouseX * mouseSensitivity;
+	m_flyCamPitch -= mouseY * mouseSensitivity;
+	m_flyCamPitch = glm::clamp(m_flyCamPitch, -89.0f, 89.0f);
+
+	// Calculate front, right, and up vectors
+	glm::vec3 front;
+	front.x = cos(glm::radians(m_flyCamYaw)) * cos(glm::radians(m_flyCamPitch));
+	front.y = sin(glm::radians(m_flyCamPitch));
+	front.z = sin(glm::radians(m_flyCamYaw)) * cos(glm::radians(m_flyCamPitch));
+	glm::vec3 flyCamFront = glm::normalize(front);
+	glm::vec3 flyCamRight = glm::normalize(glm::cross(flyCamFront, glm::vec3(0.0f, 1.0f, 0.0f)));
+	glm::vec3 flyCamUp = glm::normalize(glm::cross(flyCamRight, flyCamFront));
+
+	// Movement
+	if (inputManager->IsKeyPressed(GLFW_KEY_W))
+		m_flyCamPosition += flyCamFront * moveSpeed;
+	if (inputManager->IsKeyPressed(GLFW_KEY_S))
+		m_flyCamPosition -= flyCamFront * moveSpeed;
+	if (inputManager->IsKeyPressed(GLFW_KEY_A))
+		m_flyCamPosition -= flyCamRight * moveSpeed;
+	if (inputManager->IsKeyPressed(GLFW_KEY_D))
+		m_flyCamPosition += flyCamRight * moveSpeed;
+	if (inputManager->IsKeyPressed(GLFW_KEY_E))
+		m_flyCamPosition += flyCamUp * moveSpeed;
+	if (inputManager->IsKeyPressed(GLFW_KEY_Q))
+		m_flyCamPosition -= flyCamUp * moveSpeed;
+
+	// Update camera
+	auto cameraEntity = m_entityManager.GetEntityByName("MainCamera");
+	if (cameraEntity)
+	{
+		auto& camera = cameraEntity->GetComponent<Camera>();
+		camera.SetPosition(m_flyCamPosition);
+		camera.SetTarget(m_flyCamPosition + flyCamFront);
 	}
 }
 

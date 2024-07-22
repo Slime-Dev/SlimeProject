@@ -203,7 +203,7 @@ void PipelineGenerator::CreatePipeline()
 	m_rasterizer.rasterizerDiscardEnable = VK_FALSE;
 	m_rasterizer.polygonMode = m_vkPolygonMode;
 	m_rasterizer.lineWidth = 1.0f; // Set later dynamically
-	m_rasterizer.cullMode = m_vkPolygonMode == VK_POLYGON_MODE_FILL ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
+	m_rasterizer.cullMode = m_cullMode;
 	m_rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	m_rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -275,4 +275,9 @@ void PipelineGenerator::CreatePipeline()
 void PipelineGenerator::SetDepthTestEnabled(bool enabled)
 {
 	m_dephtestEnabled = enabled;
+}
+
+void PipelineGenerator::SetCullMode(VkCullModeFlags mode)
+{
+	m_cullMode = mode;
 }

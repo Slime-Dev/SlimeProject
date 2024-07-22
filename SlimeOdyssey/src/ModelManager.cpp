@@ -1,9 +1,9 @@
 #include "ModelManager.h"
 
-#include <VulkanContext.h>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <vk_mem_alloc.h>
+#include <VulkanContext.h>
 
 // Assuming we're using tinyobj for model loading
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -268,7 +268,7 @@ void ModelManager::CreateBuffersForMesh(VmaAllocator allocator, ModelResource& m
 {
 	// Create vertex and index buffers
 	SlimeUtil::CreateBuffer("Vertex Buffer", allocator, model.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.vertexBuffer, model.vertexAllocation);
-	SlimeUtil::CreateBuffer("Index Buffer",  allocator, model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
+	SlimeUtil::CreateBuffer("Index Buffer", allocator, model.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, model.indexBuffer, model.indexAllocation);
 
 	// Copy vertex and index data to buffers
 	void* data;
@@ -606,7 +606,7 @@ void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQ
 	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
-void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkPolygonMode polygonMode)
+void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode, VkPolygonMode polygonMode)
 {
 	if (m_pipelines.contains(pipelineName))
 	{
@@ -632,6 +632,7 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
 	pipelineGenerator.SetPolygonMode(polygonMode);
 	pipelineGenerator.SetDepthTestEnabled(depthTestEnabled);
+	pipelineGenerator.SetCullMode(cullMode);
 	pipelineGenerator.Generate();
 
 	// Descriptor set layout
@@ -687,14 +688,14 @@ ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 
 ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int divisions)
 {
-	std::string name = "plane" + std::to_string(size) + "_" + std::to_string(divisions); 
+	std::string name = "plane" + std::to_string(size) + "_" + std::to_string(divisions);
 	if (m_modelResources.contains(name))
 	{
 		return &m_modelResources[name];
 	}
 
 	ModelResource model;
-	model.pipeLineName = "default";
+	model.pipeLineName = "basic";
 
 	// Calculate the step size
 	float step = size / divisions;
@@ -752,54 +753,87 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 		return &m_modelResources[name];
 	}
 
-    ModelResource model;
-    model.pipeLineName = "default"; // Assume a default pipeline for basic shapes can be cahnged after
+	ModelResource model;
+	model.pipeLineName = "basic"; // Assume a default pipeline for basic shapes can be cahnged after
 
-    float halfSize = size / 2.0f;
+	float halfSize = size / 2.0f;
 
-    // Define the 8 vertices of the cube
-    std::vector<glm::vec3> positions = {
-        {-halfSize, -halfSize, -halfSize}, {halfSize, -halfSize, -halfSize},
-        {halfSize, halfSize, -halfSize}, {-halfSize, halfSize, -halfSize},
-        {-halfSize, -halfSize, halfSize}, {halfSize, -halfSize, halfSize},
-        {halfSize, halfSize, halfSize}, {-halfSize, halfSize, halfSize}
-    };
+	    // Define the 8 vertices of the cube
+	std::vector<glm::vec3> positions = {
+		{-halfSize, -halfSize, -halfSize}, // 0: left-bottom-front
+		{ halfSize, -halfSize, -halfSize}, // 1: right-bottom-front
+		{ halfSize,  halfSize, -halfSize}, // 2: right-top-front
+		{-halfSize,  halfSize, -halfSize}, // 3: left-top-front
+		{-halfSize, -halfSize,  halfSize}, // 4: left-bottom-back
+		{ halfSize, -halfSize,  halfSize}, // 5: right-bottom-back
+		{ halfSize,  halfSize,  halfSize}, // 6: right-top-back
+		{-halfSize,  halfSize,  halfSize}  // 7: left-top-back
+	};
 
-    // Define the 6 face normals
-    std::vector<glm::vec3> normals = {
-        {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f},
-        {1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}
-    };
+	// Define the 6 face normals
+	std::vector<glm::vec3> normals = {
+		{ 0.0f,  0.0f, -1.0f},
+        { 0.0f,  0.0f,  1.0f},
+        { 1.0f,  0.0f,  0.0f},
+        {-1.0f,  0.0f,  0.0f},
+        { 0.0f,  1.0f,  0.0f},
+        { 0.0f, -1.0f,  0.0f}
+	};
 
-    // Define the indices for each face of the cube
-    std::vector<uint32_t> cubeIndices = {
-        0, 1, 2, 2, 3, 0,  // Front face
-        4, 5, 6, 6, 7, 4,  // Back face
-        1, 5, 6, 6, 2, 1,  // Right face
-        0, 4, 7, 7, 3, 0,  // Left face
-        3, 2, 6, 6, 7, 3,  // Top face
-        0, 1, 5, 5, 4, 0   // Bottom face
-    };
+	// Define the vertices for each face
+	const int faceVertices[6][4] = {
+		{0, 1, 2, 3}, // Front face
+		{4, 5, 6, 7}, // Back face
+		{1, 5, 6, 2}, // Right face
+		{0, 4, 7, 3}, // Left face
+		{3, 2, 6, 7}, // Top face
+		{0, 1, 5, 4}  // Bottom face
+	};
 
-    // Create vertices
-    for (int face = 0; face < 6; ++face)
-    {
-        for (int i = 0; i < 4; ++i)
-        {
-            Vertex vertex;
-            vertex.pos = positions[cubeIndices[face * 6 + i]];
-            vertex.normal = normals[face];
-            vertex.texCoord = glm::vec2((i & 1) ? 1.0f : 0.0f, (i & 2) ? 1.0f : 0.0f);
-            // Simple tangent space calculation (not accurate for all faces)
-            vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-            vertex.bitangent = glm::cross(vertex.normal, vertex.tangent);
-            model.vertices.push_back(vertex);
-        }
-    }
+    // Create vertices and indices
+	std::vector<uint32_t> newIndices;
+	uint32_t vertexCount = 0;
 
-    // Create indices
-    model.indices = cubeIndices;
+	for (int face = 0; face < 6; ++face)
+	{
+		for (int i = 0; i < 4; ++i) // 4 vertices per face
+		{
+			Vertex vertex;
+			vertex.pos = positions[faceVertices[face][i]];
+			vertex.normal = normals[face];
+			vertex.texCoord = glm::vec2((i & 1) ? 1.0f : 0.0f, (i & 2) ? 1.0f : 0.0f);
+
+			// Improved tangent space calculation
+			glm::vec3 tangent, bitangent;
+			if (face % 2 == 0)
+			{ // even faces
+				tangent = glm::vec3(0.0f, 1.0f, 0.0f);
+				bitangent = glm::cross(normals[face], tangent);
+			}
+			else
+			{ // odd faces
+				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+				bitangent = glm::cross(normals[face], tangent);
+			}
+			vertex.tangent = tangent;
+			vertex.bitangent = bitangent;
+
+			model.vertices.push_back(vertex);
+			vertexCount++;
+		}
+
+		// Add indices for two triangles
+		newIndices.push_back(vertexCount - 4);
+		newIndices.push_back(vertexCount - 3);
+		newIndices.push_back(vertexCount - 2);
+
+		newIndices.push_back(vertexCount - 4);
+		newIndices.push_back(vertexCount - 2);
+		newIndices.push_back(vertexCount - 1);
+	}
+
+	// Assign the new indices to the model
+	model.indices = newIndices;
 
 	m_modelResources[name] = std::move(model);
 	spdlog::info("{} generated.", name);
@@ -865,7 +899,7 @@ ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, 
 	m_modelResources[name] = std::move(model);
 	spdlog::info("{} generated.", name);
 
-	return &m_modelResources[name];	
+	return &m_modelResources[name];
 }
 
 ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius, float height, int segments)
@@ -877,7 +911,7 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	}
 
 	ModelResource model;
-	model.pipeLineName = "debug_wire";
+	model.pipeLineName = "basic";
 
 	float halfHeight = height / 2.0f;
 

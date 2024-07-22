@@ -6,7 +6,6 @@ layout(location = 2) in vec3 nearPoint;
 layout(location = 3) in vec3 farPoint;
 layout(location = 4) in mat4 fragView;
 layout(location = 8) in mat4 fragProj;
-
 layout(location = 0) out vec4 outColor;
 
 vec4 grid(vec3 fragPos3D, float scale, bool drawAxis) {
@@ -25,16 +24,19 @@ vec4 grid(vec3 fragPos3D, float scale, bool drawAxis) {
         color.x = 1.0;
     return color;
 }
+
 float computeDepth(vec3 pos) {
     vec4 clip_space_pos = fragProj * fragView * vec4(pos.xyz, 1.0);
     return (clip_space_pos.z / clip_space_pos.w);
 }
+
 float computeLinearDepth(vec3 pos) {
     vec4 clip_space_pos = fragProj * fragView * vec4(pos.xyz, 1.0);
     float clip_space_depth = (clip_space_pos.z / clip_space_pos.w) * 2.0 - 1.0; // put back between -1 and 1
     float linearDepth = (2.0 * near * far) / (far + near - clip_space_depth * (far - near)); // get linear value between 0.01 and 100
     return linearDepth / far; // normalize
 }
+
 void main() {
     float t = -nearPoint.y / (farPoint.y - nearPoint.y);
     vec3 fragPos3D = nearPoint + t * (farPoint - nearPoint);

@@ -13,7 +13,6 @@ layout(location = 3) out vec3 farPoint;
 layout(location = 4) out mat4 fragView;
 layout(location = 8) out mat4 fragProj;
 
-
 // Grid position are in clipped space
 vec3 gridPlane[6] = vec3[] (
     vec3(1, 1, 0), vec3(-1, -1, 0), vec3(-1, 1, 0),
@@ -28,13 +27,13 @@ vec3 UnprojectPoint(float x, float y, float z, mat4 view, mat4 projection) {
 }
 
 void main() {
-    vec3 p = gridPlane[gl_VertexIndex].xyz;
-	near = 0.01;
-	far = 100;
-	fragView = view.view;
-	fragProj = view.proj;
-    nearPoint = UnprojectPoint(p.x, p.y, near, view.view, view.proj).xyz; // unprojecting on the near plane
-    farPoint = UnprojectPoint(p.x, p.y, far, view.view, view.proj).xyz; // unprojecting on the far plane
+    near = 0.01;
+    far = 300.0;
+    fragView = view.view;
+    fragProj = view.proj;
 
-    gl_Position = vec4(p, 1.0); // grid position in clip space
+    vec3 p = gridPlane[gl_VertexIndex].xyz;
+    nearPoint = UnprojectPoint(p.x, p.y, 0.0, view.view, view.proj).xyz; // unprojecting on the near plane
+    farPoint = UnprojectPoint(p.x, p.y, 1.0, view.view, view.proj).xyz; // unprojecting on the far plane
+    gl_Position = vec4(p, 1.0); // using directly the clipped coordinates
 }
