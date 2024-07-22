@@ -1,14 +1,14 @@
 #pragma once
+#include <string>
 #include <vulkan/vulkan_core.h>
 
 #include "DescriptorManager.h"
-#include "vk_mem_alloc.h"
-#include <string>
 #include "Entity.h"
 #include "EntityManager.h"
 #include "Model.h"
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
+#include "vk_mem_alloc.h"
 
 class VulkanDebugUtils;
 class Camera;

@@ -1,20 +1,21 @@
 #include "Renderer.h"
 
-#include "VulkanContext.h"
+#include <Camera.h>
+#include <Light.h>
+
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
 #include "Scene.h"
-#include "VulkanUtil.h"
 #include "vk_mem_alloc.h"
-#include <Camera.h>
-#include <Light.h>
+#include "VulkanContext.h"
+#include "VulkanUtil.h"
 
 void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd)
 {
 	VkViewport viewport = { .x = 0.0f, .y = 0.0f, .width = static_cast<float>(swapchain.extent.width), .height = static_cast<float>(swapchain.extent.height), .minDepth = 0.0f, .maxDepth = 1.0f };
 
 	VkRect2D scissor = {
-		.offset = { 0, 0 },
+		.offset = {0, 0},
           .extent = swapchain.extent
 	};
 
@@ -38,9 +39,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	VkDescriptorSet lastBoundDescriptorSet = VK_NULL_HANDLE;
 
 	// Sort entities by pipeline name
-	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) {
-		return a->GetComponent<Model>().modelResource->pipeLineName < b->GetComponent<Model>().modelResource->pipeLineName;
-	});
+	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipeLineName < b->template GetComponent<Model>().modelResource->pipeLineName; });
 
 	for (const auto& entity: modelEntities)
 	{
@@ -148,14 +147,14 @@ void Renderer::BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd
 		spdlog::error("Mismatch in descriptor set count for pipeline: {}", pipelineContainer.name);
 		return;
 	}
-	
+
 	// If we only have 1 type of descriptorset layouts then this will cause alot of validation layer errors
 	// TODO: Look into this
 	if (m_boundDescriptorSet == descSets[0])
 	{
 		return;
 	}
-	
+
 	m_boundDescriptorSet = descSets[0];
 
 	// Bind all descriptor sets for the current pipeline
@@ -197,7 +196,6 @@ void Renderer::BindCommonDescriptors(EntityManager& entityManager, DescriptorMan
 	SlimeUtil::CopyStructToBuffer(m_shaderDebug, allocator, m_shaderDebugAllocation);
 	descriptorManager.BindBuffer(descSet, 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
 }
-
 
 void Renderer::BindMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, MaterialResource* material, VmaAllocator allocator)
 {
@@ -254,32 +252,26 @@ bool Renderer::LayoutIncludesShaderDebugBuffer(VkDescriptorSetLayout layout)
 	{
 		return false;
 	}
-	
+
 	return true;
 }
 
 void Renderer::DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout)
 {
-    disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gridPipeline);
+	disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gridPipeline);
 
-    struct GridPushConstants {
-        glm::mat4 view;
-        glm::mat4 projection;
-        glm::vec3 pos;
-    } pushConstants;
+	struct GridPushConstants
+	{
+		glm::mat4 view;
+		glm::mat4 projection;
+		glm::vec3 pos;
+	} pushConstants;
 
 	pushConstants.view = camera.GetViewMatrix();
 	pushConstants.projection = camera.GetProjectionMatrix();
 	pushConstants.pos = camera.GetPosition();
 
-    disp.cmdPushConstants(
-        commandBuffer,
-        gridPipelineLayout,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        0,
-        sizeof(GridPushConstants),
-        &pushConstants
-    );
+	disp.cmdPushConstants(commandBuffer, gridPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GridPushConstants), &pushConstants);
 
-    disp.cmdDraw(commandBuffer, 6, 1, 0, 0);
+	disp.cmdDraw(commandBuffer, 6, 1, 0, 0);
 }
