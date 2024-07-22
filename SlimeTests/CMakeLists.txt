@@ -28,40 +28,40 @@ file(GLOB_RECURSE SOURCES
 )
 
 # Create executable
-add_executable(SlimeTestOne test_main.cpp)
+add_executable(ModelLoading test_main.cpp)
 
 # Link SlimeOdyssey library
-target_link_libraries(SlimeTestOne PRIVATE SlimeOdyssey)
+target_link_libraries(ModelLoading PRIVATE SlimeOdyssey)
 
 # Add include directories for SlimeOdyssey
-target_include_directories(SlimeTestOne PRIVATE
+target_include_directories(ModelLoading PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/../SlimeOdyssey/include
 )
 
 # Set output directories
-set_target_properties(SlimeTestOne PROPERTIES
+set_target_properties(ModelLoading PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-add_test(NAME InitEngine COMMAND SlimeTestOne)
+add_test(NAME ModelTest COMMAND ModelLoading)
 
 # Create executable
-add_executable(SlimeTestTwo second_test.cpp)
+add_executable(CameraInitalizing second_test.cpp)
 
 # Link SlimeOdyssey library
-target_link_libraries(SlimeTestTwo PRIVATE SlimeOdyssey)
+target_link_libraries(CameraInitalizing PRIVATE SlimeOdyssey)
 
 # Add include directories for SlimeOdyssey
-target_include_directories(SlimeTestTwo PRIVATE
+target_include_directories(CameraInitalizing PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/../SlimeOdyssey/include
 )
 
 # Set output directories
-set_target_properties(SlimeTestTwo PROPERTIES
+set_target_properties(CameraInitalizing PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-add_test(NAME MathTest COMMAND SlimeTestTwo)
+add_test(NAME CameraTest COMMAND CameraInitalizing)
 
