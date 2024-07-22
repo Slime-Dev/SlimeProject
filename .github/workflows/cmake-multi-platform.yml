@@ -96,13 +96,6 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-      - name: List files in directory (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          directory="/home/runner/work/SlimeProject/SlimeProject/SlimeOdyssey/"
-          echo "Listing files in $directory:"
-          ls -R $directory
-
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
