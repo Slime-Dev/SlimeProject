@@ -114,3 +114,6 @@ set(PCH_HEADERS
 )
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE ${PCH_HEADERS})
+
+# set a variable so that any project that includes this project can use the include directories
+set(SLIME_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/external ${IMGUI_SOURCE_DIR} PARENT_SCOPE)

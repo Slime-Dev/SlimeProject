@@ -1,7 +1,3 @@
-//
-// Created by alexm on 4/07/24.
-//
-
 #pragma once
 
 #include <filesystem>
@@ -18,26 +14,26 @@ public:
 		Texture,
 		Sound,
 		Script,
-		Config
+		Config,
+		Font
 	};
 
-	ResourcePathManager();
-
-	std::string GetResourcePath(ResourceType type, const std::string& resourceName) const;
-	std::string GetRootDirectory();
+	static std::string GetResourcePath(ResourceType type, const std::string& resourceName);
+	static std::string GetRootDirectory();
 
 	// Helper methods for specific resource types
-	std::string GetShaderPath(const std::string& shaderName) const;
-	std::string GetModelPath(const std::string& modelName) const;
-	std::string GetTexturePath(const std::string& textureName) const;
-	std::string GetSoundPath(const std::string& soundName) const;
-	std::string GetScriptPath(const std::string& scriptName) const;
-	std::string GetConfigPath(const std::string& configName) const;
+	static std::string GetShaderPath(const std::string& shaderName);
+	static std::string GetModelPath(const std::string& modelName);
+	static std::string GetTexturePath(const std::string& textureName);
+	static std::string GetSoundPath(const std::string& soundName);
+	static std::string GetScriptPath(const std::string& scriptName);
+	static std::string GetConfigPath(const std::string& configName);
+	static std::string GetFontPath(const std::string& fontName);
 
 private:
-	std::string m_rootDirectory;
-	std::unordered_map<ResourceType, std::string> m_directories;
+	static std::string s_rootDirectory;
+	static std::unordered_map<ResourceType, std::string> s_directories;
 
-	std::string SetRootDirectory();
-	void InitializeDirectories();
+	static std::string SetRootDirectory();
+	static void InitializeDirectories();
 };

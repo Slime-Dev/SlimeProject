@@ -1,4 +1,6 @@
 #include "PipelineGenerator.h"
+#include "ModelManager.h"
+#include "DescriptorManager.h"
 
 #include <fstream>
 #include <stdexcept>
@@ -55,6 +57,7 @@ void PipelineGenerator::SetVertexInputState(const std::vector<VkVertexInputAttri
 void PipelineGenerator::SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts)
 {
 	m_descriptorSetLayouts = descriptorSetLayouts;
+	m_pipelineContainer.descriptorSetLayouts = descriptorSetLayouts;
 }
 
 void PipelineGenerator::SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges)
@@ -71,6 +74,11 @@ void PipelineGenerator::Generate()
 void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets)
 {
 	m_pipelineContainer.descriptorSets = descriptorSets;
+}
+
+void PipelineGenerator::SetPolygonMode(VkPolygonMode polygonMode)
+{
+	m_vkPolygonMode = polygonMode;
 }
 
 void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderResources& resources)
@@ -193,9 +201,9 @@ void PipelineGenerator::CreatePipeline()
 	m_rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	m_rasterizer.depthClampEnable = VK_FALSE;
 	m_rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	m_rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	m_rasterizer.polygonMode = m_vkPolygonMode;
 	m_rasterizer.lineWidth = 1.0f; // Set later dynamically
-	m_rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	m_rasterizer.cullMode = m_cullMode;
 	m_rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	m_rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -219,8 +227,8 @@ void PipelineGenerator::CreatePipeline()
 
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
 	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
-	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthTestEnable = m_dephtestEnabled;
+	depthStencilStateCreateInfo.depthWriteEnable = m_dephtestEnabled;
 	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
@@ -262,4 +270,14 @@ void PipelineGenerator::CreatePipeline()
 	}
 
 	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
+}
+
+void PipelineGenerator::SetDepthTestEnabled(bool enabled)
+{
+	m_dephtestEnabled = enabled;
+}
+
+void PipelineGenerator::SetCullMode(VkCullModeFlags mode)
+{
+	m_cullMode = mode;
 }

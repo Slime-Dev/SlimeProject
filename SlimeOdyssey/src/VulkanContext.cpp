@@ -81,7 +81,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 	// Create instance with VK_KHR_dynamic_rendering extension
 	spdlog::info("Creating Vulkan instance...");
-	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME };
+	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
 
 	vkb::InstanceBuilder instance_builder;
 	auto instance_ret = instance_builder.enable_extensions(deviceExtensions).request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
@@ -124,7 +124,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	VkPhysicalDeviceVulkan11Features features11 = {};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 	features11.multiview = VK_TRUE;
-
+	
 	VkPhysicalDeviceFeatures features = {};
 	features.fillModeNonSolid = VK_TRUE;
 	features.wideLines = VK_TRUE;
@@ -392,6 +392,104 @@ int VulkanContext::InitSyncObjects()
 	return 0;
 }
 
+void SetupImGuiStyle()
+{
+	ImGuiStyle& style = ImGui::GetStyle();
+	ImVec4* colors = style.Colors;
+
+	// Modern color palette with darker greys and green accent
+	ImVec4 bgDark = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
+	ImVec4 bgMid = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+	ImVec4 bgLight = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
+	ImVec4 accent = ImVec4(0.10f, 0.60f, 0.30f, 1.00f);
+	ImVec4 accentLight = ImVec4(0.20f, 0.70f, 0.40f, 1.00f);
+	ImVec4 textPrimary = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
+	ImVec4 textSecondary = ImVec4(0.70f, 0.70f, 0.70f, 1.00f);
+
+	// Set colors
+	colors[ImGuiCol_Text] = textPrimary;
+	colors[ImGuiCol_TextDisabled] = textSecondary;
+	colors[ImGuiCol_WindowBg] = bgDark;
+	colors[ImGuiCol_ChildBg] = bgMid;
+	colors[ImGuiCol_PopupBg] = bgMid;
+	colors[ImGuiCol_Border] = ImVec4(0.25f, 0.25f, 0.25f, 0.50f);
+	colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+	colors[ImGuiCol_FrameBg] = bgLight;
+	colors[ImGuiCol_FrameBgHovered] = accent;
+	colors[ImGuiCol_FrameBgActive] = accentLight;
+	colors[ImGuiCol_TitleBg] = bgMid;
+	colors[ImGuiCol_TitleBgActive] = accent;
+	colors[ImGuiCol_TitleBgCollapsed] = bgDark;
+	colors[ImGuiCol_MenuBarBg] = bgMid;
+	colors[ImGuiCol_ScrollbarBg] = bgDark;
+	colors[ImGuiCol_ScrollbarGrab] = bgLight;
+	colors[ImGuiCol_ScrollbarGrabHovered] = accent;
+	colors[ImGuiCol_ScrollbarGrabActive] = accentLight;
+	colors[ImGuiCol_CheckMark] = accentLight;
+	colors[ImGuiCol_SliderGrab] = accent;
+	colors[ImGuiCol_SliderGrabActive] = accentLight;
+	colors[ImGuiCol_Button] = bgLight;
+	colors[ImGuiCol_ButtonHovered] = accent;
+	colors[ImGuiCol_ButtonActive] = accentLight;
+	colors[ImGuiCol_Header] = bgLight;
+	colors[ImGuiCol_HeaderHovered] = accent;
+	colors[ImGuiCol_HeaderActive] = accentLight;
+	colors[ImGuiCol_Separator] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
+	colors[ImGuiCol_SeparatorHovered] = accent;
+	colors[ImGuiCol_SeparatorActive] = accentLight;
+	colors[ImGuiCol_ResizeGrip] = bgLight;
+	colors[ImGuiCol_ResizeGripHovered] = accent;
+	colors[ImGuiCol_ResizeGripActive] = accentLight;
+	colors[ImGuiCol_Tab] = bgMid;
+	colors[ImGuiCol_TabHovered] = accent;
+	colors[ImGuiCol_TabActive] = accentLight;
+	colors[ImGuiCol_TabUnfocused] = bgDark;
+	colors[ImGuiCol_TabUnfocusedActive] = bgLight;
+	colors[ImGuiCol_TabSelectedOverline] = bgLight;
+	colors[ImGuiCol_PlotLines] = accent;
+	colors[ImGuiCol_PlotLinesHovered] = accentLight;
+	colors[ImGuiCol_PlotHistogram] = accent;
+	colors[ImGuiCol_PlotHistogramHovered] = accentLight;
+	colors[ImGuiCol_TextSelectedBg] = ImVec4(0.20f, 0.80f, 0.50f, 0.35f);
+	colors[ImGuiCol_DragDropTarget] = ImVec4(0.20f, 0.80f, 0.50f, 0.90f);
+	colors[ImGuiCol_NavHighlight] = accent;
+	colors[ImGuiCol_NavWindowingHighlight] = ImVec4(0.20f, 0.80f, 0.50f, 0.90f);
+	colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
+	colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+
+	// Adjust style properties
+	style.WindowPadding = ImVec2(10, 10);
+	style.FramePadding = ImVec2(8, 4);
+	style.ItemSpacing = ImVec2(10, 8);
+	style.ItemInnerSpacing = ImVec2(8, 6);
+	style.IndentSpacing = 25.0f;
+	style.ScrollbarSize = 12.0f;
+	style.GrabMinSize = 12.0f;
+
+	style.WindowBorderSize = 1.0f;
+	style.ChildBorderSize = 1.0f;
+	style.PopupBorderSize = 1.0f;
+	style.FrameBorderSize = 0.0f;
+
+	style.WindowRounding = 6.0f;
+	style.ChildRounding = 6.0f;
+	style.FrameRounding = 4.0f;
+	style.PopupRounding = 6.0f;
+	style.ScrollbarRounding = 6.0f;
+	style.GrabRounding = 4.0f;
+	style.TabRounding = 4.0f;
+
+	// Font settings
+	ImGuiIO& io = ImGui::GetIO();
+	io.Fonts->AddFontFromFileTTF(ResourcePathManager::GetFontPath("JetBrainsMono-Regular.ttf").c_str(), 16.0f);
+
+	if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
+}
+
 int VulkanContext::InitImGui(SlimeWindow* window)
 {
 	// Create Descriptor Pool for ImGui
@@ -435,12 +533,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-	ImGuiStyle& style = ImGui::GetStyle();
-	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-	{
-		style.WindowRounding = 0.0f;
-		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-	}
+	SetupImGuiStyle();
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
@@ -515,7 +608,7 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
+	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 0.0f } } };
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -538,12 +631,6 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
-	if (scene)
-	{
-		scene->Render(*this, modelManager);
-		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
-	}
-
 	// Start the Dear ImGui frame
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
@@ -553,10 +640,11 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
 	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
 
-	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-	static bool showDemoWindow = true;
-	ImGui::ShowDemoWindow(&showDemoWindow);
-	ImGui::ShowDemoWindow(&showDemoWindow);
+	if (scene)
+	{
+		scene->Render(*this, modelManager);
+		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
+	}
 
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -784,7 +872,7 @@ VmaAllocator VulkanContext::GetAllocator() const
 	return m_allocator;
 }
 
-const vkb::DispatchTable& VulkanContext::GetDispatchTable()
+vkb::DispatchTable& VulkanContext::GetDispatchTable()
 {
 	return m_disp;
 }

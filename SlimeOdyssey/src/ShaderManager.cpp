@@ -251,7 +251,7 @@ std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindin
 	return hash;
 }
 
-std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources)
+std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkDescriptorSetLayoutCreateInfo>> ShaderManager::CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources)
 {
 	std::map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> setBindings;
 
@@ -263,6 +263,9 @@ std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(vkb
 
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 	descriptorSetLayouts.reserve(setBindings.size());
+
+	std::vector<VkDescriptorSetLayoutCreateInfo> descriptorSetLayoutInfos;
+	descriptorSetLayoutInfos.reserve(setBindings.size());
 
 	for (const auto& [set, bindings]: setBindings)
 	{
@@ -278,6 +281,8 @@ std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(vkb
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 		layoutInfo.pBindings = bindings.data();
+
+		descriptorSetLayoutInfos.push_back(layoutInfo);
 
 		VkDescriptorSetLayout descriptorSetLayout;
 		if (disp.createDescriptorSetLayout(&layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
@@ -295,7 +300,7 @@ std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(vkb
 		}
 	}
 
-	return descriptorSetLayouts;
+	return {descriptorSetLayouts, descriptorSetLayoutInfos};
 }
 
 void ShaderManager::CleanupShaderModules(vkb::DispatchTable disp)

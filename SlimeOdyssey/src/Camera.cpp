@@ -2,6 +2,7 @@
 
 #include "spdlog/spdlog.h"
 #include "VulkanUtil.h"
+#include "imgui.h"
 
 Camera::Camera(float fov, float aspect, float nearZ, float farZ)
       : m_position(0.0f, 0.0f, 1.0f), m_front(0.0f, 0.0f, -1.0f), m_up(0.0f, 1.0f, 0.0f), m_fov(fov), m_aspect(aspect), m_nearZ(nearZ), m_farZ(farZ), m_yaw(-90.0f), m_pitch(0.0f)
@@ -105,6 +106,24 @@ void Camera::UpdateCameraUBO(VmaAllocator allocator)
 CameraUBO& Camera::GetCameraUBO()
 {
 	return m_cameraUBO;
+}
+
+void Camera::ImGuiDebug()
+{
+	// Edit camera properties
+	ImGui::DragFloat("FOV", &m_fov, 0.1f);
+	ImGui::DragFloat("Aspect Ratio", &m_aspect, 0.1f);
+	ImGui::DragFloat("Near Z", &m_nearZ, 0.1f);
+	ImGui::DragFloat("Far Z", &m_farZ, 0.1f);
+
+	ImGui::Separator();
+
+	// Edit camera position
+	ImGui::DragFloat3("Position", &m_position.x, 0.1f);
+	ImGui::DragFloat3("Front", &m_front.x, 0.1f);
+	ImGui::DragFloat3("Up", &m_up.x, 0.1f);
+	ImGui::DragFloat("Yaw", &m_yaw, 0.1f);
+	ImGui::DragFloat("Pitch", &m_pitch, 0.1f);
 }
 
 void Camera::UpdateCameraVectors()

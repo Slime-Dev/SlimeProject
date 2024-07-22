@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "vk_mem_alloc.h"
+#include "Component.h"
 
 struct CameraUBO
 {
@@ -12,7 +13,7 @@ struct CameraUBO
 	glm::vec4 viewPos;
 };
 
-class Camera
+class Camera : public Component
 {
 public:
 	// Constructor
@@ -47,6 +48,8 @@ public:
 	CameraUBO& GetCameraUBO();
 	VkBuffer GetCameraUBOBuffer() const { return m_cameraUBOBBuffer; }
 	VmaAllocation GetCameraUBOAllocation() const { return m_cameraUBOAllocation; }
+
+	void ImGuiDebug();
 
 private:
 	// Helper method
