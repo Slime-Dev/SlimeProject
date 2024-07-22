@@ -8,9 +8,14 @@
 void LoadBunny() {
     ResourcePathManager resourcePathManager;
     ModelManager modelManager = ModelManager(resourcePathManager);
+    // Upper case for Windows
     auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
     if (bunnyMesh == nullptr) {
-        throw std::runtime_error("Failed to load model 'Stanford-bunny.obj'");
+        // Lower case for Linux
+        bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
+        if (bunnyMesh == nullptr) {
+            throw std::runtime_error("Failed to load model 'Stanford-bunny.obj'");
+        }
     }
 
     if (bunnyMesh->vertices.size() == 0) {
@@ -18,7 +23,7 @@ void LoadBunny() {
     }
 
     if (bunnyMesh->indices.size() == 0) {
-        throw std::runtime_error("Model 'Stanford-bunny.obj' has no indices");
+        throw std::runtime_error("Model 'stanford-bunny.obj' has no indices");
     }
 }
 
