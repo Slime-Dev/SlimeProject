@@ -606,7 +606,7 @@ void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQ
 	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
-void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, VkPolygonMode polygonMode)
+void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkPolygonMode polygonMode)
 {
 	if (m_pipelines.contains(pipelineName))
 	{
@@ -631,6 +631,7 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts.first);
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
 	pipelineGenerator.SetPolygonMode(polygonMode);
+	pipelineGenerator.SetDepthTestEnabled(depthTestEnabled);
 	pipelineGenerator.Generate();
 
 	// Descriptor set layout
@@ -647,9 +648,9 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	m_pipelines[pipelineName] = pipelineGenerator.GetPipelineContainer();
 }
 
-ModelResource* ModelManager::CreateDebugWireGround(VmaAllocator allocator, float size, int divisions)
+ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 {
-	std::string name = "debug_wire" + std::to_string(size) + "_" + std::to_string(divisions); 
+	std::string name = "linePlane";
 	if (m_modelResources.contains(name))
 	{
 		return &m_modelResources[name];
@@ -658,7 +659,44 @@ ModelResource* ModelManager::CreateDebugWireGround(VmaAllocator allocator, float
 	ModelResource model;
 	model.pipeLineName = "debug_wire";
 
-// Calculate the step size
+	// Create vertices
+	Vertex vertex;
+	vertex.pos = glm::vec3(-1.0f, 0.0f, -1.0f);
+	vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+	vertex.texCoord = glm::vec2(0.0f, 0.0f);
+	vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+	vertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
+	model.vertices.push_back(vertex);
+
+	vertex.pos = glm::vec3(1.0f, 0.0f, -1.0f);
+	model.vertices.push_back(vertex);
+
+	vertex.pos = glm::vec3(1.0f, 0.0f, 1.0f);
+	model.vertices.push_back(vertex);
+
+	vertex.pos = glm::vec3(-1.0f, 0.0f, 1.0f);
+	model.vertices.push_back(vertex);
+
+	model.indices = { 0, 1, 1, 2, 2, 3, 3, 0 };
+
+	m_modelResources[name] = std::move(model);
+	spdlog::info("{} generated.", name);
+
+	return &m_modelResources[name];
+}
+
+ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int divisions)
+{
+	std::string name = "plane" + std::to_string(size) + "_" + std::to_string(divisions); 
+	if (m_modelResources.contains(name))
+	{
+		return &m_modelResources[name];
+	}
+
+	ModelResource model;
+	model.pipeLineName = "default";
+
+	// Calculate the step size
 	float step = size / divisions;
 
 	// Create vertices

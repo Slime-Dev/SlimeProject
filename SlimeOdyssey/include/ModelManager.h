@@ -26,12 +26,13 @@ public:
 
 	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
 	
-	ModelResource* CreateDebugWireGround(VmaAllocator allocator, float size, int divisions);
+	ModelResource* CreatePlane(VmaAllocator allocator, float size, int divisions);
+	ModelResource* CreateLinePlane(VmaAllocator allocator);
 	ModelResource* CreateCube(VmaAllocator allocator, float size = 1.0f);
 	ModelResource* CreateSphere(VmaAllocator allocator, float radius = 1.0f, int segments = 16, int rings = 16);
 	ModelResource* CreateCylinder(VmaAllocator allocator, float radius = 0.5f, float height = 2.0f, int segments = 16);
 
-	void CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
+	void CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
 
 	const TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;

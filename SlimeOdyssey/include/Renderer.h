@@ -11,6 +11,7 @@
 #include "PipelineGenerator.h"
 
 class VulkanDebugUtils;
+class Camera;
 
 namespace vkb
 {
@@ -45,6 +46,7 @@ private:
 	void BindCommonDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, VmaAllocator allocator);
 	void BindMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, MaterialResource* material, VmaAllocator allocator);
 	void UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils);
+	void DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout);
 
 	bool LayoutIncludesLightBuffer(VkDescriptorSetLayout layout);
 	bool LayoutIncludesShaderDebugBuffer(VkDescriptorSetLayout layout);

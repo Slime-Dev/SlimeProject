@@ -1,4 +1,6 @@
 #include "PipelineGenerator.h"
+#include "ModelManager.h"
+#include "DescriptorManager.h"
 
 #include <fstream>
 #include <stdexcept>
@@ -225,8 +227,8 @@ void PipelineGenerator::CreatePipeline()
 
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
 	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
-	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthTestEnable = m_dephtestEnabled;
+	depthStencilStateCreateInfo.depthWriteEnable = m_dephtestEnabled;
 	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
@@ -268,4 +270,9 @@ void PipelineGenerator::CreatePipeline()
 	}
 
 	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
+}
+
+void PipelineGenerator::SetDepthTestEnabled(bool enabled)
+{
+	m_dephtestEnabled = enabled;
 }

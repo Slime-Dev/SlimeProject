@@ -11,6 +11,8 @@
 #include "ShaderManager.h"
 
 class VulkanContext;
+class ModelManager;
+class DescriptorManager;
 namespace vkb { struct DispatchTable; }
 
 struct PipelineContainer
@@ -36,6 +38,7 @@ public:
 	void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
 	void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
 	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
+	void SetDepthTestEnabled(bool enabled);
 	void SetPolygonMode(VkPolygonMode polygonMode);
 
 	void Generate();
@@ -70,6 +73,8 @@ private:
 	VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
 
 	VkPolygonMode m_vkPolygonMode = VK_POLYGON_MODE_FILL;
+
+	bool m_dephtestEnabled = true;
 
 	PipelineContainer m_pipelineContainer;
 

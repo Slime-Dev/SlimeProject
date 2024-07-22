@@ -137,6 +137,10 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 	auto debugPipeline = modelManager.GetPipelines()["debug_wire"];
 	vulkanContext.GetDispatchTable().destroyPipeline(debugPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugPipeline.pipelineLayout, nullptr);
+
+	auto infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
+	vulkanContext.GetDispatchTable().destroyPipeline(infiniteGridPipeline.pipeline, nullptr);
+	vulkanContext.GetDispatchTable().destroyPipelineLayout(infiniteGridPipeline.pipelineLayout, nullptr);
 }
 
 void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -154,7 +158,7 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	auto cubeMesh = modelManager.LoadModel("cube.obj", pipelineName);
 	modelManager.CreateBuffersForMesh(allocator, *cubeMesh);
 
-	auto debugMesh = modelManager.CreateDebugWireGround(allocator, 10, 10);
+	auto debugMesh = modelManager.CreateLinePlane(allocator);
 	modelManager.CreateBuffersForMesh(allocator, *debugMesh);
 
 	// Initialize player
@@ -208,10 +212,13 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 	ResourcePathManager resourcePaths;
 
 	// Set up a basic pipeline
-	modelManager.CreatePipeline("basic", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"));
+	modelManager.CreatePipeline("basic", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"), true);
 
-	// Set up a textured pipeline
-	modelManager.CreatePipeline("debug_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), VK_POLYGON_MODE_LINE);
+	// Set up a debug_wire pipeline
+	modelManager.CreatePipeline("debug_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true, VK_POLYGON_MODE_LINE);
+	
+	// Set up InfiniteGrid pipeline
+	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("grid.vert.spv"), resourcePaths.GetShaderPath("grid.frag.spv"), true);
 }
 
 void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)

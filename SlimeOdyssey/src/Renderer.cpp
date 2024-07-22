@@ -30,6 +30,10 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 	UpdateCommonBuffers(debugUtils, allocator, cmd, scene);
 
+	Camera& camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	PipelineContainer& infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
+	DrawInfiniteGrid(disp, cmd, camera, infiniteGridPipeline.pipeline, infiniteGridPipeline.pipelineLayout);
+
 	EntityManager& entityManager = scene->m_entityManager;
 	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Material, Transform>();
 
@@ -250,4 +254,30 @@ bool Renderer::LayoutIncludesShaderDebugBuffer(VkDescriptorSetLayout layout)
 	}
 	
 	return true;
+}
+
+void Renderer::DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout)
+{
+    disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gridPipeline);
+
+    struct GridPushConstants {
+        glm::mat4 view;
+        glm::mat4 projection;
+        glm::vec3 pos;
+    } pushConstants;
+
+	pushConstants.view = camera.GetViewMatrix();
+	pushConstants.projection = camera.GetProjectionMatrix();
+	pushConstants.pos = camera.GetPosition();
+
+    disp.cmdPushConstants(
+        commandBuffer,
+        gridPipelineLayout,
+        VK_SHADER_STAGE_VERTEX_BIT,
+        0,
+        sizeof(GridPushConstants),
+        &pushConstants
+    );
+
+    disp.cmdDraw(commandBuffer, 6, 1, 0, 0);
 }
