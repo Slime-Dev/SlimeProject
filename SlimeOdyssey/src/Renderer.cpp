@@ -37,6 +37,11 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	PipelineContainer* pipelineContainer = nullptr;
 	VkDescriptorSet lastBoundDescriptorSet = VK_NULL_HANDLE;
 
+	// Sort entities by pipeline name
+	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) {
+		return a->GetComponent<Model>().modelResource->pipeLineName < b->GetComponent<Model>().modelResource->pipeLineName;
+	});
+
 	for (const auto& entity: modelEntities)
 	{
 		ModelResource* model = entity->GetComponent<Model>().modelResource;
@@ -139,6 +144,13 @@ void Renderer::BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd
 		spdlog::error("Mismatch in descriptor set count for pipeline: {}", pipelineContainer.name);
 		return;
 	}
+	
+	if (m_boundDescriptorSet == descSets[0])
+	{
+		return;
+	}
+	
+	m_boundDescriptorSet = descSets[0];
 
 	// Bind all descriptor sets for the current pipeline
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer.pipelineLayout, 0, descSets.size(), descSets.data(), 0, nullptr);

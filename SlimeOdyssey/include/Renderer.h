@@ -54,4 +54,6 @@ private:
 	ShaderDebug m_shaderDebug;
 	VkBuffer m_shaderDebugBuffer = VK_NULL_HANDLE;
 	VmaAllocation m_shaderDebugAllocation = VK_NULL_HANDLE;
+
+	VkDescriptorSet m_boundDescriptorSet = VK_NULL_HANDLE;
 };
