@@ -99,7 +99,7 @@ jobs:
       - name: List files in directory (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          directory="${{ steps.strings.outputs.build-output-dir }}"
+          directory="/home/runner/work/SlimeProject/SlimeProject/SlimeOdyssey/"
           echo "Listing files in $directory:"
           ls -R $directory
 
