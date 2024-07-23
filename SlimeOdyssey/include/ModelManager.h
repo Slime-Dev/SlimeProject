@@ -14,6 +14,7 @@ class DescriptorManager;
 class VulkanContext;
 class ResourcePathManager;
 struct VmaAllocator_T;
+namespace vkb { struct DispatchTable; }
 using VmaAllocator = VmaAllocator_T*;
 
 class ModelManager
@@ -24,47 +25,28 @@ public:
 	~ModelManager();
 
 	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
-	const TextureResource* LoadTexture(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
+	
+	ModelResource* CreatePlane(VmaAllocator allocator, float size, int divisions);
+	ModelResource* CreateLinePlane(VmaAllocator allocator);
+	ModelResource* CreateCube(VmaAllocator allocator, float size = 1.0f);
+	ModelResource* CreateSphere(VmaAllocator allocator, float radius = 1.0f, int segments = 16, int rings = 16);
+	ModelResource* CreateCylinder(VmaAllocator allocator, float radius = 0.5f, float height = 2.0f, int segments = 16);
+
+	void CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
+
+	const TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
-	void UnloadAllResources(VkDevice device, VmaAllocator allocator);
-	void BindTexture(VkDevice device, const std::string& name, uint32_t binding, VkDescriptorSet set);
-	void TransitionImageLayout(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
-	int DrawModel(VkCommandBuffer& cmd, const ModelResource& model);
+	void UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator);
+	void BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set);
+	void TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+	int DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model);
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
 
 	std::map<std::string, PipelineContainer>& GetPipelines();
 
-	void AddModel(const std::string& name, Model* model);
-	void AddModelMap(const std::unordered_map<std::string, Model*>& models);
-	
-	// This will create a new model if it doesn't exist
-	Model* GetModel(const std::string& name);
-
-	// Iterator for models
-	std::unordered_map<std::string, Model*>::iterator begin()
-	{
-		return m_models.begin();
-	}
-
-	std::unordered_map<std::string, Model*>::iterator end()
-	{
-		return m_models.end();
-	}
-
-	std::unordered_map<std::string, Model*>::const_iterator begin() const
-	{
-		return m_models.begin();
-	}
-
-	std::unordered_map<std::string, Model*>::const_iterator end() const
-	{
-		return m_models.end();
-	}
-
 private:
 	ResourcePathManager m_pathManager;
 
-	std::unordered_map<std::string, Model*> m_models;
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
 	std::map<std::string, PipelineContainer> m_pipelines;
@@ -88,8 +70,8 @@ private:
 	glm::vec3 ExtractNormal(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);
 	void CalculateFaceNormals(const ModelResource& model, std::vector<glm::vec3>& faceNormals, std::vector<std::vector<uint32_t>>& vertexFaces);
 	void AverageVertexNormals(ModelResource& model, const std::vector<glm::vec3>& faceNormals, const std::vector<std::vector<uint32_t>>& vertexFaces);
-	VkImageView CreateImageView(VkDevice device, VkImage image, VkFormat format);
-	void CopyBufferToImage(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+	VkImageView CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format);
+	void CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 };
 
 template<>

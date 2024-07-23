@@ -36,7 +36,7 @@ public:
 	VkQueue GetPresentQueue() const;
 	VkCommandPool GetCommandPool() const;
 	VmaAllocator GetAllocator() const;
-	const vkb::DispatchTable& GetDispatchTable();
+	vkb::DispatchTable& GetDispatchTable();
 
 	// Helper methods
 	int CreateSwapchain(SlimeWindow* window); // Needs to be public for window resize callback
@@ -56,9 +56,9 @@ private:
 	// Vulkan core
 	vkb::Instance m_instance;
 	vkb::InstanceDispatchTable m_instDisp;
+	vkb::DispatchTable m_disp;
 	VkSurfaceKHR m_surface{};
 	vkb::Device m_device;
-	vkb::DispatchTable m_disp;
 	vkb::Swapchain m_swapchain;
 	VmaAllocator m_allocator{};
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;
@@ -83,7 +83,6 @@ private:
 
 	Renderer m_renderer;
 
-	// Resource managers
 	VulkanDebugUtils m_debugUtils;
 
 	// Safety checks

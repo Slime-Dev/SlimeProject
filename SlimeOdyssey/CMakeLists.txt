@@ -4,13 +4,6 @@ project(SlimeOdyssey VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Include directories
-include_directories(
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
-)
-
 # Fetch libraries
 include(cmake/fetch_libs.cmake)
 
@@ -25,8 +18,6 @@ file(GLOB_RECURSE SOURCES
 )
 
 # ImGui Setup
-add_definitions(-DIMGUI_IMPL_VULKAN_DYNAMIC_LOADER=glfwGetInstanceProcAddress)
-add_definitions(-DIMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 set(IMGUI_SOURCES
     ${IMGUI_SOURCE_DIR}/imgui.cpp
     ${IMGUI_SOURCE_DIR}/imgui_demo.cpp
@@ -40,6 +31,22 @@ set(SOURCES ${SOURCES} ${IMGUI_SOURCES})
 
 # Create SlimeOdyssey library
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
+
+# Enable Unity Build
+set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
+
+target_compile_definitions(${PROJECT_NAME} PUBLIC
+    VK_NO_PROTOTYPES
+    IMGUI_IMPL_VULKAN_DYNAMIC_LOADER=glfwGetInstanceProcAddress
+    IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+    IMGUI_DEFINE_MATH_OPERATORS
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
+)
 
 # Call shader compilation function
 
@@ -98,3 +105,15 @@ install(TARGETS SlimeOdyssey
 )
 
 install(DIRECTORY include/ DESTINATION include)
+
+set(PCH_HEADERS
+    <vector>
+    <string>
+    <glm/glm.hpp>
+    <vulkan/vulkan.h>
+)
+
+target_precompile_headers(${PROJECT_NAME} PRIVATE ${PCH_HEADERS})
+
+# set a variable so that any project that includes this project can use the include directories
+set(SLIME_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/external ${IMGUI_SOURCE_DIR} PARENT_SCOPE)

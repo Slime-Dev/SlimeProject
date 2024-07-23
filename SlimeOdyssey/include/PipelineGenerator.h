@@ -11,6 +11,9 @@
 #include "ShaderManager.h"
 
 class VulkanContext;
+class ModelManager;
+class DescriptorManager;
+namespace vkb { struct DispatchTable; }
 
 struct PipelineContainer
 {
@@ -18,6 +21,7 @@ struct PipelineContainer
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
 	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 };
 
 class PipelineGenerator
@@ -34,6 +38,9 @@ public:
 	void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
 	void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
 	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
+	void SetDepthTestEnabled(bool enabled);
+	void SetCullMode(VkCullModeFlags mode);
+	void SetPolygonMode(VkPolygonMode polygonMode);
 
 	void Generate();
 
@@ -45,7 +52,7 @@ public:
 	[[nodiscard]] PipelineContainer GetPipelineContainer() const;
 
 private:
-	VkDevice m_device;
+	const vkb::DispatchTable& m_disp;
 	VulkanContext& m_vulkanContext;
 	ShaderModule m_vertexShader;
 	ShaderModule m_fragmentShader;
@@ -66,8 +73,14 @@ private:
 	VkPipelineColorBlendStateCreateInfo m_colorBlending{};
 	VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
 
+	VkPolygonMode m_vkPolygonMode = VK_POLYGON_MODE_FILL;
+
+	bool m_dephtestEnabled = true;
+	VkCullModeFlags m_cullMode = VK_CULL_MODE_BACK_BIT;
+
 	PipelineContainer m_pipelineContainer;
 
 	void CreatePipelineLayout();
 	void CreatePipeline();
+
 };

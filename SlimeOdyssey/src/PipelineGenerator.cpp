@@ -1,4 +1,6 @@
 #include "PipelineGenerator.h"
+#include "ModelManager.h"
+#include "DescriptorManager.h"
 
 #include <fstream>
 #include <stdexcept>
@@ -7,7 +9,7 @@
 #include "spdlog/spdlog.h"
 
 PipelineGenerator::PipelineGenerator(VulkanContext& vulkanContext)
-      : m_vulkanContext(vulkanContext), m_device(vulkanContext.GetDevice())
+      : m_vulkanContext(vulkanContext), m_disp(vulkanContext.GetDispatchTable())
 {
 }
 
@@ -55,6 +57,7 @@ void PipelineGenerator::SetVertexInputState(const std::vector<VkVertexInputAttri
 void PipelineGenerator::SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts)
 {
 	m_descriptorSetLayouts = descriptorSetLayouts;
+	m_pipelineContainer.descriptorSetLayouts = descriptorSetLayouts;
 }
 
 void PipelineGenerator::SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges)
@@ -73,6 +76,11 @@ void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& de
 	m_pipelineContainer.descriptorSets = descriptorSets;
 }
 
+void PipelineGenerator::SetPolygonMode(VkPolygonMode polygonMode)
+{
+	m_vkPolygonMode = polygonMode;
+}
+
 void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderResources& resources)
 {
 	std::map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> setBindings;
@@ -86,7 +94,7 @@ void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderR
 	// Clear existing layouts
 	for (auto layout: m_descriptorSetLayouts)
 	{
-		vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
+		m_disp.destroyDescriptorSetLayout(layout, nullptr);
 	}
 	m_descriptorSetLayouts.clear();
 
@@ -99,7 +107,7 @@ void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderR
 		layoutInfo.pBindings = bindings.data();
 
 		VkDescriptorSetLayout setLayout;
-		if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &setLayout) != VK_SUCCESS)
+		if (m_disp.createDescriptorSetLayout(&layoutInfo, nullptr, &setLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
@@ -138,7 +146,7 @@ void PipelineGenerator::CreatePipelineLayout()
 		spdlog::info("Push constant range: offset: {}, size: {}, stage flags: {}", offset, size, static_cast<int>(stageFlags));
 	}
 
-	if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout) != VK_SUCCESS)
+	if (m_disp.createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create pipeline layout!");
 	}
@@ -193,9 +201,9 @@ void PipelineGenerator::CreatePipeline()
 	m_rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	m_rasterizer.depthClampEnable = VK_FALSE;
 	m_rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	m_rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	m_rasterizer.polygonMode = m_vkPolygonMode;
 	m_rasterizer.lineWidth = 1.0f; // Set later dynamically
-	m_rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	m_rasterizer.cullMode = m_cullMode;
 	m_rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	m_rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -219,8 +227,8 @@ void PipelineGenerator::CreatePipeline()
 
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
 	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
-	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthTestEnable = m_dephtestEnabled;
+	depthStencilStateCreateInfo.depthWriteEnable = m_dephtestEnabled;
 	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
@@ -256,10 +264,20 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.pDepthStencilState = &depthStencilStateCreateInfo;
 	pipelineInfo.pNext = &pipelineRenderingCreateInfo;
 
-	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline) != VK_SUCCESS)
+	if (m_disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
 
 	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
+}
+
+void PipelineGenerator::SetDepthTestEnabled(bool enabled)
+{
+	m_dephtestEnabled = enabled;
+}
+
+void PipelineGenerator::SetCullMode(VkCullModeFlags mode)
+{
+	m_cullMode = mode;
 }

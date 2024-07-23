@@ -25,7 +25,7 @@ public:
 
 private:
 	// Initialization methods
-	void InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager, Material* material);
+	void InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager);
 	void SetupShaders(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
 
 	// Update methods
@@ -38,20 +38,10 @@ private:
 	void ResetGame();
 
 	// Game objects
-	Model m_player;
-	Model m_obstacle;
-	Model m_ground;
-	Model m_lightCube;
-
-	// Game state
-	struct GameState
-	{
-		glm::vec3 playerPosition;
-		glm::vec3 playerVelocity;
-		float playerRotation;
-		bool isJumping;
-		bool gameOver;
-	} m_gameState;
+	std::shared_ptr<Entity> m_player = std::make_shared<Entity>("Player");
+	std::shared_ptr<Entity> m_obstacle = std::make_shared<Entity>("Obstacle");
+	std::shared_ptr<Entity> m_ground = std::make_shared<Entity>("Ground");
+	std::shared_ptr<Entity> m_lightCube = std::make_shared<Entity>("LightCube");
 
 	// Camera state
 	struct CameraState
@@ -62,6 +52,20 @@ private:
 		glm::vec3 position;
 	};
 	CameraState m_cameraState;
+
+    bool m_cameraMouseControl = true;
+    float m_manualYaw = 0.0f;
+    float m_manualPitch = 10.0f;
+    float m_manualDistance = 10.0f;
+
+	bool m_flyCamEnabled = false;
+	glm::vec3 m_flyCamPosition = glm::vec3(0.0f, 5.0f, -10.0f);
+	float m_flyCamYaw = 0.0f;
+	float m_flyCamPitch = 0.0f;
+
+	void UpdateFlyCam(float dt, const InputManager* inputManager);
+
+	bool m_gameOver = false;
 
 	// Game parameters
 	struct GameParameters
@@ -75,6 +79,6 @@ private:
 	};
 	GameParameters m_gameParams;
 
-	Material m_tempMaterial;
+	std::shared_ptr<MaterialResource> m_tempMaterial;
 	SlimeWindow* m_window;
 };

@@ -81,8 +81,10 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 	// Create instance with VK_KHR_dynamic_rendering extension
 	spdlog::info("Creating Vulkan instance...");
+	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
+
 	vkb::InstanceBuilder instance_builder;
-	auto instance_ret = instance_builder.request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
+	auto instance_ret = instance_builder.enable_extensions(deviceExtensions).request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
 
 	if (!instance_ret)
 	{
@@ -119,13 +121,17 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	features12.bufferDeviceAddress = VK_TRUE;
 	features12.descriptorIndexing = VK_TRUE;
 
+	VkPhysicalDeviceVulkan11Features features11 = {};
+	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+	features11.multiview = VK_TRUE;
+	
 	VkPhysicalDeviceFeatures features = {};
 	features.fillModeNonSolid = VK_TRUE;
 	features.wideLines = VK_TRUE;
 
 	vkb::PhysicalDeviceSelector phys_device_selector(m_instance);
 
-	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3).set_required_features_13(features13).set_required_features_12(features12).set_required_features(features).set_surface(m_surface).select();
+	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3).set_required_features_11(features11).set_required_features_13(features13).set_required_features_12(features12).set_required_features(features).set_surface(m_surface).select();
 
 	if (!phys_device_ret)
 	{
@@ -158,12 +164,40 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	allocatorInfo.device = m_device.device;
 	allocatorInfo.instance = m_instance.instance;
 
+
+	VmaVulkanFunctions vulkanFunctions = {};
+	vulkanFunctions.vkGetInstanceProcAddr = m_instance.fp_vkGetInstanceProcAddr;
+	vulkanFunctions.vkGetDeviceProcAddr = m_device.fp_vkGetDeviceProcAddr;
+	
+	// Instance functions
+	vulkanFunctions.vkGetPhysicalDeviceProperties = m_instDisp.fp_vkGetPhysicalDeviceProperties;
+	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = m_instDisp.fp_vkGetPhysicalDeviceMemoryProperties;
+
+	// Device functions
+	vulkanFunctions.vkAllocateMemory = m_disp.fp_vkAllocateMemory;
+	vulkanFunctions.vkFreeMemory = m_disp.fp_vkFreeMemory;
+	vulkanFunctions.vkMapMemory = m_disp.fp_vkMapMemory;
+	vulkanFunctions.vkUnmapMemory = m_disp.fp_vkUnmapMemory;
+	vulkanFunctions.vkFlushMappedMemoryRanges = m_disp.fp_vkFlushMappedMemoryRanges;
+	vulkanFunctions.vkInvalidateMappedMemoryRanges = m_disp.fp_vkInvalidateMappedMemoryRanges;
+	vulkanFunctions.vkBindBufferMemory = m_disp.fp_vkBindBufferMemory;
+	vulkanFunctions.vkBindImageMemory = m_disp.fp_vkBindImageMemory;
+	vulkanFunctions.vkGetBufferMemoryRequirements = m_disp.fp_vkGetBufferMemoryRequirements;
+	vulkanFunctions.vkGetImageMemoryRequirements = m_disp.fp_vkGetImageMemoryRequirements;
+	vulkanFunctions.vkCreateBuffer = m_disp.fp_vkCreateBuffer;
+	vulkanFunctions.vkDestroyBuffer = m_disp.fp_vkDestroyBuffer;
+	vulkanFunctions.vkCreateImage = m_disp.fp_vkCreateImage;
+	vulkanFunctions.vkDestroyImage = m_disp.fp_vkDestroyImage;
+	vulkanFunctions.vkCmdCopyBuffer = m_disp.fp_vkCmdCopyBuffer;
+
+	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
+	
 	if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create VMA allocator");
 	}
 
-	m_debugUtils = VulkanDebugUtils(m_instance, m_device);
+	m_debugUtils = VulkanDebugUtils(m_instDisp, m_device);
 
 	m_debugUtils.SetObjectName(m_device.device, "MainDevice");
 
@@ -173,7 +207,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 int VulkanContext::CreateSwapchain(SlimeWindow* window)
 {
 	spdlog::info("Creating swapchain...");
-	vkDeviceWaitIdle(m_device);
+	m_disp.deviceWaitIdle();
 
 	vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
 
@@ -307,7 +341,7 @@ int VulkanContext::CreateCommandPool()
 int VulkanContext::CreateRenderCommandBuffers()
 {
 	spdlog::info("Recording command buffers...");
-	m_renderCommandBuffers.resize(m_swapchain.image_count);
+	m_renderCommandBuffers.resize(m_swapchain.image_count + 10);
 
 	VkCommandBufferAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -358,6 +392,104 @@ int VulkanContext::InitSyncObjects()
 	return 0;
 }
 
+void SetupImGuiStyle()
+{
+	ImGuiStyle& style = ImGui::GetStyle();
+	ImVec4* colors = style.Colors;
+
+	// Modern color palette with darker greys and green accent
+	ImVec4 bgDark = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
+	ImVec4 bgMid = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+	ImVec4 bgLight = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
+	ImVec4 accent = ImVec4(0.10f, 0.60f, 0.30f, 1.00f);
+	ImVec4 accentLight = ImVec4(0.20f, 0.70f, 0.40f, 1.00f);
+	ImVec4 textPrimary = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
+	ImVec4 textSecondary = ImVec4(0.70f, 0.70f, 0.70f, 1.00f);
+
+	// Set colors
+	colors[ImGuiCol_Text] = textPrimary;
+	colors[ImGuiCol_TextDisabled] = textSecondary;
+	colors[ImGuiCol_WindowBg] = bgDark;
+	colors[ImGuiCol_ChildBg] = bgMid;
+	colors[ImGuiCol_PopupBg] = bgMid;
+	colors[ImGuiCol_Border] = ImVec4(0.25f, 0.25f, 0.25f, 0.50f);
+	colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+	colors[ImGuiCol_FrameBg] = bgLight;
+	colors[ImGuiCol_FrameBgHovered] = accent;
+	colors[ImGuiCol_FrameBgActive] = accentLight;
+	colors[ImGuiCol_TitleBg] = bgMid;
+	colors[ImGuiCol_TitleBgActive] = accent;
+	colors[ImGuiCol_TitleBgCollapsed] = bgDark;
+	colors[ImGuiCol_MenuBarBg] = bgMid;
+	colors[ImGuiCol_ScrollbarBg] = bgDark;
+	colors[ImGuiCol_ScrollbarGrab] = bgLight;
+	colors[ImGuiCol_ScrollbarGrabHovered] = accent;
+	colors[ImGuiCol_ScrollbarGrabActive] = accentLight;
+	colors[ImGuiCol_CheckMark] = accentLight;
+	colors[ImGuiCol_SliderGrab] = accent;
+	colors[ImGuiCol_SliderGrabActive] = accentLight;
+	colors[ImGuiCol_Button] = bgLight;
+	colors[ImGuiCol_ButtonHovered] = accent;
+	colors[ImGuiCol_ButtonActive] = accentLight;
+	colors[ImGuiCol_Header] = bgLight;
+	colors[ImGuiCol_HeaderHovered] = accent;
+	colors[ImGuiCol_HeaderActive] = accentLight;
+	colors[ImGuiCol_Separator] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
+	colors[ImGuiCol_SeparatorHovered] = accent;
+	colors[ImGuiCol_SeparatorActive] = accentLight;
+	colors[ImGuiCol_ResizeGrip] = bgLight;
+	colors[ImGuiCol_ResizeGripHovered] = accent;
+	colors[ImGuiCol_ResizeGripActive] = accentLight;
+	colors[ImGuiCol_Tab] = bgMid;
+	colors[ImGuiCol_TabHovered] = accent;
+	colors[ImGuiCol_TabActive] = accentLight;
+	colors[ImGuiCol_TabUnfocused] = bgDark;
+	colors[ImGuiCol_TabUnfocusedActive] = bgLight;
+	colors[ImGuiCol_TabSelectedOverline] = bgLight;
+	colors[ImGuiCol_PlotLines] = accent;
+	colors[ImGuiCol_PlotLinesHovered] = accentLight;
+	colors[ImGuiCol_PlotHistogram] = accent;
+	colors[ImGuiCol_PlotHistogramHovered] = accentLight;
+	colors[ImGuiCol_TextSelectedBg] = ImVec4(0.20f, 0.80f, 0.50f, 0.35f);
+	colors[ImGuiCol_DragDropTarget] = ImVec4(0.20f, 0.80f, 0.50f, 0.90f);
+	colors[ImGuiCol_NavHighlight] = accent;
+	colors[ImGuiCol_NavWindowingHighlight] = ImVec4(0.20f, 0.80f, 0.50f, 0.90f);
+	colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
+	colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+
+	// Adjust style properties
+	style.WindowPadding = ImVec2(10, 10);
+	style.FramePadding = ImVec2(8, 4);
+	style.ItemSpacing = ImVec2(10, 8);
+	style.ItemInnerSpacing = ImVec2(8, 6);
+	style.IndentSpacing = 25.0f;
+	style.ScrollbarSize = 12.0f;
+	style.GrabMinSize = 12.0f;
+
+	style.WindowBorderSize = 1.0f;
+	style.ChildBorderSize = 1.0f;
+	style.PopupBorderSize = 1.0f;
+	style.FrameBorderSize = 0.0f;
+
+	style.WindowRounding = 6.0f;
+	style.ChildRounding = 6.0f;
+	style.FrameRounding = 4.0f;
+	style.PopupRounding = 6.0f;
+	style.ScrollbarRounding = 6.0f;
+	style.GrabRounding = 4.0f;
+	style.TabRounding = 4.0f;
+
+	// Font settings
+	ImGuiIO& io = ImGui::GetIO();
+	io.Fonts->AddFontFromFileTTF(ResourcePathManager::GetFontPath("JetBrainsMono-Regular.ttf").c_str(), 16.0f);
+
+	if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
+}
+
 int VulkanContext::InitImGui(SlimeWindow* window)
 {
 	// Create Descriptor Pool for ImGui
@@ -396,16 +528,30 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
-	// io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends
-	ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
+	SetupImGuiStyle();
 
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
 	// Load Vulkan functions
-	ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void* vulkan_instance) { return vkGetInstanceProcAddr(static_cast<VkInstance>(vulkan_instance), function_name); }, m_instance);
+	ImGui_ImplVulkan_LoadFunctions(
+	        [](const char* function_name, void* user_data)
+	        {
+		        VulkanContext* context = static_cast<VulkanContext*>(user_data);
+
+				        // Map KHR variants to core functions
+		        if (strcmp(function_name, "vkCmdBeginRenderingKHR") == 0)
+			        return context->m_instDisp.getInstanceProcAddr("vkCmdBeginRendering");
+		        if (strcmp(function_name, "vkCmdEndRenderingKHR") == 0)
+			        return context->m_instDisp.getInstanceProcAddr("vkCmdEndRendering");
+
+		        return context->m_instDisp.getInstanceProcAddr(function_name);
+	        },
+	        this);
 
 	ImGui_ImplVulkan_InitInfo initInfo = {};
 	initInfo.Instance = m_instance;
@@ -423,7 +569,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	initInfo.CheckVkResultFn = nullptr;
 	initInfo.UseDynamicRendering = true;
 
-    VkPipelineRenderingCreateInfoKHR imguiPipelineInfo = {};
+	VkPipelineRenderingCreateInfoKHR imguiPipelineInfo = {};
 	imguiPipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
 	imguiPipelineInfo.pNext = nullptr;
 	imguiPipelineInfo.viewMask = 0;
@@ -452,9 +598,9 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	SlimeUtil::SetupDepthTestingAndLineWidth(m_disp, cmd);
 
 	// Transition color image to color attachment optimal
-	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	// Transition depth image to depth attachment optimal
-	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
 	VkRenderingAttachmentInfo colorAttachmentInfo = {};
 	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -462,7 +608,7 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 1.0f } } };
+	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 0.0f } } };
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -485,23 +631,21 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	m_disp.cmdBeginRendering(cmd, &renderingInfo);
 
+	// Start the Dear ImGui frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	// Create a full screen docking space for ImGui
+	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
+
 	if (scene)
 	{
 		scene->Render(*this, modelManager);
 		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
 	}
 
-	// Start the Dear ImGui frame
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-
-	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-	static bool showDemoWindow = true;
-	ImGui::ShowDemoWindow(&showDemoWindow);
-	ImGui::ShowDemoWindow(&showDemoWindow);
-
-	// Rendering
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();
 	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
@@ -514,9 +658,20 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 	m_disp.cmdEndRendering(cmd);
 
 	// Transition color image to present src layout
-	modelManager.TransitionImageLayout(m_device, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-	return SlimeUtil::EndCommandBuffer(m_disp, cmd);
+	if (SlimeUtil::EndCommandBuffer(m_disp, cmd) != 0)
+		return -1;
+
+	// Handle multi-viewport rendering here, outside of the main command buffer
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
+
+	return 0;
 }
 
 int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene)
@@ -617,7 +772,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 
 	if (window->ShouldClose())
 	{
-		vkDeviceWaitIdle(m_device);
+		m_disp.deviceWaitIdle();
 	}
 
 	return 0;
@@ -627,7 +782,7 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 {
 	spdlog::info("Cleaning up...");
 
-	vkDeviceWaitIdle(m_device);
+	m_disp.deviceWaitIdle();
 
 	// Cleanup ImGui
 	ImGui_ImplVulkan_Shutdown();
@@ -650,9 +805,9 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 		m_disp.destroyImageView(image_view, nullptr);
 	}
 
-	modelManager.UnloadAllResources(m_device, m_allocator);
+	modelManager.UnloadAllResources(m_disp, m_allocator);
 
-	shaderManager.CleanupDescriptorSetLayouts(m_device);
+	shaderManager.CleanupDescriptorSetLayouts(m_disp);
 
 	descriptorManager.Cleanup();
 
@@ -662,7 +817,7 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 	m_disp.destroyImageView(m_depthImageView, nullptr);
 
-	shaderManager.CleanupShaderModules(m_device);
+	shaderManager.CleanupShaderModules(m_disp);
 
 	m_disp.destroyCommandPool(m_commandPool, nullptr);
 
@@ -717,7 +872,7 @@ VmaAllocator VulkanContext::GetAllocator() const
 	return m_allocator;
 }
 
-const vkb::DispatchTable& VulkanContext::GetDispatchTable()
+vkb::DispatchTable& VulkanContext::GetDispatchTable()
 {
 	return m_disp;
 }
