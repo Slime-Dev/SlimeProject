@@ -54,7 +54,7 @@ public:
 	ShaderResources ParseShader(const ShaderModule& shaderModule);
 	ShaderResources CombineResources(const std::vector<ShaderModule>& shaderModules);
 
-	std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkDescriptorSetLayoutCreateInfo>> CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources);
+	std::vector<VkDescriptorSetLayout> CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources);
 
 	void CleanupShaderModules(vkb::DispatchTable disp);
 	void CleanupDescriptorSetLayouts(vkb::DispatchTable disp);

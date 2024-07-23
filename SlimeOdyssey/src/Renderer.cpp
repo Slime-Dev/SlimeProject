@@ -3,6 +3,7 @@
 #include <Camera.h>
 #include <Light.h>
 
+#include "DescriptorManager.h"
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
 #include "Scene.h"
@@ -25,8 +26,6 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 
 void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
 {
-	m_shaderDebug.debugMode = 0;
-
 	debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
 
 	UpdateCommonBuffers(debugUtils, allocator, cmd, scene);
@@ -87,7 +86,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 		}
 
 		// Bind material descriptor set
-		VkDescriptorSet materialDescriptorSet = GetOrUpdateMaterialDescriptorSet(entity.get(), pipelineContainer, descriptorManager, allocator);
+		VkDescriptorSet materialDescriptorSet = GetOrUpdateMaterialDescriptorSet(entity.get(), pipelineContainer, descriptorManager, allocator, debugUtils);
 		disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 1, 1, &materialDescriptorSet, 0, nullptr);
 
 		UpdatePushConstants(disp, cmd, *pipelineContainer, transform, debugUtils);
@@ -109,12 +108,6 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 void Renderer::UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene)
 {
 	debugUtils.BeginDebugMarker(cmd, "Update Common Buffers", debugUtil_UpdateLightBufferColour);
-
-	// Shader Debug Buffer
-	if (m_shaderDebugBuffer == VK_NULL_HANDLE)
-	{
-		SlimeUtil::CreateBuffer("ShaderDebug", allocator, sizeof(ShaderDebug), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shaderDebugBuffer, m_shaderDebugAllocation);
-	}
 
 	EntityManager& entityManager = scene->m_entityManager;
 
@@ -160,6 +153,34 @@ PipelineContainer* Renderer::BindPipeline(vkb::DispatchTable& disp, VkCommandBuf
 	return pipelineContainer;
 }
 
+void Renderer::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils)
+{
+	m_mvp.model = transform.GetModelMatrix();
+	m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
+	disp.cmdPushConstants(cmd, pipelineContainer.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
+	debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
+}
+
+void Renderer::DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout)
+{
+	disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gridPipeline);
+
+	struct GridPushConstants
+	{
+		glm::mat4 view;
+		glm::mat4 projection;
+		glm::vec3 pos;
+	} pushConstants;
+
+	pushConstants.view = camera.GetViewMatrix();
+	pushConstants.projection = camera.GetProjectionMatrix();
+	pushConstants.pos = camera.GetPosition();
+
+	disp.cmdPushConstants(commandBuffer, gridPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GridPushConstants), &pushConstants);
+
+	disp.cmdDraw(commandBuffer, 6, 1, 0, 0);
+}
+
 void Renderer::UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet sharedSet, VkDescriptorSetLayout setLayout, EntityManager& entityManager, VmaAllocator allocator)
 {
 	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
@@ -167,12 +188,12 @@ void Renderer::UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkD
 
 	PointLightObject& light = entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>();
 	descriptorManager.BindBuffer(sharedSet, 1, light.buffer, 0, sizeof(light.light));
-
-	SlimeUtil::CopyStructToBuffer(m_shaderDebug, allocator, m_shaderDebugAllocation);
-	descriptorManager.BindBuffer(sharedSet, 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
 }
 
-VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator)
+//
+/// MATERIALS ///////////////////////////////////
+//
+VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils)
 {
 	size_t materialHash = GenerateMaterialHash(entity);
 
@@ -183,7 +204,8 @@ VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, Pipel
 	}
 
 	// If not found in cache, create a new descriptor set
-	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineContainer->descriptorSetLayouts[1]);
+	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineContainer->descriptorSetLayouts[1]); //TODO Fix this as it doesnt clean old cached descriptor sets and will quickly run out
+	debugUtils.SetObjectName(newDescriptorSet, pipelineContainer->name + " Material Descriptor Set");
 
 	// Update the new descriptor set
 	if (entity->HasComponent<BasicMaterial>())
@@ -228,35 +250,25 @@ void Renderer::UpdatePBRMaterialDescriptors(DescriptorManager& descriptorManager
 		descriptorManager.BindImage(descSet, 5, materialResource.aoTex->imageView, materialResource.aoTex->sampler);
 }
 
-void Renderer::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils)
+// Helper function to generate a hash for a material
+inline size_t Renderer::GenerateMaterialHash(const Entity* entity)
 {
-	m_mvp.model = transform.GetModelMatrix();
-	m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
-	disp.cmdPushConstants(cmd, pipelineContainer.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
-	debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
-}
-
-void Renderer::CleanUp(VmaAllocator allocator)
-{
-	vmaDestroyBuffer(allocator, m_shaderDebugBuffer, m_shaderDebugAllocation);
-}
-
-void Renderer::DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout)
-{
-	disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gridPipeline);
-
-	struct GridPushConstants
+	size_t hash = 0;
+	if (entity->HasComponent<BasicMaterial>())
 	{
-		glm::mat4 view;
-		glm::mat4 projection;
-		glm::vec3 pos;
-	} pushConstants;
-
-	pushConstants.view = camera.GetViewMatrix();
-	pushConstants.projection = camera.GetProjectionMatrix();
-	pushConstants.pos = camera.GetPosition();
-
-	disp.cmdPushConstants(commandBuffer, gridPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GridPushConstants), &pushConstants);
-
-	disp.cmdDraw(commandBuffer, 6, 1, 0, 0);
+		const auto& material = entity->GetComponent<BasicMaterial>().materialResource;
+		hash = std::hash<BasicMaterialResource::Config>{}(material->config);
+	}
+	else if (entity->HasComponent<PBRMaterial>())
+	{
+		const auto& material = entity->GetComponent<PBRMaterial>().materialResource;
+		hash = std::hash<PBRMaterialResource::Config>{}(material->config);
+		// Include texture pointers in the hash
+		hash ^= std::hash<const void*>{}(material->albedoTex);
+		hash ^= std::hash<const void*>{}(material->normalTex);
+		hash ^= std::hash<const void*>{}(material->metallicTex);
+		hash ^= std::hash<const void*>{}(material->roughnessTex);
+		hash ^= std::hash<const void*>{}(material->aoTex);
+	}
+	return hash;
 }

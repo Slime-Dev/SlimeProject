@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ResourcePathManager.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -8,11 +7,9 @@
 #include "Model.h"
 #include "PipelineGenerator.h"
 #include "tiny_obj_loader.h"
-#include "vk_mem_alloc.h"
 
 class DescriptorManager;
 class VulkanContext;
-class ResourcePathManager;
 struct VmaAllocator_T;
 namespace vkb { struct DispatchTable; }
 using VmaAllocator = VmaAllocator_T*;
@@ -21,7 +18,6 @@ class ModelManager
 {
 public:
 	ModelManager() = default;
-	explicit ModelManager(ResourcePathManager& pathManager);
 	~ModelManager();
 
 	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
@@ -34,19 +30,18 @@ public:
 
 	void CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
 
-	const TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
+	TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
 	void UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator);
 	void BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set);
 	void TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	int DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model);
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
+	TextureResource* CopyTexture(const std::string& name, TextureResource* texture);
 
 	std::map<std::string, PipelineContainer>& GetPipelines();
 
 private:
-	ResourcePathManager m_pathManager;
-
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
 	std::map<std::string, PipelineContainer> m_pipelines;

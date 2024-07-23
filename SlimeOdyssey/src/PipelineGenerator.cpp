@@ -7,6 +7,7 @@
 
 #include "VulkanContext.h"
 #include "spdlog/spdlog.h"
+#include "VulkanUtil.h"
 
 PipelineGenerator::PipelineGenerator(VulkanContext& vulkanContext)
       : m_vulkanContext(vulkanContext), m_disp(vulkanContext.GetDispatchTable())
@@ -30,11 +31,6 @@ VkPipeline PipelineGenerator::GetPipeline() const
 VkPipelineLayout PipelineGenerator::GetPipelineLayout() const
 {
 	return m_pipelineContainer.pipelineLayout;
-}
-
-const std::vector<VkDescriptorSet>& PipelineGenerator::GetDescriptorSets() const
-{
-	return m_pipelineContainer.descriptorSets;
 }
 
 PipelineContainer PipelineGenerator::GetPipelineContainer() const
@@ -71,11 +67,6 @@ void PipelineGenerator::Generate()
 	CreatePipeline();
 }
 
-void PipelineGenerator::SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets)
-{
-	m_pipelineContainer.descriptorSets = descriptorSets;
-}
-
 void PipelineGenerator::SetPolygonMode(VkPolygonMode polygonMode)
 {
 	m_vkPolygonMode = polygonMode;
@@ -107,10 +98,7 @@ void PipelineGenerator::PrepareDescriptorSetLayouts(const ShaderManager::ShaderR
 		layoutInfo.pBindings = bindings.data();
 
 		VkDescriptorSetLayout setLayout;
-		if (m_disp.createDescriptorSetLayout(&layoutInfo, nullptr, &setLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create descriptor set layout!");
-		}
+		VK_CHECK(m_disp.createDescriptorSetLayout(&layoutInfo, nullptr, &setLayout));
 
 		m_descriptorSetLayouts.push_back(setLayout);
 
@@ -146,10 +134,7 @@ void PipelineGenerator::CreatePipelineLayout()
 		spdlog::info("Push constant range: offset: {}, size: {}, stage flags: {}", offset, size, static_cast<int>(stageFlags));
 	}
 
-	if (m_disp.createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create pipeline layout!");
-	}
+	VK_CHECK(m_disp.createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_pipelineContainer.pipelineLayout));
 
 	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipelineLayout, (m_pipelineContainer.name + " Pipeline Layout"));
 	spdlog::info("Created pipeline layout: {}", (void*) m_pipelineContainer.pipelineLayout);
@@ -264,10 +249,7 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.pDepthStencilState = &depthStencilStateCreateInfo;
 	pipelineInfo.pNext = &pipelineRenderingCreateInfo;
 
-	if (m_disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create graphics pipeline!");
-	}
+	VK_CHECK(m_disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipelineContainer.pipeline));
 
 	m_vulkanContext.GetDebugUtils().SetObjectName(m_pipelineContainer.pipeline, (m_pipelineContainer.name + " Pipeline"));
 }

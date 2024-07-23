@@ -1,4 +1,6 @@
 #include "Application.h"
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <DescriptorManager.h>
 
 Application::Application()
       : m_window({ .title = "Slime Odyssey", .width = 1920, .height = 1080, .resizable = true, .decorated = true, .fullscreen = false }), m_scene(&m_window)
@@ -48,9 +50,8 @@ void Application::InitializeVulkanContext()
 
 void Application::InitializeManagers()
 {
-	m_resourcePathManager = ResourcePathManager();
 	m_shaderManager = ShaderManager();
-	m_modelManager = ModelManager(m_resourcePathManager);
+	m_modelManager = ModelManager();
 	m_descriptorManager = new DescriptorManager(m_vulkanContext.GetDispatchTable());
 }
 

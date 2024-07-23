@@ -1,18 +1,20 @@
 #pragma once
+
 #include <string>
+#include <unordered_map>
 #include <vulkan/vulkan_core.h>
 
-#include "DescriptorManager.h"
-#include "Entity.h"
-#include "EntityManager.h"
-#include "Model.h"
-#include "ModelManager.h"
-#include "PipelineGenerator.h"
-#include "vk_mem_alloc.h"
-#include <functional>
-
-class VulkanDebugUtils;
+// Forward declarations
 class Camera;
+class DescriptorManager;
+class Entity;
+class EntityManager;
+class Model;
+class ModelManager;
+class PipelineGenerator;
+class Scene;
+class VulkanContext;
+class VulkanDebugUtils;
 
 namespace vkb
 {
@@ -20,13 +22,7 @@ namespace vkb
 	struct Swapchain;
 } // namespace vkb
 
-class Scene;
-class VulkanContext;
-class DescriptorManager;
-class ModelManager;
-
-#include <functional>
-
+// Custom hash functions for material configurations
 namespace std
 {
 	template<>
@@ -60,10 +56,16 @@ public:
 
 	void SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd);
 	void DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
-	void CleanUp(VmaAllocator allocator);
 
 private:
-	MVP m_mvp; // Push Constant
+	// Push Constant
+	struct MVP
+	{
+		glm::mat4 model;
+		glm::mat3 normalMatrix;
+	} m_mvp;
+
+	std::unordered_map<size_t, VkDescriptorSet> m_materialDescriptorCache;
 
 	void UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene);
 	void UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allocator);
@@ -71,42 +73,15 @@ private:
 	PipelineContainer* BindPipeline(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, const std::string& pipelineName, VulkanDebugUtils& debugUtils);
 	void UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils);
 	void DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout);
-	
+
 	void UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet sharedSet, VkDescriptorSetLayout setLayout, EntityManager& entityManager, VmaAllocator allocator);
-
-	VkDescriptorSet GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator);
-
+	
+	//
+	/// MATERIALS ///////////////////////////////////
+	//
+	VkDescriptorSet GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
 	void UpdateBasicMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, Entity* entity, VmaAllocator allocator);
-
 	void UpdatePBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator);
 
-	ShaderDebug m_shaderDebug;
-	VkBuffer m_shaderDebugBuffer = VK_NULL_HANDLE;
-	VmaAllocation m_shaderDebugAllocation = VK_NULL_HANDLE;
-
-	    // Add this member to cache material descriptor sets
-	std::unordered_map<size_t, VkDescriptorSet> m_materialDescriptorCache;
-
-	// Helper function to generate a hash for a material
-	size_t GenerateMaterialHash(const Entity* entity)
-	{
-		size_t hash = 0;
-		if (entity->HasComponent<BasicMaterial>())
-		{
-			const auto& material = entity->GetComponent<BasicMaterial>().materialResource;
-			hash = std::hash<BasicMaterialResource::Config>{}(material->config);
-		}
-		else if (entity->HasComponent<PBRMaterial>())
-		{
-			const auto& material = entity->GetComponent<PBRMaterial>().materialResource;
-			hash = std::hash<PBRMaterialResource::Config>{}(material->config);
-			// Include texture pointers in the hash
-			hash ^= std::hash<const void*>{}(material->albedoTex);
-			hash ^= std::hash<const void*>{}(material->normalTex);
-			hash ^= std::hash<const void*>{}(material->metallicTex);
-			hash ^= std::hash<const void*>{}(material->roughnessTex);
-			hash ^= std::hash<const void*>{}(material->aoTex);
-		}
-		return hash;
-	}
+	size_t GenerateMaterialHash(const Entity* entity);
 };

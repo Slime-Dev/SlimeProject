@@ -1,13 +1,14 @@
 #include "PlatformerGame.h"
 
-#include "Camera.h"
-#include "DescriptorManager.h"
-#include "imgui.h"
-#include "Light.h"
-#include "ModelManager.h"
-#include "SlimeWindow.h"
-#include "spdlog/spdlog.h"
-#include "VulkanContext.h"
+#include <Camera.h>
+#include <DescriptorManager.h>
+#include <imgui.h>
+#include <Light.h>
+#include <ModelManager.h>
+#include <SlimeWindow.h>
+#include <spdlog/spdlog.h>
+#include <VulkanContext.h>
+#include <ResourcePathManager.h>
 
 struct Velocity : public Component
 {
@@ -51,11 +52,15 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	SetupShaders(vulkanContext, modelManager, shaderManager, descriptorManager);
-	m_pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
-	m_basicMaterialResource = descriptorManager.CreateBasicMaterial(vulkanContext, modelManager, "Basic Material");
-	InitializeGameObjects(vulkanContext, modelManager);
+	
+	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	std::shared_ptr<BasicMaterialResource> basicMaterialResource = descriptorManager.CreateBasicMaterial(vulkanContext, modelManager, "Basic Material");
 
-	//m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
+	m_pbrMaterials.push_back(pbrMaterialResource);
+	m_basicMaterials.push_back(basicMaterialResource);
+	m_basicMaterials.push_back(descriptorManager.CopyBasicMaterial(vulkanContext, modelManager, "Basic Material 2", basicMaterialResource));
+
+	InitializeGameObjects(vulkanContext, modelManager);
 
 	return 0;
 }
@@ -144,10 +149,16 @@ void PlatformerGame::Render(VulkanContext& vulkanContext, ModelManager& modelMan
 void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	// Cleanup debug material
-	vmaDestroyBuffer(vulkanContext.GetAllocator(), m_pbrMaterialResource->configBuffer, m_pbrMaterialResource->configAllocation);
+	for (auto& material: m_pbrMaterials)
+	{
+		vmaDestroyBuffer(vulkanContext.GetAllocator(), material->configBuffer, material->configAllocation);
+	}
 
 	// Cleanup basic material
-	vmaDestroyBuffer(vulkanContext.GetAllocator(), m_basicMaterialResource->configBuffer, m_basicMaterialResource->configAllocation);
+	for (auto& material: m_basicMaterials)
+	{
+		vmaDestroyBuffer(vulkanContext.GetAllocator(), material->configBuffer, material->configAllocation);
+	}
 
 	// Clean up lights
 	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLightObject>();
@@ -172,6 +183,10 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 	auto debugPipeline = modelManager.GetPipelines()["debug_wire"];
 	vulkanContext.GetDispatchTable().destroyPipeline(debugPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugPipeline.pipelineLayout, nullptr);
+	
+	auto debugSolidPipeline = modelManager.GetPipelines()["debug_solid"];
+	vulkanContext.GetDispatchTable().destroyPipeline(debugSolidPipeline.pipeline, nullptr);
+	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugSolidPipeline.pipelineLayout, nullptr);
 
 	auto infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
 	vulkanContext.GetDispatchTable().destroyPipeline(infiniteGridPipeline.pipeline, nullptr);
@@ -190,16 +205,17 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	auto suzanneMesh = modelManager.LoadModel("suzanne.obj", pipelineName);
 	modelManager.CreateBuffersForMesh(allocator, *suzanneMesh);
 
-	auto cubeMesh = modelManager.LoadModel("cube.obj", pipelineName);
-	modelManager.CreateBuffersForMesh(allocator, *cubeMesh);
-
 	auto debugMesh = modelManager.CreateCube(allocator);
 	modelManager.CreateBuffersForMesh(allocator, *debugMesh);
 	debugMesh->pipeLineName = "debug_wire";
 
+	auto lightCube = modelManager.CreateCube(allocator, 0.1f);
+	modelManager.CreateBuffersForMesh(allocator, *lightCube);
+	lightCube->pipeLineName = "debug_solid";
+
 	// Initialize player
 	m_player->AddComponent<Model>(bunnyMesh);
-	m_player->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
+	m_player->AddComponent<PBRMaterial>(m_pbrMaterials[0]);
 	m_player->AddComponent<Velocity>();
 	m_player->AddComponent<JumpState>();
 	auto& playerTransform = m_player->AddComponent<Transform>();
@@ -207,38 +223,30 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 
 	// Initialize obstacle
 	m_obstacle->AddComponent<Model>(suzanneMesh);
-	m_obstacle->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
+	m_obstacle->AddComponent<PBRMaterial>(m_pbrMaterials[0]);
 	auto& obstacleTransform = m_obstacle->AddComponent<Transform>();
 	obstacleTransform.position = glm::vec3(5.0f, 4.0f, 5.0f);
 	obstacleTransform.scale = glm::vec3(0.75f);
 
-	// Initialize ground
-	m_ground->AddComponent<Model>(cubeMesh);
-	m_ground->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
-	auto& groundTransform = m_ground->AddComponent<Transform>();
-	groundTransform.scale = glm::vec3(20.0f, 0.5f, 20.0f);
-	groundTransform.position = glm::vec3(0.0f, -0.25f, 0.0f);
-
 	// Light cube
-	m_lightCube->AddComponent<Model>(cubeMesh);
-	m_lightCube->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
+	m_lightCube->AddComponent<Model>(lightCube);
+	m_lightCube->AddComponent<BasicMaterial>(m_basicMaterials[0]);
 
 	PointLight& light = m_entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>().light;
 	auto& lightCubeTransform = m_lightCube->AddComponent<Transform>();
 	lightCubeTransform.position = light.pos;
 
 	// Debug ground
-	Entity debugGround = Entity("DebugCube");
-	debugGround.AddComponent<Model>(debugMesh);
-	debugGround.AddComponent<BasicMaterial>(m_basicMaterialResource.get());
-	auto& debugGroundTransform = debugGround.AddComponent<Transform>();
-	m_entityManager.AddEntity(debugGround);
+	Entity debugWireFrameCube = Entity("WireFrame Cube");
+	debugWireFrameCube.AddComponent<Model>(debugMesh);
+	debugWireFrameCube.AddComponent<BasicMaterial>(m_basicMaterials[1]);
+	auto& debugGroundTransform = debugWireFrameCube.AddComponent<Transform>();
+	m_entityManager.AddEntity(debugWireFrameCube);
 	debugGroundTransform.position = glm::vec3(-4.0f, 0.0f, -4.0f);
 	debugGroundTransform.scale = glm::vec3(4.0f, 1.0f, 4.0f);
 
 	m_entityManager.AddEntity(m_player);
 	m_entityManager.AddEntity(m_obstacle);
-	//m_entityManager.AddEntity(m_ground);
 	m_entityManager.AddEntity(m_lightCube);
 }
 
@@ -249,8 +257,12 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 	// Set up a basic pipeline
 	modelManager.CreatePipeline("basic", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"), true);
 
+	// Set up the shared descriptor set pair (Grabbing it from the basic descriptors)
+	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["basic"].descriptorSetLayouts[0]);
+
 	// Set up a debug_wire pipeline
 	modelManager.CreatePipeline("debug_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true, VK_CULL_MODE_NONE, VK_POLYGON_MODE_LINE);
+	modelManager.CreatePipeline("debug_solid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true);
 
 	// Set up InfiniteGrid pipeline
 	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("grid.vert.spv"), resourcePaths.GetShaderPath("grid.frag.spv"), false, VK_CULL_MODE_NONE);
@@ -437,11 +449,32 @@ void PlatformerGame::UpdateFlyCam(float dt, const InputManager* inputManager)
 	float moveSpeed = 10.0f * dt;
 	float mouseSensitivity = 0.1f;
 
-	// Mouse look
-	auto [mouseX, mouseY] = inputManager->GetMouseDelta();
-	m_flyCamYaw += mouseX * mouseSensitivity;
-	m_flyCamPitch -= mouseY * mouseSensitivity;
-	m_flyCamPitch = glm::clamp(m_flyCamPitch, -89.0f, 89.0f);
+	// Check if right mouse button is pressed
+	bool currentRightMouseState = inputManager->IsMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+
+	// Mouse look only when right mouse button is pressed
+	if (currentRightMouseState)
+	{
+		auto [mouseX, mouseY] = inputManager->GetMouseDelta();
+		m_flyCamYaw += mouseX * mouseSensitivity;
+		m_flyCamPitch -= mouseY * mouseSensitivity;
+		m_flyCamPitch = glm::clamp(m_flyCamPitch, -89.0f, 89.0f);
+	}
+
+	// Handle mouse cursor visibility
+	if (currentRightMouseState && !m_rightMousePressed)
+	{
+		// Right mouse button just pressed
+		m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
+	}
+	else if (!currentRightMouseState && m_rightMousePressed)
+	{
+		// Right mouse button just released
+		m_window->SetCursorMode(GLFW_CURSOR_NORMAL);
+	}
+
+	// Update right mouse button state
+	m_rightMousePressed = currentRightMouseState;
 
 	// Calculate front, right, and up vectors
 	glm::vec3 front;
@@ -452,7 +485,7 @@ void PlatformerGame::UpdateFlyCam(float dt, const InputManager* inputManager)
 	glm::vec3 flyCamRight = glm::normalize(glm::cross(flyCamFront, glm::vec3(0.0f, 1.0f, 0.0f)));
 	glm::vec3 flyCamUp = glm::normalize(glm::cross(flyCamRight, flyCamFront));
 
-	// Movement
+	// Movement (can be done regardless of right mouse button state)
 	if (inputManager->IsKeyPressed(GLFW_KEY_W))
 		m_flyCamPosition += flyCamFront * moveSpeed;
 	if (inputManager->IsKeyPressed(GLFW_KEY_S))

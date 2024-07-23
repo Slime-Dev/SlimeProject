@@ -11,6 +11,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
+#include <memory>
+
 struct Vertex
 {
 	glm::vec3 pos;
@@ -79,11 +81,11 @@ struct PBRMaterialResource : public MaterialResource
 		float ao = 1.0f;                    // Strength
 	};
 
-	const TextureResource* albedoTex;
-	const TextureResource* normalTex;
-	const TextureResource* metallicTex;
-	const TextureResource* roughnessTex;
-	const TextureResource* aoTex;
+	TextureResource* albedoTex;
+	TextureResource* normalTex;
+	TextureResource* metallicTex;
+	TextureResource* roughnessTex;
+	TextureResource* aoTex;
 
 	Config config;
 };
@@ -92,7 +94,9 @@ struct PBRMaterial : public Component
 {
 	PBRMaterial() = default;
 	PBRMaterial(PBRMaterialResource* material)
-	      : materialResource(material) {};
+	      : materialResource(material){};
+	PBRMaterial(std::shared_ptr<PBRMaterialResource> material)
+	      : materialResource(material.get()){};
 
 	PBRMaterialResource* materialResource = nullptr;
 
@@ -103,7 +107,9 @@ struct BasicMaterial : public Component
 {
 	BasicMaterial() = default;
 	BasicMaterial(BasicMaterialResource* material)
-	      : materialResource(material) {};
+	      : materialResource(material){};
+	BasicMaterial(std::shared_ptr<BasicMaterialResource> material)
+	      : materialResource(material.get()){};
 
 	BasicMaterialResource* materialResource = nullptr;
 
@@ -114,7 +120,7 @@ struct Model : public Component
 {
 	Model() = default;
 	Model(ModelResource* model)
-	      : modelResource(model) {};
+	      : modelResource(model){};
 	ModelResource* modelResource;
 	void ImGuiDebug();
 };

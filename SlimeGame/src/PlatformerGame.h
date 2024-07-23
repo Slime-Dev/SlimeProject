@@ -1,7 +1,8 @@
 #pragma once
-
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/rotate_vector.hpp>
+#include <memory>
+#include <vector>
 
 #include "Model.h"
 #include "Scene.h"
@@ -17,7 +18,6 @@ class PlatformerGame : public Scene
 {
 public:
 	PlatformerGame(SlimeWindow* window);
-
 	int Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
 	void Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager) override;
 	void Render(VulkanContext& vulkanContext, ModelManager& modelManager) override;
@@ -43,6 +43,11 @@ private:
 	std::shared_ptr<Entity> m_ground = std::make_shared<Entity>("Ground");
 	std::shared_ptr<Entity> m_lightCube = std::make_shared<Entity>("LightCube");
 
+	// Vectors for materials and models
+	std::vector<std::shared_ptr<PBRMaterialResource>> m_pbrMaterials;
+	std::vector<std::shared_ptr<BasicMaterialResource>> m_basicMaterials;
+	std::vector<std::shared_ptr<Model>> m_models;
+
 	// Camera state
 	struct CameraState
 	{
@@ -51,18 +56,18 @@ private:
 		float pitch;
 		glm::vec3 position;
 	};
-	CameraState m_cameraState;
 
-    bool m_cameraMouseControl = true;
-    float m_manualYaw = 0.0f;
-    float m_manualPitch = 10.0f;
-    float m_manualDistance = 10.0f;
+	CameraState m_cameraState;
+	bool m_cameraMouseControl = true;
+	float m_manualYaw = 0.0f;
+	float m_manualPitch = 10.0f;
+	float m_manualDistance = 10.0f;
 
 	bool m_flyCamEnabled = false;
 	glm::vec3 m_flyCamPosition = glm::vec3(0.0f, 5.0f, -10.0f);
 	float m_flyCamYaw = 0.0f;
 	float m_flyCamPitch = 0.0f;
-
+	bool m_rightMousePressed = false;
 	void UpdateFlyCam(float dt, const InputManager* inputManager);
 
 	bool m_gameOver = false;
@@ -77,9 +82,8 @@ private:
 		float dragCoefficient;
 		float frictionCoefficient;
 	};
+
 	GameParameters m_gameParams;
 
-	std::shared_ptr<PBRMaterialResource> m_pbrMaterialResource;
-	std::shared_ptr<BasicMaterialResource> m_basicMaterialResource;
 	SlimeWindow* m_window;
 };

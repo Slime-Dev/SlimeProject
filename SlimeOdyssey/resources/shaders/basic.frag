@@ -28,11 +28,6 @@ layout(set = 0, binding = 1, scalar) uniform LightUBO {
 	float shininess;
 } light;
 
-layout(set = 0, binding = 2, scalar) uniform DebugUBO {
-    int debugMode; // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
-    bool useNormalMap; // Toggle normal mapping
-} debug;
-
 // Material
 layout(set = 1, binding = 0, scalar) uniform MaterialUBO {
     vec4 albedo;
@@ -48,10 +43,6 @@ layout(set = 1, binding = 4) uniform sampler2D roughnessMap;
 layout(set = 1, binding = 5) uniform sampler2D aoMap;
 
 vec3 calculateNormal() {
-    if (!debug.useNormalMap) {
-        return normalize(Normal);
-    }
-    
     vec3 tangentNormal = texture(normalMap, TexCoords).xyz * 2.0 - 1.0;
     vec3 Q1 = dFdx(FragPos);
     vec3 Q2 = dFdy(FragPos);
@@ -106,18 +97,6 @@ void main() {
     vec3 V = normalize(camera.viewPos.xyz - FragPos);
     vec3 L = normalize(light.position - FragPos);
     vec3 H = normalize(V + L);
-    
-    // Debug output
-    if (debug.debugMode == 1) {
-        FragColor = vec4(N * 0.5 + 0.5, 1.0);
-        return;
-    } else if (debug.debugMode == 2) {
-        FragColor = vec4(L * 0.5 + 0.5, 1.0);
-        return;
-    } else if (debug.debugMode == 3) {
-        FragColor = vec4(V * 0.5 + 0.5, 1.0);
-        return;
-    }
     
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
