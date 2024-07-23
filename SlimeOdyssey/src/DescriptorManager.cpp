@@ -48,9 +48,26 @@ VkDescriptorSet DescriptorManager::AllocateDescriptorSet(uint32_t layoutIndex)
 
 	// TODO: DO THIS BETTER I PROBABLY DONT WANT TO BE GRABBING THE FIRST RANDOM DESCRIPTOR AND HOPPING ITS CORRECT
 	// If this is the shared descriptor set, store it (layout index 0 and shared descriptor set isnt allocated yet)
-	if (layoutIndex == 0)
+	if (layoutIndex == 0 && m_sharedDescriptorSet.first == VK_NULL_HANDLE)
 	{
 		m_sharedDescriptorSet = { descriptorSet, m_descriptorSetLayouts[layoutIndex] };
+	}
+
+	return descriptorSet;
+}
+
+VkDescriptorSet DescriptorManager::AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout)
+{
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = m_descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &descriptorLayout;
+
+	VkDescriptorSet descriptorSet;
+	if (m_disp.allocateDescriptorSets(&allocInfo, &descriptorSet) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate descriptor set");
 	}
 
 	return descriptorSet;

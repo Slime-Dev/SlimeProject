@@ -40,11 +40,15 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipeLineName < b->template GetComponent<Model>().modelResource->pipeLineName; });
 
-	std::string lastUsedPipeline;
-	PipelineContainer* pipelineContainer = nullptr;
-
+	// Get the shared descriptor set
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> sharedDescriptorSet = descriptorManager.GetSharedDescriptorSet();
-	bool oneFrame = true;
+
+	// Update shared descriptors before the loop
+	UpdateSharedDescriptors(descriptorManager, sharedDescriptorSet.first, sharedDescriptorSet.second, entityManager, allocator);
+
+	std::unordered_map<std::string, PipelineContainer*> pipelineCache;
+	PipelineContainer* pipelineContainer = nullptr;
+	std::string lastUsedPipeline;
 
 	for (const auto& entity: modelEntities)
 	{
@@ -55,28 +59,36 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 		std::string pipelineName = model->pipeLineName;
 
-		pipelineContainer = BindPipeline(disp, cmd, modelManager, pipelineName, debugUtils);
-
-		if (!pipelineContainer)
+		// Bind pipeline if it's different from the last one
+		if (lastUsedPipeline != pipelineName)
 		{
-			debugUtils.EndDebugMarker(cmd);
-			continue;
-		}
-		lastUsedPipeline = pipelineName;
-
-		if (pipelineContainer)
-		{
-			if (oneFrame)
+			auto pipelineIt = pipelineCache.find(pipelineName);
+			if (pipelineIt == pipelineCache.end())
 			{
-				oneFrame = false;
-				UpdateSharedDescriptors(descriptorManager, sharedDescriptorSet.first, sharedDescriptorSet.second, entityManager, allocator);
-				disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
+				pipelineContainer = BindPipeline(disp, cmd, modelManager, pipelineName, debugUtils);
+				pipelineCache[pipelineName] = pipelineContainer;
+			}
+			else
+			{
+				pipelineContainer = pipelineIt->second;
+				disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipeline);
 			}
 
-			VkDescriptorSet descriptorSet = pipelineContainer->descriptorSets[1];
-			VkDescriptorSetLayout descriptorSetLayout = pipelineContainer->descriptorSetLayouts[1];
-			UpdateMaterialDescriptors(descriptorManager, descriptorSet, descriptorSetLayout, entity.get(), allocator);
+			if (!pipelineContainer)
+			{
+				debugUtils.EndDebugMarker(cmd);
+				continue;
+			}
+
+			lastUsedPipeline = pipelineName;
+
+			// Bind shared descriptor set after binding the pipeline
+			disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
 		}
+
+		// Bind material descriptor set
+		VkDescriptorSet materialDescriptorSet = GetOrUpdateMaterialDescriptorSet(entity.get(), pipelineContainer, descriptorManager, allocator);
+		disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 1, 1, &materialDescriptorSet, 0, nullptr);
 
 		UpdatePushConstants(disp, cmd, *pipelineContainer, transform, debugUtils);
 
@@ -150,66 +162,70 @@ PipelineContainer* Renderer::BindPipeline(vkb::DispatchTable& disp, VkCommandBuf
 
 void Renderer::UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet sharedSet, VkDescriptorSetLayout setLayout, EntityManager& entityManager, VmaAllocator allocator)
 {
-    Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
-    descriptorManager.BindBuffer(sharedSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
-    
-    // Bind other shared resources (lights, etc.) here
-	BindCommonDescriptors(entityManager, descriptorManager, sharedSet, setLayout, allocator);
-}
-
-void Renderer::UpdateMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, VkDescriptorSetLayout materialSetLayout, Entity* entity, VmaAllocator allocator)
-{
-    if (entity->HasComponent<BasicMaterial>())
-    {
-        BasicMaterialResource& materialResource = *entity->GetComponent<BasicMaterial>().materialResource;
-        SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
-        descriptorManager.BindBuffer(materialSet, 0, materialResource.configBuffer, 0, sizeof(BasicMaterialResource::Config));
-    }
-    else if (entity->HasComponent<PBRMaterial>())
-    {
-        auto& pbrMaterial = entity->GetComponent<PBRMaterial>();
-        BindPBRMaterialDescriptors(descriptorManager, materialSet, materialSetLayout, pbrMaterial, allocator);
-    }
-}
-
-void Renderer::BindCommonDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, VmaAllocator allocator)
-{
 	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
-	descriptorManager.BindBuffer(descSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
+	descriptorManager.BindBuffer(sharedSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
 
 	PointLightObject& light = entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>();
-	descriptorManager.BindBuffer(descSet, 1, light.buffer, 0, sizeof(light.light));
+	descriptorManager.BindBuffer(sharedSet, 1, light.buffer, 0, sizeof(light.light));
 
 	SlimeUtil::CopyStructToBuffer(m_shaderDebug, allocator, m_shaderDebugAllocation);
-	descriptorManager.BindBuffer(descSet, 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
+	descriptorManager.BindBuffer(sharedSet, 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
 }
 
-void Renderer::BindPBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, PBRMaterial& material, VmaAllocator allocator)
+VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator)
 {
-	PBRMaterialResource& materialResource = *material.materialResource;
+	size_t materialHash = GenerateMaterialHash(entity);
+
+	auto it = m_materialDescriptorCache.find(materialHash);
+	if (it != m_materialDescriptorCache.end())
+	{
+		return it->second;
+	}
+
+	// If not found in cache, create a new descriptor set
+	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineContainer->descriptorSetLayouts[1]);
+
+	// Update the new descriptor set
+	if (entity->HasComponent<BasicMaterial>())
+	{
+		UpdateBasicMaterialDescriptors(descriptorManager, newDescriptorSet, entity, allocator);
+	}
+	else if (entity->HasComponent<PBRMaterial>())
+	{
+		UpdatePBRMaterialDescriptors(descriptorManager, newDescriptorSet, entity, allocator);
+	}
+
+	// Cache the new descriptor set
+	m_materialDescriptorCache[materialHash] = newDescriptorSet;
+
+	return newDescriptorSet;
+}
+
+void Renderer::UpdateBasicMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, Entity* entity, VmaAllocator allocator)
+{
+	BasicMaterialResource& materialResource = *entity->GetComponent<BasicMaterial>().materialResource;
+	SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
+	descriptorManager.BindBuffer(materialSet, 0, materialResource.configBuffer, 0, sizeof(BasicMaterialResource::Config));
+}
+
+void Renderer::UpdatePBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator)
+{
+	PBRMaterial& pbrMaterial = entity->GetComponent<PBRMaterial>();
+	PBRMaterialResource& materialResource = *pbrMaterial.materialResource;
+
 	SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
 	descriptorManager.BindBuffer(descSet, 0, materialResource.configBuffer, 0, sizeof(PBRMaterialResource::Config));
 
 	if (materialResource.albedoTex)
-	{
 		descriptorManager.BindImage(descSet, 1, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
-	}
 	if (materialResource.normalTex)
-	{
 		descriptorManager.BindImage(descSet, 2, materialResource.normalTex->imageView, materialResource.normalTex->sampler);
-	}
 	if (materialResource.metallicTex)
-	{
 		descriptorManager.BindImage(descSet, 3, materialResource.metallicTex->imageView, materialResource.metallicTex->sampler);
-	}
 	if (materialResource.roughnessTex)
-	{
 		descriptorManager.BindImage(descSet, 4, materialResource.roughnessTex->imageView, materialResource.roughnessTex->sampler);
-	}
 	if (materialResource.aoTex)
-	{
 		descriptorManager.BindImage(descSet, 5, materialResource.aoTex->imageView, materialResource.aoTex->sampler);
-	}
 }
 
 void Renderer::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils)

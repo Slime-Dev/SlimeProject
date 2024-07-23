@@ -36,6 +36,7 @@ public:
 
 	// Descriptor Set Management
 	VkDescriptorSet AllocateDescriptorSet(uint32_t layoutIndex);
+	VkDescriptorSet AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout);
 	VkDescriptorSet GetDescriptorSet(uint32_t layoutIndex);
 	size_t AddDescriptorSetLayout(VkDescriptorSetLayout layout);
 	size_t AddDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
