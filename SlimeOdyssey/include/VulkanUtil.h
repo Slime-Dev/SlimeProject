@@ -1,5 +1,6 @@
 #pragma once
 
+#include <signal.h>
 #include <spdlog/spdlog.h>
 #include <VkBootstrap.h>
 
@@ -83,7 +84,7 @@ namespace SlimeUtil
 		{
 			throw std::runtime_error("failed to create buffer!");
 		}
-		
+
 		vmaSetAllocationName(allocator, allocation, name);
 		spdlog::debug("Created Buffer: {}", name);
 	}
@@ -191,7 +192,7 @@ namespace SlimeUtil
 		disp.destroySampler(sampler, nullptr);
 	}
 
-	inline std::string vkResultToString(VkResult result)
+	inline const char* vkResultToString(VkResult result)
 	{
 		switch (result)
 		{
@@ -243,15 +244,31 @@ namespace SlimeUtil
 
 }; // namespace SlimeUtil
 
-// Macro to log VkResult
-#define VK_CHECK(x)                                                                                        \
-	do                                                                                                     \
-	{                                                                                                      \
-		VkResult err = x;                                                                                  \
-		if (err)                                                                                           \
-		{                                                                                                  \
-			spdlog::error("Vulkan error: {} in {} at line {}", SlimeUtil::vkResultToString(err), __FILE__, __LINE__); \
-			abort();                                                                                       \
-		}                                                                                                  \
-	}                                                                                                      \
+#if defined(_MSC_VER)
+#	define BREAK() __debugbreak()
+#elif defined(__GNUC__) || defined(__clang__)
+#	define BREAK() __builtin_trap()
+#else
+#	define BREAK() raise(SIGTRAP)
+#endif
+
+#define VK_CHECK(x)                                                     \
+	do                                                                  \
+	{                                                                   \
+		VkResult err = x;                                               \
+		if (err)                                                        \
+		{                                                               \
+			const char* errorString = SlimeUtil::vkResultToString(err); \
+			spdlog::error("Vulkan error:\n"                             \
+			              "Result: {}\n"                                \
+			              "Expression: {}\n"                            \
+			              "Location: {} ({}:{})\n",                     \
+			        errorString,                                        \
+			        #x,                                                 \
+			        __func__,                                           \
+			        __FILE__,                                           \
+			        __LINE__);                                          \
+			BREAK();                                                    \
+		}                                                               \
+	}                                                                   \
 	while (0)
