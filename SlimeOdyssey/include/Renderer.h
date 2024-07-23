@@ -41,21 +41,16 @@ private:
 	void UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allocator);
 	void UpdateCameraBuffer(EntityManager& entityManager, VmaAllocator allocator);
 	PipelineContainer* BindPipeline(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, const std::string& pipelineName, VulkanDebugUtils& debugUtils);
-	void BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, DescriptorManager& descriptorManager, MaterialResource* material, EntityManager& entityManager, Entity* entity, VkDescriptorSet& lastBoundDescriptorSet, VmaAllocator allocator);
-	void UpdateDescriptorSet(DescriptorManager& descriptorManager, VkDescriptorSet descSet, PipelineContainer& pipelineContainer, size_t setIndex, MaterialResource* material, EntityManager& entityManager, Entity* entity, VmaAllocator allocator);
+	void BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, DescriptorManager& descriptorManager, EntityManager& entityManager, Entity* entity, VmaAllocator allocator);
 	void BindCommonDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, VmaAllocator allocator);
-	void BindMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, MaterialResource* material, VmaAllocator allocator);
+	void BindPBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, PBRMaterial& material, VmaAllocator allocator);
 	void UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils);
 	void DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout);
-
-	bool LayoutIncludesLightBuffer(VkDescriptorSetLayout layout);
-	bool LayoutIncludesShaderDebugBuffer(VkDescriptorSetLayout layout);
-	bool LayoutIncludesAlbedoTexture(VkDescriptorSetLayout layout);
-	bool LayoutIncludesNormalTexture(VkDescriptorSetLayout layout);
+	
+	void UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet sharedSet, VkDescriptorSetLayout setLayout, EntityManager& entityManager, VmaAllocator allocator);
+	void UpdateMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, VkDescriptorSetLayout materialSetLayout, Entity* entity, VmaAllocator allocator);
 
 	ShaderDebug m_shaderDebug;
 	VkBuffer m_shaderDebugBuffer = VK_NULL_HANDLE;
 	VmaAllocation m_shaderDebugAllocation = VK_NULL_HANDLE;
-
-	VkDescriptorSet m_boundDescriptorSet = VK_NULL_HANDLE;
 };

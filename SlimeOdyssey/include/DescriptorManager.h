@@ -51,7 +51,10 @@ public:
 	// Cleanup
 	void Cleanup();
 
-	std::shared_ptr<MaterialResource> CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> GetSharedDescriptorSet();
+
+	std::shared_ptr<PBRMaterialResource> CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
+	std::shared_ptr<BasicMaterialResource> CreateBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name);
 
 private:
 	// Private Methods
@@ -59,6 +62,8 @@ private:
 
 	// Member Variables
 	const vkb::DispatchTable& m_disp;
+
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> m_sharedDescriptorSet;
 
 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;

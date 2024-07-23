@@ -53,6 +53,24 @@ struct TextureResource
 
 struct MaterialResource
 {
+	VmaAllocation configAllocation;
+	VkBuffer configBuffer;
+
+	bool disposed = false;
+};
+
+struct BasicMaterialResource : public MaterialResource
+{
+	struct Config
+	{
+		glm::vec4 albedo = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f); // Colour
+	};
+
+	Config config;
+};
+
+struct PBRMaterialResource : public MaterialResource
+{
 	struct Config
 	{
 		glm::vec4 albedo = glm::vec4(1.0f); // Colour
@@ -68,27 +86,27 @@ struct MaterialResource
 	const TextureResource* aoTex;
 
 	Config config;
-	VmaAllocation configAllocation;
-	VkBuffer configBuffer;
-
-	bool disposed = false;
 };
 
-enum class MaterialType
+struct PBRMaterial : public Component
 {
-	PBR,
-	LINE,
-	COUNT
+	PBRMaterial() = default;
+	PBRMaterial(PBRMaterialResource* material)
+	      : materialResource(material) {};
+
+	PBRMaterialResource* materialResource = nullptr;
+
+	void ImGuiDebug();
 };
 
-struct Material : public Component
+struct BasicMaterial : public Component
 {
-	Material() = default;
-	Material(MaterialResource* material)
-	      : materialResource(material){};
-	MaterialResource* materialResource = nullptr;
+	BasicMaterial() = default;
+	BasicMaterial(BasicMaterialResource* material)
+	      : materialResource(material) {};
 
-	MaterialType type = MaterialType::COUNT;
+	BasicMaterialResource* materialResource = nullptr;
+
 	void ImGuiDebug();
 };
 
@@ -96,7 +114,7 @@ struct Model : public Component
 {
 	Model() = default;
 	Model(ModelResource* model)
-	      : modelResource(model){};
+	      : modelResource(model) {};
 	ModelResource* modelResource;
 	void ImGuiDebug();
 };

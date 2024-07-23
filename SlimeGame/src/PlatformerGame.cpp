@@ -51,7 +51,8 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	SetupShaders(vulkanContext, modelManager, shaderManager, descriptorManager);
-	m_tempMaterial = descriptorManager.CreateMaterial(vulkanContext, modelManager, "TempMaterial", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	m_pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	m_basicMaterialResource = descriptorManager.CreateBasicMaterial(vulkanContext, modelManager, "Basic Material");
 	InitializeGameObjects(vulkanContext, modelManager);
 
 	//m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
@@ -143,7 +144,10 @@ void PlatformerGame::Render(VulkanContext& vulkanContext, ModelManager& modelMan
 void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	// Cleanup debug material
-	vmaDestroyBuffer(vulkanContext.GetAllocator(), m_tempMaterial->configBuffer, m_tempMaterial->configAllocation);
+	vmaDestroyBuffer(vulkanContext.GetAllocator(), m_pbrMaterialResource->configBuffer, m_pbrMaterialResource->configAllocation);
+
+	// Cleanup basic material
+	vmaDestroyBuffer(vulkanContext.GetAllocator(), m_basicMaterialResource->configBuffer, m_basicMaterialResource->configAllocation);
 
 	// Clean up lights
 	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLightObject>();
@@ -195,7 +199,7 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 
 	// Initialize player
 	m_player->AddComponent<Model>(bunnyMesh);
-	m_player->AddComponent<Material>(m_tempMaterial.get()).type = MaterialType::PBR;
+	m_player->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
 	m_player->AddComponent<Velocity>();
 	m_player->AddComponent<JumpState>();
 	auto& playerTransform = m_player->AddComponent<Transform>();
@@ -203,21 +207,21 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 
 	// Initialize obstacle
 	m_obstacle->AddComponent<Model>(suzanneMesh);
-	m_obstacle->AddComponent<Material>(m_tempMaterial.get()).type = MaterialType::PBR;
+	m_obstacle->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
 	auto& obstacleTransform = m_obstacle->AddComponent<Transform>();
 	obstacleTransform.position = glm::vec3(5.0f, 4.0f, 5.0f);
 	obstacleTransform.scale = glm::vec3(0.75f);
 
 	// Initialize ground
 	m_ground->AddComponent<Model>(cubeMesh);
-	m_ground->AddComponent<Material>(m_tempMaterial.get()).type = MaterialType::PBR;
+	m_ground->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
 	auto& groundTransform = m_ground->AddComponent<Transform>();
 	groundTransform.scale = glm::vec3(20.0f, 0.5f, 20.0f);
 	groundTransform.position = glm::vec3(0.0f, -0.25f, 0.0f);
 
 	// Light cube
 	m_lightCube->AddComponent<Model>(cubeMesh);
-	m_lightCube->AddComponent<Material>(m_tempMaterial.get()).type = MaterialType::PBR;
+	m_lightCube->AddComponent<PBRMaterial>(m_pbrMaterialResource.get());
 
 	PointLight& light = m_entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>().light;
 	auto& lightCubeTransform = m_lightCube->AddComponent<Transform>();
@@ -226,7 +230,7 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	// Debug ground
 	Entity debugGround = Entity("DebugCube");
 	debugGround.AddComponent<Model>(debugMesh);
-	debugGround.AddComponent<Material>().type = MaterialType::LINE;
+	debugGround.AddComponent<BasicMaterial>(m_basicMaterialResource.get());
 	auto& debugGroundTransform = debugGround.AddComponent<Transform>();
 	m_entityManager.AddEntity(debugGround);
 	debugGroundTransform.position = glm::vec3(-4.0f, 0.0f, -4.0f);

@@ -79,6 +79,7 @@ private:
 	};
 	GameParameters m_gameParams;
 
-	std::shared_ptr<MaterialResource> m_tempMaterial;
+	std::shared_ptr<PBRMaterialResource> m_pbrMaterialResource;
+	std::shared_ptr<BasicMaterialResource> m_basicMaterialResource;
 	SlimeWindow* m_window;
 };

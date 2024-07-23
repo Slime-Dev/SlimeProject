@@ -1,9 +1,10 @@
 #include "DescriptorManager.h"
 
 #include <stdexcept>
+
+#include "ModelManager.h"
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
-#include "ModelManager.h"
 
 DescriptorManager::DescriptorManager(const vkb::DispatchTable& disp)
       : m_disp(disp)
@@ -17,6 +18,11 @@ void DescriptorManager::Cleanup()
 	{
 		m_disp.destroyDescriptorPool(m_descriptorPool, nullptr);
 	}
+}
+
+std::pair<VkDescriptorSet, VkDescriptorSetLayout> DescriptorManager::GetSharedDescriptorSet()
+{
+	return m_sharedDescriptorSet;
 }
 
 VkDescriptorSet DescriptorManager::AllocateDescriptorSet(uint32_t layoutIndex)
@@ -39,6 +45,13 @@ VkDescriptorSet DescriptorManager::AllocateDescriptorSet(uint32_t layoutIndex)
 	}
 
 	m_descriptorSets[layoutIndex] = descriptorSet;
+
+	// TODO: DO THIS BETTER I PROBABLY DONT WANT TO BE GRABBING THE FIRST RANDOM DESCRIPTOR AND HOPPING ITS CORRECT
+	// If this is the shared descriptor set, store it (layout index 0 and shared descriptor set isnt allocated yet)
+	if (layoutIndex == 0)
+	{
+		m_sharedDescriptorSet = { descriptorSet, m_descriptorSetLayouts[layoutIndex] };
+	}
 
 	return descriptorSet;
 }
@@ -158,7 +171,7 @@ void DescriptorManager::CreateDescriptorPool()
 	}
 }
 
-std::shared_ptr<MaterialResource> DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
+std::shared_ptr<PBRMaterialResource> DescriptorManager::CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
 {
 	VkDevice device = vulkanContext.GetDevice();
 	VkCommandPool commandPool = vulkanContext.GetCommandPool();
@@ -166,15 +179,32 @@ std::shared_ptr<MaterialResource> DescriptorManager::CreateMaterial(VulkanContex
 	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
 	vkb::DispatchTable disp = vulkanContext.GetDispatchTable();
 
-	auto mat = std::make_shared<MaterialResource>();
-	
-	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(MaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
+	auto mat = std::make_shared<PBRMaterialResource>();
+
+	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(PBRMaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
 
 	mat->albedoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, albedo);
 	mat->normalTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, normal);
 	mat->metallicTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, metallic);
 	mat->roughnessTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, roughness);
 	mat->aoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, ao);
+
+	mat->disposed = false;
+
+	return mat;
+}
+
+std::shared_ptr<BasicMaterialResource> DescriptorManager::CreateBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name)
+{
+	VkDevice device = vulkanContext.GetDevice();
+	VkCommandPool commandPool = vulkanContext.GetCommandPool();
+	VmaAllocator allocator = vulkanContext.GetAllocator();
+	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
+	vkb::DispatchTable disp = vulkanContext.GetDispatchTable();
+
+	auto mat = std::make_shared<BasicMaterialResource>();
+
+	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(BasicMaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
 
 	mat->disposed = false;
 

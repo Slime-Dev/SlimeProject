@@ -15,7 +15,7 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	VkViewport viewport = { .x = 0.0f, .y = 0.0f, .width = static_cast<float>(swapchain.extent.width), .height = static_cast<float>(swapchain.extent.height), .minDepth = 0.0f, .maxDepth = 1.0f };
 
 	VkRect2D scissor = {
-		.offset = {0, 0},
+		.offset = { 0, 0 },
           .extent = swapchain.extent
 	};
 
@@ -32,39 +32,50 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	UpdateCommonBuffers(debugUtils, allocator, cmd, scene);
 
 	EntityManager& entityManager = scene->m_entityManager;
-	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Material, Transform>();
+	auto pbrModelEntities = entityManager.GetEntitiesWithComponents<Model, PBRMaterial, Transform>();
+	auto basicModelEntities = entityManager.GetEntitiesWithComponents<Model, BasicMaterial, Transform>();
+
+	std::vector<std::shared_ptr<Entity>> modelEntities = pbrModelEntities;
+	modelEntities.insert(modelEntities.end(), basicModelEntities.begin(), basicModelEntities.end());
+
+	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipeLineName < b->template GetComponent<Model>().modelResource->pipeLineName; });
 
 	std::string lastUsedPipeline;
 	PipelineContainer* pipelineContainer = nullptr;
-	VkDescriptorSet lastBoundDescriptorSet = VK_NULL_HANDLE;
 
-	// Sort entities by pipeline name
-	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipeLineName < b->template GetComponent<Model>().modelResource->pipeLineName; });
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> sharedDescriptorSet = descriptorManager.GetSharedDescriptorSet();
+	bool oneFrame = true;
 
 	for (const auto& entity: modelEntities)
 	{
 		ModelResource* model = entity->GetComponent<Model>().modelResource;
-		MaterialResource* material = entity->GetComponent<Material>().materialResource;
 		Transform& transform = entity->GetComponent<Transform>();
 
 		debugUtils.BeginDebugMarker(cmd, ("Process Model: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
 
 		std::string pipelineName = model->pipeLineName;
-		if (pipelineName != lastUsedPipeline)
+
+		pipelineContainer = BindPipeline(disp, cmd, modelManager, pipelineName, debugUtils);
+
+		if (!pipelineContainer)
 		{
-			pipelineContainer = BindPipeline(disp, cmd, modelManager, pipelineName, debugUtils);
-			if (!pipelineContainer)
-			{
-				debugUtils.EndDebugMarker(cmd);
-				continue;
-			}
-			lastUsedPipeline = pipelineName;
-			lastBoundDescriptorSet = VK_NULL_HANDLE; // Reset bound descriptor set when pipeline changes
+			debugUtils.EndDebugMarker(cmd);
+			continue;
 		}
+		lastUsedPipeline = pipelineName;
 
 		if (pipelineContainer)
 		{
-			BindDescriptorSets(disp, cmd, *pipelineContainer, descriptorManager, material, entityManager, entity.get(), lastBoundDescriptorSet, allocator);
+			if (oneFrame)
+			{
+				oneFrame = false;
+				UpdateSharedDescriptors(descriptorManager, sharedDescriptorSet.first, sharedDescriptorSet.second, entityManager, allocator);
+				disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
+			}
+
+			VkDescriptorSet descriptorSet = pipelineContainer->descriptorSets[1];
+			VkDescriptorSetLayout descriptorSetLayout = pipelineContainer->descriptorSetLayouts[1];
+			UpdateMaterialDescriptors(descriptorManager, descriptorSet, descriptorSetLayout, entity.get(), allocator);
 		}
 
 		UpdatePushConstants(disp, cmd, *pipelineContainer, transform, debugUtils);
@@ -137,57 +148,33 @@ PipelineContainer* Renderer::BindPipeline(vkb::DispatchTable& disp, VkCommandBuf
 	return pipelineContainer;
 }
 
-void Renderer::BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, DescriptorManager& descriptorManager, MaterialResource* material, EntityManager& entityManager, Entity* entity, VkDescriptorSet& lastBoundDescriptorSet, VmaAllocator allocator)
+void Renderer::UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet sharedSet, VkDescriptorSetLayout setLayout, EntityManager& entityManager, VmaAllocator allocator)
 {
-	auto& descSets = pipelineContainer.descriptorSets;
-
-	// Ensure we have the correct number of descriptor sets for this pipeline
-	if (descSets.size() != pipelineContainer.descriptorSetLayouts.size())
-	{
-		spdlog::error("Mismatch in descriptor set count for pipeline: {}", pipelineContainer.name);
-		return;
-	}
-
-	// If we only have 1 type of descriptorset layouts then this will cause alot of validation layer errors
-	// TODO: Look into this
-	if (m_boundDescriptorSet == descSets[0])
-	{
-		return;
-	}
-
-	m_boundDescriptorSet = descSets[0];
-
-	// Bind all descriptor sets for the current pipeline
-	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer.pipelineLayout, 0, descSets.size(), descSets.data(), 0, nullptr);
-	lastBoundDescriptorSet = descSets[0];
-
-	// Update descriptor sets based on the pipeline's layout
-	for (size_t i = 0; i < descSets.size(); ++i)
-	{
-		UpdateDescriptorSet(descriptorManager, descSets[i], pipelineContainer, i, material, entityManager, entity, allocator);
-	}
+    Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+    descriptorManager.BindBuffer(sharedSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
+    
+    // Bind other shared resources (lights, etc.) here
+	BindCommonDescriptors(entityManager, descriptorManager, sharedSet, setLayout, allocator);
 }
 
-void Renderer::UpdateDescriptorSet(DescriptorManager& descriptorManager, VkDescriptorSet descSet, PipelineContainer& pipelineContainer, size_t setIndex, MaterialResource* material, EntityManager& entityManager, Entity* entity, VmaAllocator allocator)
+void Renderer::UpdateMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, VkDescriptorSetLayout materialSetLayout, Entity* entity, VmaAllocator allocator)
 {
-	VkDescriptorSetLayout layout = pipelineContainer.descriptorSetLayouts[setIndex];
-
-	if (setIndex == 0) // Common descriptor set
-	{
-		BindCommonDescriptors(entityManager, descriptorManager, descSet, layout, allocator);
-	}
-	else if (setIndex == 1 && entity->GetComponent<Material>().type != MaterialType::LINE) // Material descriptor set
-	{
-		BindMaterialDescriptors(descriptorManager, descSet, layout, material, allocator);
-	}
-	// Add more conditions for other descriptor sets if needed
+    if (entity->HasComponent<BasicMaterial>())
+    {
+        BasicMaterialResource& materialResource = *entity->GetComponent<BasicMaterial>().materialResource;
+        SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
+        descriptorManager.BindBuffer(materialSet, 0, materialResource.configBuffer, 0, sizeof(BasicMaterialResource::Config));
+    }
+    else if (entity->HasComponent<PBRMaterial>())
+    {
+        auto& pbrMaterial = entity->GetComponent<PBRMaterial>();
+        BindPBRMaterialDescriptors(descriptorManager, materialSet, materialSetLayout, pbrMaterial, allocator);
+    }
 }
 
 void Renderer::BindCommonDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, VmaAllocator allocator)
 {
 	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
-
-	// Always bind the camera buffer
 	descriptorManager.BindBuffer(descSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
 
 	PointLightObject& light = entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>();
@@ -197,30 +184,31 @@ void Renderer::BindCommonDescriptors(EntityManager& entityManager, DescriptorMan
 	descriptorManager.BindBuffer(descSet, 2, m_shaderDebugBuffer, 0, sizeof(ShaderDebug));
 }
 
-void Renderer::BindMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, MaterialResource* material, VmaAllocator allocator)
+void Renderer::BindPBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, VkDescriptorSetLayout layout, PBRMaterial& material, VmaAllocator allocator)
 {
-	SlimeUtil::CopyStructToBuffer(material->config, allocator, material->configAllocation);
-	descriptorManager.BindBuffer(descSet, 0, material->configBuffer, 0, sizeof(MaterialResource::Config));
+	PBRMaterialResource& materialResource = *material.materialResource;
+	SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
+	descriptorManager.BindBuffer(descSet, 0, materialResource.configBuffer, 0, sizeof(PBRMaterialResource::Config));
 
-	if (material->albedoTex)
+	if (materialResource.albedoTex)
 	{
-		descriptorManager.BindImage(descSet, 1, material->albedoTex->imageView, material->albedoTex->sampler);
+		descriptorManager.BindImage(descSet, 1, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
 	}
-	if (material->normalTex)
+	if (materialResource.normalTex)
 	{
-		descriptorManager.BindImage(descSet, 2, material->normalTex->imageView, material->normalTex->sampler);
+		descriptorManager.BindImage(descSet, 2, materialResource.normalTex->imageView, materialResource.normalTex->sampler);
 	}
-	if (material->metallicTex)
+	if (materialResource.metallicTex)
 	{
-		descriptorManager.BindImage(descSet, 3, material->metallicTex->imageView, material->metallicTex->sampler);
+		descriptorManager.BindImage(descSet, 3, materialResource.metallicTex->imageView, materialResource.metallicTex->sampler);
 	}
-	if (material->roughnessTex)
+	if (materialResource.roughnessTex)
 	{
-		descriptorManager.BindImage(descSet, 4, material->roughnessTex->imageView, material->roughnessTex->sampler);
+		descriptorManager.BindImage(descSet, 4, materialResource.roughnessTex->imageView, materialResource.roughnessTex->sampler);
 	}
-	if (material->aoTex)
+	if (materialResource.aoTex)
 	{
-		descriptorManager.BindImage(descSet, 5, material->aoTex->imageView, material->aoTex->sampler);
+		descriptorManager.BindImage(descSet, 5, materialResource.aoTex->imageView, materialResource.aoTex->sampler);
 	}
 }
 
@@ -235,25 +223,6 @@ void Renderer::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cm
 void Renderer::CleanUp(VmaAllocator allocator)
 {
 	vmaDestroyBuffer(allocator, m_shaderDebugBuffer, m_shaderDebugAllocation);
-}
-
-bool Renderer::LayoutIncludesLightBuffer(VkDescriptorSetLayout layout)
-{
-	if (layout == VK_NULL_HANDLE)
-	{
-		return false;
-	}
-	return true;
-}
-
-bool Renderer::LayoutIncludesShaderDebugBuffer(VkDescriptorSetLayout layout)
-{
-	if (layout == VK_NULL_HANDLE)
-	{
-		return false;
-	}
-
-	return true;
 }
 
 void Renderer::DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout)
