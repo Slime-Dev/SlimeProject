@@ -1,22 +1,12 @@
 #include <iostream>
 #include <stdexcept>
-#include "ResourcePathManager.h"
 #include "ModelManager.h"
 #include <spdlog/spdlog.h>
 #include <vector>
 
-void LoadBunny() {
-    ModelManager modelManager = ModelManager();
-    // Upper case for Windows
+void LoadBunny(ModelManager& modelManager)
+{
     auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
-    if (bunnyMesh == nullptr) {
-        // Lower case for Linux
-        bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
-        if (bunnyMesh == nullptr) {
-            throw std::runtime_error("Failed to load model 'Stanford-bunny.obj'");
-        }
-    }
-
     if (bunnyMesh->vertices.size() == 0) {
         throw std::runtime_error("Model 'Stanford-bunny.obj' has no vertices");
     }
@@ -26,8 +16,8 @@ void LoadBunny() {
     }
 }
 
-void LoadMonkey() {
-    ModelManager modelManager = ModelManager();
+void LoadMonkey(ModelManager& modelManager)
+{
     auto suzanneMesh = modelManager.LoadModel("suzanne.obj", "basic");
     if (suzanneMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'suzanne.obj'");
@@ -42,8 +32,8 @@ void LoadMonkey() {
     }
 }
 
-void LoadCube() {
-    ModelManager modelManager = ModelManager();
+void LoadCube(ModelManager& modelManager)
+{
     auto cubeMesh = modelManager.LoadModel("cube.obj", "basic");
     if (cubeMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'cube.obj'");
@@ -59,10 +49,12 @@ void LoadCube() {
 }
 
 int main() {
+	ModelManager modelManager = ModelManager();
+
     try {
-        LoadBunny();
-        LoadMonkey();
-        LoadCube();
+		LoadBunny(modelManager);
+		LoadMonkey(modelManager);
+		LoadCube(modelManager);
     }
     catch (const std::exception& e) {
         spdlog::error("Test failed with exception: {}", e.what());

@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <vk_mem_alloc.h>
+
 // Assuming we're using tinyobj for model loading
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -118,8 +119,34 @@ void ModelManager::AssignTexCoords(Vertex& v0, Vertex& v1, Vertex& v2, const glm
 	v2.texCoord = glm::vec2(glm::dot(v2.pos, tangent), glm::dot(v2.pos, bitangent));
 }
 
-bool ModelManager::LoadObjFile(const std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err)
+bool ModelManager::LoadObjFile(std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err)
 {
+	// First test the file path
+	if (fullPath.empty())
+	{
+		spdlog::error("Model path is empty");
+		return false;
+	}
+
+	// Test if we need to make the path lower case by using ifstream to check if the file exists
+	std::ifstream file(fullPath.c_str());
+	if (!file.good())
+	{
+		// Try to make the path lower case
+		std::string lowerCasePath = fullPath;
+		std::transform(lowerCasePath.begin(), lowerCasePath.end(), lowerCasePath.begin(), ::tolower);
+		file.open(lowerCasePath.c_str());
+
+		if (!file.good())
+		{
+			spdlog::error("Model file not found: {}", fullPath);
+			return false;
+		}
+
+		fullPath = lowerCasePath;
+	}
+
+	// Load the obj
 	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str()))
 	{
 		spdlog::error("Failed to load model '{}': {}", fullPath, err);
