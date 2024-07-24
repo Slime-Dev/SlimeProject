@@ -1,4 +1,6 @@
 #include "ResourcePathManager.h"
+#include <spdlog/spdlog.h>
+
 #ifdef _WIN32
 	#include <direct.h>
 #else
@@ -76,15 +78,52 @@ std::string ResourcePathManager::SetRootDirectory()
     #else
         path = getcwd(nullptr, 0);
     #endif
-    
+   
     if (path == nullptr) {
         throw std::runtime_error("Failed to get current working directory");
     }
-    
-    std::string currentPath(path);
+   
+    // The application can have many places where it is run from so we set multiple options
+    const char* possibleSubDirs[] = {
+        "/bin/Release/resources",
+        "/bin/Debug/resources",
+        "/bin/resources",
+        "/build/resources",
+        "/resources",
+        "/assets",
+        "/data",
+        "/../resources",
+        "/../assets",
+        "/../data",
+        "/bin/x64/Release/resources",
+        "/bin/x64/Debug/resources",
+        "/bin/x86/Release/resources",
+        "/bin/x86/Debug/resources",
+        "/out/build/x64-Release/resources",
+        "/out/build/x64-Debug/resources",
+        "/out/build/x86-Release/resources",
+        "/out/build/x86-Debug/resources",
+        "/build/Release/resources",
+        "/build/Debug/resources"
+    };
+
+    for (const char* subDir : possibleSubDirs)
+    {
+        std::string currentPath = std::string(path) + subDir;
+        if (std::filesystem::exists(currentPath))
+        {
+			spdlog::info("Found resources directory at: {}", currentPath);
+            free(path);
+            return currentPath;
+        }
+    }
+
+	spdlog::warn("Failed to find resources directory, using current working directory");
+
+    // If none of the above paths exist, default to the original fallback
+    std::string currentPath = std::string(path) + "/resources";
     free(path);
-    
-    return currentPath + "/resources";
+    return currentPath;
 }
 
 void ResourcePathManager::InitializeDirectories()

@@ -3,21 +3,15 @@ if(BUILD_TYPE STREQUAL "Release")
     message(STATUS "Copying resources: ${SOURCE_DIR} -> ${DESTINATION_DIR}")
     
     # Remove the destination directory if it exists
-    if(EXISTS "${DESTINATION_DIR}")
-        file(REMOVE_RECURSE "${DESTINATION_DIR}")
+    if(EXISTS "${DESTINATION_DIR}/resources")
+        file(REMOVE_RECURSE "${DESTINATION_DIR}/resources")
     endif()
     
     # Create the destination directory
     file(MAKE_DIRECTORY "${DESTINATION_DIR}")
     
-    # Copy contents of SOURCE_DIR to DESTINATION_DIR
-    file(GLOB_RECURSE SOURCE_CONTENTS "${SOURCE_DIR}/*")
-    foreach(ITEM ${SOURCE_CONTENTS})
-        file(RELATIVE_PATH REL_ITEM "${SOURCE_DIR}" "${ITEM}")
-        if(NOT REL_ITEM MATCHES "^resources/")  # Skip items in a nested 'resources' folder
-            file(COPY "${ITEM}" DESTINATION "${DESTINATION_DIR}")
-        endif()
-    endforeach()
+    # Copy SOURCE_DIR to DESTINATION_DIR
+    file(COPY "${SOURCE_DIR}" DESTINATION "${DESTINATION_DIR}")
 else()
     message(STATUS "Debug build detected.")
     if(WIN32)

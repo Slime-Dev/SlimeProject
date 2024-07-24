@@ -58,7 +58,7 @@ function(link_or_copy_resources TARGET_NAME)
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TARGET_NAME}>"
         COMMAND ${CMAKE_COMMAND}
         -D SOURCE_DIR=${SLIME_RESOURCES_DIR}
-        -D DESTINATION_DIR="$<TARGET_FILE_DIR:${TARGET_NAME}>/resources"
+        -D DESTINATION_DIR="$<TARGET_FILE_DIR:${TARGET_NAME}>"
         -D BUILD_TYPE=$<CONFIG>
         -P "${SLIME_CMAKE_DIR}/CopyOrLink.cmake" 
         COMMENT "Linking or copying SlimeOdyssey resources to executable directory"
