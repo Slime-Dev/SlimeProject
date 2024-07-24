@@ -5,8 +5,7 @@ on:
     branches-ignore:
       - 'build'
   pull_request:
-    branches:
-      [ "main" ]
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -40,16 +39,7 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Cache Linux CPM packages
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cpm
-          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: |
-            ${{ runner.os }}-cpm-
-
-      - name: Cache CPM packages
+      - name: Restore CPM cache
         uses: actions/cache@v4
         with:
           path: ~/.cpm
@@ -101,6 +91,12 @@ jobs:
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
+
+      - name: Save CPM cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cpm
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Convert XML to CTRF
         if: success()
