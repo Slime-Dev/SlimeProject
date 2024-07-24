@@ -9,10 +9,9 @@ else()
         string(REPLACE "/" "\\" SOURCE_DIR_WIN "${SOURCE_DIR}")
         string(REPLACE "/" "\\" DESTINATION_DIR_WIN "${DESTINATION_DIR}")
         
-        message(STATUS "Creating symlink: ${SOURCE_DIR_WIN} -> ${DESTINATION_DIR_WIN}")
-
+        message(STATUS "Creating junction: ${SOURCE_DIR_WIN} -> ${DESTINATION_DIR_WIN}")
         execute_process(
-            COMMAND cmd /c mklink /D "${DESTINATION_DIR_WIN}" "${SOURCE_DIR_WIN}"
+            COMMAND cmd /c mklink /J "${DESTINATION_DIR_WIN}" "${SOURCE_DIR_WIN}"
             RESULT_VARIABLE link_result
             ERROR_VARIABLE link_error
         )
@@ -26,6 +25,8 @@ else()
     endif()
     
     if(NOT link_result EQUAL 0)
-        message(WARNING "Failed to create symlink: ${link_error}")
+        message(WARNING "Failed to create junction/symlink: ${link_error}")
+        message(STATUS "Falling back to copying resources")
+        file(COPY ${SOURCE_DIR} DESTINATION ${DESTINATION_DIR})
     endif()
 endif()
