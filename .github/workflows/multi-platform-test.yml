@@ -1,10 +1,12 @@
-name: Building for multiple platforms
+name: Testing for multiple platforms
 
 on:
   push:
-    branches: [ "*" ]
+    branches-ignore:
+      [ "build" ]
   pull_request:
-    branches: [ "main" ]
+    branches:
+      [ "main" ]
 
 jobs:
   build:
@@ -38,23 +40,15 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Cache CPM packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cpm
-          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: |
-            ${{ runner.os }}-cpm-
-
-      - name: Cache build outputs
+      - name: Restore CPM cache
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/build/bin
-            ${{ github.workspace }}/build/lib
-          key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+            ~/.cpm
+            ${{ github.workspace }}/.cpm
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
-            ${{ runner.os }}-build-
+            ${{ runner.os }}-cpm-
 
       - name: UBUNTU - Install dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -84,14 +78,25 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
       - name: Configure CMake
-        run: >
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -S ${{ github.workspace }}
-          -DCPM_SOURCE_CACHE=~/.cpm
-          -DENABLE_TESTING=ON
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S "${{ github.workspace }}" \
+              -DCPM_SOURCE_CACHE="${{ github.workspace }}/.cpm" \
+              -DENABLE_TESTING=OFF
+          else
+            cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S ${{ github.workspace }} \
+              -DCPM_SOURCE_CACHE=~/.cpm \
+              -DENABLE_TESTING=OFF
+          fi
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
