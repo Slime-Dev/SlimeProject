@@ -6,9 +6,9 @@
 
 void LoadBunny(ModelManager& modelManager)
 {
-    auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
+    auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
     if (bunnyMesh->vertices.size() == 0) {
-        throw std::runtime_error("Model 'Stanford-bunny.obj' has no vertices");
+        throw std::runtime_error("Model 'stanford-bunny.obj' has no vertices");
     }
 
     if (bunnyMesh->indices.size() == 0) {

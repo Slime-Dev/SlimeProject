@@ -146,6 +146,8 @@ bool ModelManager::LoadObjFile(std::string& fullPath, tinyobj::attrib_t& attrib,
 		fullPath = lowerCasePath;
 	}
 
+	file.close();
+
 	// Load the obj
 	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str()))
 	{
