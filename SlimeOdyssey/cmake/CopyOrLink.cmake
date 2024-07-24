@@ -26,7 +26,5 @@ else()
     
     if(NOT link_result EQUAL 0)
         message(WARNING "Failed to create junction/symlink: ${link_error}")
-        message(STATUS "Falling back to copying resources")
-        file(COPY ${SOURCE_DIR} DESTINATION ${DESTINATION_DIR})
     endif()
 endif()
