@@ -3,7 +3,6 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <vk_mem_alloc.h>
-#include <VulkanContext.h>
 
 // Assuming we're using tinyobj for model loading
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -13,12 +12,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include "ResourcePathManager.h"
+#include "VulkanContext.h"
 #include "VulkanUtil.h"
-
-ModelManager::ModelManager(ResourcePathManager& pathManager)
-      : m_pathManager(pathManager)
-{
-}
 
 ModelManager::~ModelManager()
 {
@@ -123,8 +119,36 @@ void ModelManager::AssignTexCoords(Vertex& v0, Vertex& v1, Vertex& v2, const glm
 	v2.texCoord = glm::vec2(glm::dot(v2.pos, tangent), glm::dot(v2.pos, bitangent));
 }
 
-bool ModelManager::LoadObjFile(const std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err)
+bool ModelManager::LoadObjFile(std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err)
 {
+	// First test the file path
+	if (fullPath.empty())
+	{
+		spdlog::error("Model path is empty");
+		return false;
+	}
+
+	// Test if we need to make the path lower case by using ifstream to check if the file exists
+	std::ifstream file(fullPath.c_str());
+	if (!file.good())
+	{
+		// Try to make the path lower case
+		std::string lowerCasePath = fullPath;
+		std::transform(lowerCasePath.begin(), lowerCasePath.end(), lowerCasePath.begin(), ::tolower);
+		file.open(lowerCasePath.c_str());
+
+		if (!file.good())
+		{
+			spdlog::error("Model file not found: {}", fullPath);
+			return false;
+		}
+
+		fullPath = lowerCasePath;
+	}
+
+	file.close();
+
+	// Load the obj
 	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str()))
 	{
 		spdlog::error("Failed to load model '{}': {}", fullPath, err);
@@ -283,7 +307,7 @@ void ModelManager::CreateBuffersForMesh(VmaAllocator allocator, ModelResource& m
 
 ModelResource* ModelManager::LoadModel(const std::string& name, const std::string& pipelineName)
 {
-	std::string fullPath = m_pathManager.GetModelPath(name);
+	std::string fullPath = ResourcePathManager::GetModelPath(name);
 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -320,9 +344,9 @@ ModelResource* ModelManager::LoadModel(const std::string& name, const std::strin
 	return &m_modelResources[name];
 }
 
-const TextureResource* ModelManager::LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
+TextureResource* ModelManager::LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name)
 {
-	std::string fullPath = m_pathManager.GetTexturePath(name);
+	std::string fullPath = ResourcePathManager::GetTexturePath(name);
 
 	if (m_textures.contains(name))
 	{
@@ -370,13 +394,26 @@ const TextureResource* ModelManager::LoadTexture(vkb::DispatchTable& disp, VkQue
 	texture.imageView = CreateImageView(disp, texture.image, VK_FORMAT_R8G8B8A8_SRGB);
 
 	// Create sampler
-	texture.sampler = descriptorManager->CreateSampler();
+	texture.sampler = SlimeUtil::CreateSampler(disp);
 
 	// Cleanup staging buffer
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
 	m_textures[name] = std::move(texture);
 	spdlog::info("Texture '{}' loaded successfully", name);
+	return &m_textures[name];
+}
+
+TextureResource* ModelManager::CopyTexture(const std::string& name, TextureResource* texture)
+{
+	if (m_textures.contains(name))
+	{
+		spdlog::warn("Texture already exists: {}", name);
+		return &m_textures[name];
+	}
+
+	TextureResource newTexture = *texture;
+	m_textures[name] = std::move(newTexture);
 	return &m_textures[name];
 }
 
@@ -622,29 +659,18 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
 
 	// Set up descriptor set layout
-	std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkDescriptorSetLayoutCreateInfo>> descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
 
 	PipelineGenerator pipelineGenerator(vulkanContext);
 	pipelineGenerator.SetName(pipelineName);
 	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
 	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
-	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts.first);
+	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
 	pipelineGenerator.SetPolygonMode(polygonMode);
 	pipelineGenerator.SetDepthTestEnabled(depthTestEnabled);
 	pipelineGenerator.SetCullMode(cullMode);
 	pipelineGenerator.Generate();
-
-	// Descriptor set layout
-	descriptorManager.AddDescriptorSetLayouts(descriptorSetLayouts.first);
-	std::vector<VkDescriptorSet> descriptorSets;
-	for (int i = descriptorSetLayouts.first.size() - 1; i >= 0; i--)
-	{
-		descriptorSets.push_back(descriptorManager.AllocateDescriptorSet(i));
-	}
-	// Sort the descriptor sets in the order of the layout
-	std::reverse(descriptorSets.begin(), descriptorSets.end());
-	pipelineGenerator.SetDescriptorSets(descriptorSets);
 
 	m_pipelines[pipelineName] = pipelineGenerator.GetPipelineContainer();
 }
@@ -752,13 +778,10 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 	{
 		return &m_modelResources[name];
 	}
-
 	ModelResource model;
-	model.pipeLineName = "basic"; // Assume a default pipeline for basic shapes can be cahnged after
-
+	model.pipeLineName = "basic"; // Assume a default pipeline for basic shapes can be changed after
 	float halfSize = size / 2.0f;
-
-	    // Define the 8 vertices of the cube
+	// Define the 8 vertices of the cube
 	std::vector<glm::vec3> positions = {
 		{-halfSize, -halfSize, -halfSize}, // 0: left-bottom-front
 		{ halfSize, -halfSize, -halfSize}, // 1: right-bottom-front
@@ -769,31 +792,27 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 		{ halfSize,  halfSize,  halfSize}, // 6: right-top-back
 		{-halfSize,  halfSize,  halfSize}  // 7: left-top-back
 	};
-
 	// Define the 6 face normals
 	std::vector<glm::vec3> normals = {
-		{ 0.0f,  0.0f, -1.0f},
-        { 0.0f,  0.0f,  1.0f},
-        { 1.0f,  0.0f,  0.0f},
-        {-1.0f,  0.0f,  0.0f},
-        { 0.0f,  1.0f,  0.0f},
-        { 0.0f, -1.0f,  0.0f}
+		{ 0.0f,  0.0f, -1.0f}, // Front
+		{ 0.0f,  0.0f,  1.0f}, // Back
+		{ 1.0f,  0.0f,  0.0f}, // Right
+		{-1.0f,  0.0f,  0.0f}, // Left
+		{ 0.0f,  1.0f,  0.0f}, // Top
+		{ 0.0f, -1.0f,  0.0f}  // Bottom
 	};
-
 	// Define the vertices for each face
 	const int faceVertices[6][4] = {
 		{0, 1, 2, 3}, // Front face
-		{4, 5, 6, 7}, // Back face
+		{5, 4, 7, 6}, // Back face (reversed)
 		{1, 5, 6, 2}, // Right face
-		{0, 4, 7, 3}, // Left face
+		{4, 0, 3, 7}, // Left face (reversed)
 		{3, 2, 6, 7}, // Top face
-		{0, 1, 5, 4}  // Bottom face
+		{4, 5, 1, 0}  // Bottom face (reversed)
 	};
-
-    // Create vertices and indices
+	// Create vertices and indices
 	std::vector<uint32_t> newIndices;
 	uint32_t vertexCount = 0;
-
 	for (int face = 0; face < 6; ++face)
 	{
 		for (int i = 0; i < 4; ++i) // 4 vertices per face
@@ -802,7 +821,6 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 			vertex.pos = positions[faceVertices[face][i]];
 			vertex.normal = normals[face];
 			vertex.texCoord = glm::vec2((i & 1) ? 1.0f : 0.0f, (i & 2) ? 1.0f : 0.0f);
-
 			// Improved tangent space calculation
 			glm::vec3 tangent, bitangent;
 			if (face % 2 == 0)
@@ -817,27 +835,21 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 			}
 			vertex.tangent = tangent;
 			vertex.bitangent = bitangent;
-
 			model.vertices.push_back(vertex);
 			vertexCount++;
 		}
-
 		// Add indices for two triangles
 		newIndices.push_back(vertexCount - 4);
 		newIndices.push_back(vertexCount - 3);
 		newIndices.push_back(vertexCount - 2);
-
 		newIndices.push_back(vertexCount - 4);
 		newIndices.push_back(vertexCount - 2);
 		newIndices.push_back(vertexCount - 1);
 	}
-
 	// Assign the new indices to the model
 	model.indices = newIndices;
-
 	m_modelResources[name] = std::move(model);
 	spdlog::info("{} generated.", name);
-
 	return &m_modelResources[name];
 }
 

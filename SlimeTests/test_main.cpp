@@ -1,25 +1,14 @@
 #include <iostream>
 #include <stdexcept>
-#include "ResourcePathManager.h"
 #include "ModelManager.h"
 #include <spdlog/spdlog.h>
 #include <vector>
 
-void LoadBunny() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
-    // Upper case for Windows
-    auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
-    if (bunnyMesh == nullptr) {
-        // Lower case for Linux
-        bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
-        if (bunnyMesh == nullptr) {
-            throw std::runtime_error("Failed to load model 'Stanford-bunny.obj'");
-        }
-    }
-
+void LoadBunny(ModelManager& modelManager)
+{
+    auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
     if (bunnyMesh->vertices.size() == 0) {
-        throw std::runtime_error("Model 'Stanford-bunny.obj' has no vertices");
+        throw std::runtime_error("Model 'stanford-bunny.obj' has no vertices");
     }
 
     if (bunnyMesh->indices.size() == 0) {
@@ -27,9 +16,8 @@ void LoadBunny() {
     }
 }
 
-void LoadMonkey() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+void LoadMonkey(ModelManager& modelManager)
+{
     auto suzanneMesh = modelManager.LoadModel("suzanne.obj", "basic");
     if (suzanneMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'suzanne.obj'");
@@ -44,9 +32,8 @@ void LoadMonkey() {
     }
 }
 
-void LoadCube() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+void LoadCube(ModelManager& modelManager)
+{
     auto cubeMesh = modelManager.LoadModel("cube.obj", "basic");
     if (cubeMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'cube.obj'");
@@ -62,10 +49,12 @@ void LoadCube() {
 }
 
 int main() {
+	ModelManager modelManager = ModelManager();
+
     try {
-        LoadBunny();
-        LoadMonkey();
-        LoadCube();
+		LoadBunny(modelManager);
+		LoadMonkey(modelManager);
+		LoadCube(modelManager);
     }
     catch (const std::exception& e) {
         spdlog::error("Test failed with exception: {}", e.what());

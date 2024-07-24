@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ResourcePathManager.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -8,11 +7,9 @@
 #include "Model.h"
 #include "PipelineGenerator.h"
 #include "tiny_obj_loader.h"
-#include "vk_mem_alloc.h"
 
 class DescriptorManager;
 class VulkanContext;
-class ResourcePathManager;
 struct VmaAllocator_T;
 namespace vkb { struct DispatchTable; }
 using VmaAllocator = VmaAllocator_T*;
@@ -21,7 +18,6 @@ class ModelManager
 {
 public:
 	ModelManager() = default;
-	explicit ModelManager(ResourcePathManager& pathManager);
 	~ModelManager();
 
 	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
@@ -34,19 +30,18 @@ public:
 
 	void CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
 
-	const TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
+	TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
 	void UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator);
 	void BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set);
 	void TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	int DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model);
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
+	TextureResource* CopyTexture(const std::string& name, TextureResource* texture);
 
 	std::map<std::string, PipelineContainer>& GetPipelines();
 
 private:
-	ResourcePathManager m_pathManager;
-
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
 	std::map<std::string, PipelineContainer> m_pipelines;
@@ -58,7 +53,7 @@ private:
 	glm::vec3 CalculateTangent(const glm::vec3& edge1, const glm::vec3& edge2, const glm::vec2& deltaUV1, const glm::vec2& deltaUV2, float f);
 	glm::vec3 CalculateBitangent(const glm::vec3& edge1, const glm::vec3& edge2, const glm::vec2& deltaUV1, const glm::vec2& deltaUV2, float f);
 	void AssignTexCoords(Vertex& v0, Vertex& v1, Vertex& v2, const glm::vec3& tangent, const glm::vec3& bitangent);
-	bool LoadObjFile(const std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err);
+	bool LoadObjFile(std::string& fullPath, tinyobj::attrib_t& attrib, std::vector<tinyobj::shape_t>& shapes, std::vector<tinyobj::material_t>& materials, std::string& warn, std::string& err);
 	void ProcessVerticesAndIndices(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, ModelResource& model);
 	Vertex CreateVertex(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);
 	void AddUniqueVertex(const Vertex& vertex, ModelResource& model, std::unordered_map<Vertex, uint32_t>& uniqueVertices);

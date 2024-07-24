@@ -1,5 +1,6 @@
 #pragma once
 
+#include <signal.h>
 #include <spdlog/spdlog.h>
 #include <VkBootstrap.h>
 
@@ -83,7 +84,7 @@ namespace SlimeUtil
 		{
 			throw std::runtime_error("failed to create buffer!");
 		}
-		
+
 		vmaSetAllocationName(allocator, allocation, name);
 		spdlog::debug("Created Buffer: {}", name);
 	}
@@ -155,4 +156,119 @@ namespace SlimeUtil
 		disp.cmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
 		disp.cmdSetLineWidth(cmd, 3.0f);
 	}
+
+	inline VkSampler CreateSampler(const vkb::DispatchTable& disp)
+	{
+		VkSamplerCreateInfo samplerInfo{};
+		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter = VK_FILTER_LINEAR;
+		samplerInfo.minFilter = VK_FILTER_LINEAR;
+		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.anisotropyEnable = VK_FALSE;
+		samplerInfo.maxAnisotropy = 16;
+		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		samplerInfo.unnormalizedCoordinates = VK_FALSE;
+		samplerInfo.compareEnable = VK_FALSE;
+		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerInfo.mipLodBias = 0.0f;
+		samplerInfo.minLod = 0.0f;
+		samplerInfo.maxLod = 0.0f;
+
+		VkSampler sampler;
+		if (disp.createSampler(&samplerInfo, nullptr, &sampler) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create texture sampler");
+		}
+
+		return sampler;
+	}
+
+	inline void DestroySampler(const vkb::DispatchTable& disp, VkSampler sampler)
+	{
+		// Destroy the sampler
+		disp.destroySampler(sampler, nullptr);
+	}
+
+	inline const char* vkResultToString(VkResult result)
+	{
+		switch (result)
+		{
+			case VK_SUCCESS:
+				return "VK_SUCCESS";
+			case VK_NOT_READY:
+				return "VK_NOT_READY";
+			case VK_TIMEOUT:
+				return "VK_TIMEOUT";
+			case VK_EVENT_SET:
+				return "VK_EVENT_SET";
+			case VK_EVENT_RESET:
+				return "VK_EVENT_RESET";
+			case VK_INCOMPLETE:
+				return "VK_INCOMPLETE";
+			case VK_ERROR_OUT_OF_HOST_MEMORY:
+				return "VK_ERROR_OUT_OF_HOST_MEMORY";
+			case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+				return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+			case VK_ERROR_INITIALIZATION_FAILED:
+				return "VK_ERROR_INITIALIZATION_FAILED";
+			case VK_ERROR_DEVICE_LOST:
+				return "VK_ERROR_DEVICE_LOST";
+			case VK_ERROR_MEMORY_MAP_FAILED:
+				return "VK_ERROR_MEMORY_MAP_FAILED";
+			case VK_ERROR_LAYER_NOT_PRESENT:
+				return "VK_ERROR_LAYER_NOT_PRESENT";
+			case VK_ERROR_EXTENSION_NOT_PRESENT:
+				return "VK_ERROR_EXTENSION_NOT_PRESENT";
+			case VK_ERROR_FEATURE_NOT_PRESENT:
+				return "VK_ERROR_FEATURE_NOT_PRESENT";
+			case VK_ERROR_INCOMPATIBLE_DRIVER:
+				return "VK_ERROR_INCOMPATIBLE_DRIVER";
+			case VK_ERROR_TOO_MANY_OBJECTS:
+				return "VK_ERROR_TOO_MANY_OBJECTS";
+			case VK_ERROR_FORMAT_NOT_SUPPORTED:
+				return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+			case VK_ERROR_FRAGMENTED_POOL:
+				return "VK_ERROR_FRAGMENTED_POOL";
+			case VK_ERROR_OUT_OF_POOL_MEMORY:
+				return "VK_ERROR_OUT_OF_POOL_MEMORY";
+			case VK_ERROR_UNKNOWN:
+				return "VK_ERROR_UNKNOWN";
+			// Add more cases as needed for other VkResult values
+			default:
+				return "UNKNOWN_VK_RESULT";
+		}
+	}
+
 }; // namespace SlimeUtil
+
+#if defined(_MSC_VER)
+#	define BREAK() __debugbreak()
+#elif defined(__GNUC__) || defined(__clang__)
+#	define BREAK() __builtin_trap()
+#else
+#	define BREAK() raise(SIGTRAP)
+#endif
+
+#define VK_CHECK(x)                                                     \
+	do                                                                  \
+	{                                                                   \
+		VkResult err = x;                                               \
+		if (err)                                                        \
+		{                                                               \
+			const char* errorString = SlimeUtil::vkResultToString(err); \
+			spdlog::error("Vulkan error:\n"                             \
+			              "Result: {}\n"                                \
+			              "Expression: {}\n"                            \
+			              "Location: {} ({}:{})\n",                     \
+			        errorString,                                        \
+			        #x,                                                 \
+			        __func__,                                           \
+			        __FILE__,                                           \
+			        __LINE__);                                          \
+			BREAK();                                                    \
+		}                                                               \
+	}                                                                   \
+	while (0)

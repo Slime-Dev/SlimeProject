@@ -11,6 +11,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
+#include <memory>
+
 struct Vertex
 {
 	glm::vec3 pos;
@@ -53,6 +55,24 @@ struct TextureResource
 
 struct MaterialResource
 {
+	VmaAllocation configAllocation;
+	VkBuffer configBuffer;
+
+	bool disposed = false;
+};
+
+struct BasicMaterialResource : public MaterialResource
+{
+	struct Config
+	{
+		glm::vec4 albedo = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f); // Colour
+	};
+
+	Config config;
+};
+
+struct PBRMaterialResource : public MaterialResource
+{
 	struct Config
 	{
 		glm::vec4 albedo = glm::vec4(1.0f); // Colour
@@ -61,34 +81,38 @@ struct MaterialResource
 		float ao = 1.0f;                    // Strength
 	};
 
-	const TextureResource* albedoTex;
-	const TextureResource* normalTex;
-	const TextureResource* metallicTex;
-	const TextureResource* roughnessTex;
-	const TextureResource* aoTex;
+	TextureResource* albedoTex;
+	TextureResource* normalTex;
+	TextureResource* metallicTex;
+	TextureResource* roughnessTex;
+	TextureResource* aoTex;
 
 	Config config;
-	VmaAllocation configAllocation;
-	VkBuffer configBuffer;
-
-	bool disposed = false;
 };
 
-enum class MaterialType
+struct PBRMaterial : public Component
 {
-	PBR,
-	LINE,
-	COUNT
-};
-
-struct Material : public Component
-{
-	Material() = default;
-	Material(MaterialResource* material)
+	PBRMaterial() = default;
+	PBRMaterial(PBRMaterialResource* material)
 	      : materialResource(material){};
-	MaterialResource* materialResource = nullptr;
+	PBRMaterial(std::shared_ptr<PBRMaterialResource> material)
+	      : materialResource(material.get()){};
 
-	MaterialType type = MaterialType::COUNT;
+	PBRMaterialResource* materialResource = nullptr;
+
+	void ImGuiDebug();
+};
+
+struct BasicMaterial : public Component
+{
+	BasicMaterial() = default;
+	BasicMaterial(BasicMaterialResource* material)
+	      : materialResource(material){};
+	BasicMaterial(std::shared_ptr<BasicMaterialResource> material)
+	      : materialResource(material.get()){};
+
+	BasicMaterialResource* materialResource = nullptr;
+
 	void ImGuiDebug();
 };
 

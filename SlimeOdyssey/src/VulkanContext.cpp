@@ -14,6 +14,7 @@
 #include <vk_mem_alloc.h>
 
 #include "ModelManager.h"
+#include "DescriptorManager.h"
 #include "PipelineGenerator.h"
 #include "Scene.h"
 #include "VulkanUtil.h"
@@ -124,7 +125,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	VkPhysicalDeviceVulkan11Features features11 = {};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 	features11.multiview = VK_TRUE;
-	
+
 	VkPhysicalDeviceFeatures features = {};
 	features.fillModeNonSolid = VK_TRUE;
 	features.wideLines = VK_TRUE;
@@ -164,11 +165,10 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	allocatorInfo.device = m_device.device;
 	allocatorInfo.instance = m_instance.instance;
 
-
 	VmaVulkanFunctions vulkanFunctions = {};
 	vulkanFunctions.vkGetInstanceProcAddr = m_instance.fp_vkGetInstanceProcAddr;
 	vulkanFunctions.vkGetDeviceProcAddr = m_device.fp_vkGetDeviceProcAddr;
-	
+
 	// Instance functions
 	vulkanFunctions.vkGetPhysicalDeviceProperties = m_instDisp.fp_vkGetPhysicalDeviceProperties;
 	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = m_instDisp.fp_vkGetPhysicalDeviceMemoryProperties;
@@ -191,11 +191,8 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	vulkanFunctions.vkCmdCopyBuffer = m_disp.fp_vkCmdCopyBuffer;
 
 	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
-	
-	if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create VMA allocator");
-	}
+
+	VK_CHECK(vmaCreateAllocator(&allocatorInfo, &m_allocator));
 
 	m_debugUtils = VulkanDebugUtils(m_instDisp, m_device);
 
@@ -270,11 +267,7 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 	VmaAllocationCreateInfo depthAllocInfo = {};
 	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	VkResult result = vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr);
-	if (result != VK_SUCCESS)
-	{
-		spdlog::error("Failed to create depth image!");
-	}
+	VK_CHECK(vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
 
 	// Create the depth image view
 	VkImageViewCreateInfo depthImageViewInfo = {};
@@ -288,11 +281,7 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 	depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
 	depthImageViewInfo.subresourceRange.layerCount = 1;
 
-	result = m_disp.createImageView(&depthImageViewInfo, nullptr, &m_depthImageView);
-	if (result != VK_SUCCESS)
-	{
-		spdlog::error("Failed to create depth image View!");
-	}
+	VK_CHECK(m_disp.createImageView(&depthImageViewInfo, nullptr, &m_depthImageView));
 
 	return 0;
 }
@@ -329,11 +318,7 @@ int VulkanContext::CreateCommandPool()
 	// Assuming graphics queue family
 	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-	if (m_disp.createCommandPool(&pool_info, nullptr, &m_commandPool) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to create command pool!");
-		return -1;
-	}
+	VK_CHECK(m_disp.createCommandPool(&pool_info, nullptr, &m_commandPool));
 
 	return 0;
 }
@@ -349,11 +334,7 @@ int VulkanContext::CreateRenderCommandBuffers()
 	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	alloc_info.commandBufferCount = static_cast<uint32_t>(m_renderCommandBuffers.size());
 
-	if (m_disp.allocateCommandBuffers(&alloc_info, m_renderCommandBuffers.data()) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to allocate command buffers!");
-		return -1;
-	}
+	VK_CHECK(m_disp.allocateCommandBuffers(&alloc_info, m_renderCommandBuffers.data()));
 
 	int index = 0;
 	for (auto& cmd: m_renderCommandBuffers)
@@ -382,11 +363,9 @@ int VulkanContext::InitSyncObjects()
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (m_disp.createSemaphore(&semaphore_info, nullptr, &m_availableSemaphores[i]) != VK_SUCCESS || m_disp.createSemaphore(&semaphore_info, nullptr, &m_finishedSemaphore[i]) != VK_SUCCESS || m_disp.createFence(&fence_info, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
-		{
-			spdlog::error("Failed to create synchronization objects!");
-			return -1;
-		}
+		VK_CHECK(m_disp.createSemaphore(&semaphore_info, nullptr, &m_availableSemaphores[i]));
+		VK_CHECK(m_disp.createSemaphore(&semaphore_info, nullptr, &m_finishedSemaphore[i]));
+		VK_CHECK(m_disp.createFence(&fence_info, nullptr, &m_inFlightFences[i]));
 	}
 
 	return 0;
@@ -514,11 +493,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	poolInfo.poolSizeCount = std::size(poolSizes);
 	poolInfo.pPoolSizes = poolSizes;
 
-	if (m_disp.createDescriptorPool(&poolInfo, nullptr, &m_imguiDescriptorPool) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to create descriptor pool for ImGui!");
-		return -1;
-	}
+	VK_CHECK(m_disp.createDescriptorPool(&poolInfo, nullptr, &m_imguiDescriptorPool));
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -543,7 +518,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	        {
 		        VulkanContext* context = static_cast<VulkanContext*>(user_data);
 
-				        // Map KHR variants to core functions
+		        // Map KHR variants to core functions
 		        if (strcmp(function_name, "vkCmdBeginRenderingKHR") == 0)
 			        return context->m_instDisp.getInstanceProcAddr("vkCmdBeginRendering");
 		        if (strcmp(function_name, "vkCmdEndRenderingKHR") == 0)
@@ -683,11 +658,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	}
 
 	// Wait for the frame to be finished
-	if (m_disp.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to wait for fence!");
-		return -1;
-	}
+	VK_CHECK(m_disp.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX));
 
 	uint32_t image_index;
 	VkResult result = m_disp.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_availableSemaphores[m_currentFrame], VK_NULL_HANDLE, &image_index);
@@ -698,10 +669,9 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 			return -1;
 		return 0;
 	}
-	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+	else
 	{
-		spdlog::error("Failed to acquire swapchain image!");
-		return -1;
+		VK_CHECK(result);
 	}
 
 	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
@@ -738,11 +708,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	m_disp.resetFences(1, &m_inFlightFences[m_currentFrame]);
 
 	m_debugUtils.BeginQueueDebugMarker(m_graphicsQueue, "FrameSubmission", debugUtil_FrameSubmission);
-	if (m_disp.queueSubmit(m_graphicsQueue, 1, &submit_info, m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
-	{
-		spdlog::error("Failed to submit draw command buffer!");
-		return -1;
-	}
+	VK_CHECK(m_disp.queueSubmit(m_graphicsQueue, 1, &submit_info, m_inFlightFences[m_currentFrame]));
 	m_debugUtils.EndQueueDebugMarker(m_graphicsQueue);
 
 	VkPresentInfoKHR present_info = {};
@@ -762,10 +728,9 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 		if (CreateSwapchain(window) != 0)
 			return -1;
 	}
-	else if (result != VK_SUCCESS)
+	else
 	{
-		spdlog::error("Failed to present swapchain image!");
-		return -1;
+		VK_CHECK(result);
 	}
 
 	m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -810,8 +775,6 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 	shaderManager.CleanupDescriptorSetLayouts(m_disp);
 
 	descriptorManager.Cleanup();
-
-	m_renderer.CleanUp(m_allocator);
 
 	// Clean up old depth image and image view
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);

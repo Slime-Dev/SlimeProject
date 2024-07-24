@@ -17,29 +17,31 @@ layout(location = 4) out vec3 Bitangent;
 
 // push constant Uniform buffer for transformation matrices
 layout(push_constant) uniform TransformUBO {
-	mat4 model;
-	mat3 normalMatrix;
+    mat4 model;
+    mat3 normalMatrix;
 } transform;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
-	mat4 view;
-	mat4 projection;
-	mat4 viewProjection;
-	vec4 viewPos;
+    mat4 view;
+    mat4 projection;
+    mat4 viewProjection;
+    vec4 viewPos;
 } camera;
 
 void main() {
-	// Calculate vertex position in world space
-	FragPos = vec3(transform.model * vec4(inPosition, 1.0));
+    // Calculate vertex position in world space
+    FragPos = vec3(transform.model * vec4(inPosition, 1.0));
 
-	// Transform normal, tangent, and bitangent to world space
-	Normal = transform.normalMatrix * inNormal;
-	Tangent = transform.normalMatrix * inTangent;
-	Bitangent = transform.normalMatrix * inBitangent;
+    // Transform normal, tangent, and bitangent to world space
+    Normal = transform.normalMatrix * inNormal;
+	Normal.z = -Normal.z;
+	
+    Tangent = transform.normalMatrix * inTangent;
+    Bitangent = transform.normalMatrix * inBitangent;
 
-	// Pass texture coordinates to fragment shader
-	TexCoords = inTexCoords;
+    // Pass texture coordinates to fragment shader
+    TexCoords = inTexCoords;
 
-	// Calculate final vertex position
-	gl_Position = camera.projection * camera.view * vec4(FragPos, 1.0);
+    // Calculate final vertex position
+    gl_Position = camera.viewProjection * vec4(FragPos, 1.0);
 }
