@@ -2,8 +2,8 @@ name: Testing for multiple platforms
 
 on:
   push:
-    branches:
-      [ "*" ]
+    branches-ignore:
+      [ "build" ]
   pull_request:
     branches:
       [ "main" ]
