@@ -44,15 +44,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cpm-
 
-      - name: Cache build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ github.workspace }}/build/bin
-            ${{ github.workspace }}/build/lib
-          key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
+      # - name: Cache build outputs
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: |
+      #       ${{ github.workspace }}/build/bin
+      #       ${{ github.workspace }}/build/lib
+      #     key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-build-
 
       - name: UBUNTU - Install dependencies
         if: matrix.os == 'ubuntu-latest'
