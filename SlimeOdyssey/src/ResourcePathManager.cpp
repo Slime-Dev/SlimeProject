@@ -1,4 +1,5 @@
 #include "ResourcePathManager.h"
+#include <direct.h>
 
 std::string ResourcePathManager::s_rootDirectory;
 std::unordered_map<ResourcePathManager::ResourceType, std::string> ResourcePathManager::s_directories;
@@ -65,8 +66,21 @@ std::string ResourcePathManager::GetFontPath(const std::string& fontName)
 
 std::string ResourcePathManager::SetRootDirectory()
 {
-	auto srcPath = std::filesystem::absolute(__FILE__);
-	return std::filesystem::path(srcPath).parent_path().parent_path().string() + "/resources";
+    char* path = nullptr;
+    #ifdef _WIN32
+        path = _getcwd(nullptr, 0);
+    #else
+        path = getcwd(nullptr, 0);
+    #endif
+    
+    if (path == nullptr) {
+        throw std::runtime_error("Failed to get current working directory");
+    }
+    
+    std::string currentPath(path);
+    free(path);
+    
+    return currentPath + "/resources";
 }
 
 void ResourcePathManager::InitializeDirectories()
