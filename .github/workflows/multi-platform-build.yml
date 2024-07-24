@@ -103,7 +103,7 @@ jobs:
         uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
-          name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
+          name: ${{ runner.os }}-${{ matrix.c_compiler}}-build
           path: |
             ${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}
             ${{ steps.strings.outputs.build-output-dir }}/bin/
