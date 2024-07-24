@@ -38,6 +38,7 @@ jobs:
           submodules: 'recursive'
 
       - name: UBUNTU - Cache CPM packages
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v4
         with:
           path: ~/.cpm
@@ -46,9 +47,10 @@ jobs:
             ${{ runner.os }}-cpm-
 
       - name: WINDOWS - Cache CPM packages
+        if: matrix.os == 'windows-latest'
         uses: actions/cache@v4
         with:
-          path: $env:$env:USERPROFILE\\.cpm
+          path: ..\.cpm
           key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
             ${{ runner.os }}-cpm-
@@ -98,7 +100,7 @@ jobs:
             -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -S ${{ github.workspace }} `
-            -DCPM_SOURCE_CACHE=$env:$env:USERPROFILE\\.cpm `
+            -DCPM_SOURCE_CACHE=..\.cpm `
             -DENABLE_TESTING=OFF
         shell: pwsh
 

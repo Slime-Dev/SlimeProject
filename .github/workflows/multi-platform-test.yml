@@ -2,8 +2,6 @@ name: Testing for multiple platforms
 
 on:
   push:
-    branches:
-      [ "*" ]
     branches-ignore:
       - 'build'
   pull_request:
@@ -42,7 +40,8 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Cache CPM packages
+      - name: Cache Linux CPM packages
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v4
         with:
           path: ~/.cpm
@@ -50,15 +49,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cpm-
 
-      - name: Cache build outputs
+      - name: Cache CPM packages
         uses: actions/cache@v4
         with:
-          path: |
-            ${{ github.workspace }}/build/bin
-            ${{ github.workspace }}/build/lib
-          key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          path: ~/.cpm
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
-            ${{ runner.os }}-build-
+            ${{ runner.os }}-cpm-
 
       - name: UBUNTU - Install dependencies
         if: matrix.os == 'ubuntu-latest'
