@@ -1,7 +1,7 @@
 if(BUILD_TYPE STREQUAL "Release")
     message(STATUS "Release build detected.")
     message(STATUS "Copying resources: ${SOURCE_DIR} -> ${DESTINATION_DIR}")
-    file(COPY ${SOURCE_DIR} DESTINATION ${DESTINATION_DIR})
+    file(COPY ${SOURCE_DIR} DESTINATION "${DESTINATION_DIR}/..")
 else()
     message(STATUS "Debug build detected.")
     if(WIN32)
