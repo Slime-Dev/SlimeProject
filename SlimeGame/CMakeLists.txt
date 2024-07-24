@@ -50,3 +50,25 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 target_precompile_headers(${PROJECT_NAME} REUSE_FROM SlimeOdyssey)
+
+# Function to create symlink or copy based on the build type
+function(link_or_copy_resources TARGET_NAME)
+    add_custom_command(
+        TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TARGET_NAME}>"
+        COMMAND ${CMAKE_COMMAND}
+        -D SOURCE_DIR=${SLIME_RESOURCES_DIR}
+        -D DESTINATION_DIR="$<TARGET_FILE_DIR:${TARGET_NAME}>"
+        -D BUILD_TYPE=$<CONFIG>
+        -P "${SLIME_CMAKE_DIR}/CopyOrLink.cmake" 
+        COMMENT "Linking or copying SlimeOdyssey resources to executable directory"
+    )
+endfunction()
+
+# Call the function
+link_or_copy_resources(${PROJECT_NAME})
+
+# Set the working directory for Visual Studio
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+)

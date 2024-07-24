@@ -9,22 +9,8 @@
 #include <memory>
 
 // Forward declarations
-struct MVP;
 class VulkanContext;
 class ModelManager;
-
-// Structures
-struct MVP
-{
-	glm::mat4 model;
-	glm::mat3 normalMatrix;
-};
-
-struct ShaderDebug
-{
-	int debugMode = 0;     // 0: normal render, 1: show normals, 2: show light direction, 3: show view direction
-	bool useNormalMap = true; // Toggle normal mapping
-};
 
 class DescriptorManager
 {
@@ -35,23 +21,27 @@ public:
 	~DescriptorManager() = default;
 
 	// Descriptor Set Management
-	VkDescriptorSet AllocateDescriptorSet(uint32_t layoutIndex);
+	VkDescriptorSet AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout);
 	VkDescriptorSet GetDescriptorSet(uint32_t layoutIndex);
 	size_t AddDescriptorSetLayout(VkDescriptorSetLayout layout);
 	size_t AddDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
+	void FreeDescriptorSet(VkDescriptorSet descriptorSet);
 
 	// Resource Binding
 	void BindBuffer(VkDescriptorSet descriptorSet, uint32_t binding, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
 	void BindImage(VkDescriptorSet descriptorSet, uint32_t binding, VkImageView imageView, VkSampler sampler);
 
-	// Sampler Management
-	VkSampler CreateSampler();
-	void DestroySampler(VkSampler sampler);
-
 	// Cleanup
 	void Cleanup();
 
-	std::shared_ptr<MaterialResource> CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> GetSharedDescriptorSet();
+	void CreateSharedDescriptorSet(VkDescriptorSetLayout descriptorsetLayout);
+
+	std::shared_ptr<PBRMaterialResource> CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
+	std::shared_ptr<BasicMaterialResource> CreateBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name);
+
+	std::shared_ptr<PBRMaterialResource> CopyPBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::shared_ptr<PBRMaterialResource> inMaterial);
+	std::shared_ptr<BasicMaterialResource> CopyBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::shared_ptr<BasicMaterialResource> inMaterial);
 
 private:
 	// Private Methods
@@ -59,6 +49,8 @@ private:
 
 	// Member Variables
 	const vkb::DispatchTable& m_disp;
+
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> m_sharedDescriptorSet;
 
 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;

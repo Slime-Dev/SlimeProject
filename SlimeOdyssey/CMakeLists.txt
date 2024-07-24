@@ -117,3 +117,9 @@ target_precompile_headers(${PROJECT_NAME} PRIVATE ${PCH_HEADERS})
 
 # set a variable so that any project that includes this project can use the include directories
 set(SLIME_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/external ${IMGUI_SOURCE_DIR} PARENT_SCOPE)
+
+# set a path to the resources directory
+set(SLIME_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources" PARENT_SCOPE)
+
+# Set a path for slimeodyssey cmake directory
+set(SLIME_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake" PARENT_SCOPE)

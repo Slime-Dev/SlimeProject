@@ -1,12 +1,10 @@
 #pragma once
 
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include <ModelManager.h>
+#include <ShaderManager.h>
+#include <VulkanContext.h>
 
-#include "ModelManager.h"
 #include "PlatformerGame.h"
-#include "ResourcePathManager.h"
-#include "ShaderManager.h"
-#include "VulkanContext.h"
 
 class Application
 {
@@ -24,7 +22,6 @@ private:
 
 	SlimeWindow m_window;
 	VulkanContext m_vulkanContext;
-	ResourcePathManager m_resourcePathManager;
 	ShaderManager m_shaderManager;
 	ModelManager m_modelManager;
 	DescriptorManager* m_descriptorManager = nullptr;

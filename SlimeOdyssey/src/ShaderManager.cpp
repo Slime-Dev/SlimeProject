@@ -251,7 +251,7 @@ std::string HashBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindin
 	return hash;
 }
 
-std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkDescriptorSetLayoutCreateInfo>> ShaderManager::CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources)
+std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(vkb::DispatchTable disp, const ShaderResources& resources)
 {
 	std::map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> setBindings;
 
@@ -300,7 +300,7 @@ std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkDescriptorSetLayoutC
 		}
 	}
 
-	return {descriptorSetLayouts, descriptorSetLayoutInfos};
+	return descriptorSetLayouts;
 }
 
 void ShaderManager::CleanupShaderModules(vkb::DispatchTable disp)

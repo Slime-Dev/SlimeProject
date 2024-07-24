@@ -1,9 +1,10 @@
 #include "DescriptorManager.h"
 
 #include <stdexcept>
+
+#include "ModelManager.h"
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
-#include "ModelManager.h"
 
 DescriptorManager::DescriptorManager(const vkb::DispatchTable& disp)
       : m_disp(disp)
@@ -19,26 +20,26 @@ void DescriptorManager::Cleanup()
 	}
 }
 
-VkDescriptorSet DescriptorManager::AllocateDescriptorSet(uint32_t layoutIndex)
+std::pair<VkDescriptorSet, VkDescriptorSetLayout> DescriptorManager::GetSharedDescriptorSet()
 {
-	if (layoutIndex >= m_descriptorSetLayouts.size())
-	{
-		throw std::runtime_error("Invalid layout index");
-	}
+	return m_sharedDescriptorSet;
+}
 
+void DescriptorManager::CreateSharedDescriptorSet(VkDescriptorSetLayout descriptorsetLayout)
+{
+	m_sharedDescriptorSet = { AllocateDescriptorSet(descriptorsetLayout), descriptorsetLayout };
+}
+
+VkDescriptorSet DescriptorManager::AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout)
+{
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = m_descriptorPool;
 	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &m_descriptorSetLayouts[layoutIndex];
+	allocInfo.pSetLayouts = &descriptorLayout;
 
 	VkDescriptorSet descriptorSet;
-	if (m_disp.allocateDescriptorSets(&allocInfo, &descriptorSet) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate descriptor set");
-	}
-
-	m_descriptorSets[layoutIndex] = descriptorSet;
+	VK_CHECK(m_disp.allocateDescriptorSets(&allocInfo, &descriptorSet));
 
 	return descriptorSet;
 }
@@ -66,6 +67,11 @@ size_t DescriptorManager::AddDescriptorSetLayouts(const std::vector<VkDescriptor
 	return startIndex;
 }
 
+void DescriptorManager::FreeDescriptorSet(VkDescriptorSet descriptorSet)
+{
+	VK_CHECK(m_disp.freeDescriptorSets(m_descriptorPool, 1, &descriptorSet));
+}
+
 void DescriptorManager::BindBuffer(VkDescriptorSet descriptorSet, uint32_t binding, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
 {
 	VkDescriptorBufferInfo bufferInfo{};
@@ -83,41 +89,6 @@ void DescriptorManager::BindBuffer(VkDescriptorSet descriptorSet, uint32_t bindi
 	descriptorWrite.pBufferInfo = &bufferInfo;
 
 	m_disp.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
-}
-
-VkSampler DescriptorManager::CreateSampler()
-{
-	VkSamplerCreateInfo samplerInfo{};
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.anisotropyEnable = VK_FALSE;
-	samplerInfo.maxAnisotropy = 16;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.mipLodBias = 0.0f;
-	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = 0.0f;
-
-	VkSampler sampler;
-	if (m_disp.createSampler(&samplerInfo, nullptr, &sampler) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create texture sampler");
-	}
-
-	return sampler;
-}
-
-void DescriptorManager::DestroySampler(VkSampler sampler)
-{
-	// Destroy the sampler
-	m_disp.destroySampler(sampler, nullptr);
 }
 
 void DescriptorManager::BindImage(VkDescriptorSet descriptorSet, uint32_t binding, VkImageView imageView, VkSampler sampler)
@@ -148,17 +119,15 @@ void DescriptorManager::CreateDescriptorPool()
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	poolInfo.poolSizeCount = 2;
 	poolInfo.pPoolSizes = poolSizes;
-	poolInfo.maxSets = 100; // Adjust this based on your needs
+	poolInfo.maxSets = 100;
 
-	if (m_disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create descriptor pool");
-	}
+	VK_CHECK(m_disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool));
 }
 
-std::shared_ptr<MaterialResource> DescriptorManager::CreateMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
+std::shared_ptr<PBRMaterialResource> DescriptorManager::CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)
 {
 	VkDevice device = vulkanContext.GetDevice();
 	VkCommandPool commandPool = vulkanContext.GetCommandPool();
@@ -166,15 +135,61 @@ std::shared_ptr<MaterialResource> DescriptorManager::CreateMaterial(VulkanContex
 	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
 	vkb::DispatchTable disp = vulkanContext.GetDispatchTable();
 
-	auto mat = std::make_shared<MaterialResource>();
-	
-	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(MaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
+	auto mat = std::make_shared<PBRMaterialResource>();
+
+	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(PBRMaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
 
 	mat->albedoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, albedo);
 	mat->normalTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, normal);
 	mat->metallicTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, metallic);
 	mat->roughnessTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, roughness);
 	mat->aoTex = modelManager.LoadTexture(disp, graphicsQueue, commandPool, allocator, this, ao);
+
+	mat->disposed = false;
+
+	return mat;
+}
+
+std::shared_ptr<BasicMaterialResource> DescriptorManager::CreateBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name)
+{
+	VkDevice device = vulkanContext.GetDevice();
+	VkCommandPool commandPool = vulkanContext.GetCommandPool();
+	VmaAllocator allocator = vulkanContext.GetAllocator();
+	VkQueue graphicsQueue = vulkanContext.GetGraphicsQueue();
+	vkb::DispatchTable disp = vulkanContext.GetDispatchTable();
+
+	auto mat = std::make_shared<BasicMaterialResource>();
+
+	SlimeUtil::CreateBuffer(name.c_str(), allocator, sizeof(BasicMaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
+
+	mat->disposed = false;
+
+	return mat;
+}
+
+std::shared_ptr<PBRMaterialResource> DescriptorManager::CopyPBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::shared_ptr<PBRMaterialResource> inMaterial)
+{
+	// We can re use alot from the passed in material, but we need to create new buffers for the config and textures to avoid conflicts
+	auto mat = std::make_shared<PBRMaterialResource>();
+
+	SlimeUtil::CreateBuffer(name.c_str(), vulkanContext.GetAllocator(), sizeof(PBRMaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
+
+	mat->albedoTex = modelManager.CopyTexture(name + "_albedo", inMaterial->albedoTex);
+	mat->normalTex = modelManager.CopyTexture(name + "_normal", inMaterial->normalTex);
+	mat->metallicTex = modelManager.CopyTexture(name + "_metallic", inMaterial->metallicTex);
+	mat->roughnessTex = modelManager.CopyTexture(name + "_roughness", inMaterial->roughnessTex);
+	mat->aoTex = modelManager.CopyTexture(name + "_ao", inMaterial->aoTex);
+
+	mat->disposed = false;
+
+	return mat;
+}
+
+std::shared_ptr<BasicMaterialResource> DescriptorManager::CopyBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::shared_ptr<BasicMaterialResource> inMaterial)
+{
+	auto mat = std::make_shared<BasicMaterialResource>();
+
+	SlimeUtil::CreateBuffer(name.c_str(), vulkanContext.GetAllocator(), sizeof(BasicMaterialResource::Config), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, mat->configBuffer, mat->configAllocation);
 
 	mat->disposed = false;
 

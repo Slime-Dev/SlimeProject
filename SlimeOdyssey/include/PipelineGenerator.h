@@ -20,7 +20,6 @@ struct PipelineContainer
 	std::string name;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
-	std::vector<VkDescriptorSet> descriptorSets;
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 };
 
@@ -37,7 +36,6 @@ public:
 	void SetVertexInputState(const std::vector<VkVertexInputAttributeDescription>& attributeDescriptions, const std::vector<VkVertexInputBindingDescription>& bindingDescription);
 	void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
 	void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
-	void SetDescriptorSets(const std::vector<VkDescriptorSet>& descriptorSets);
 	void SetDepthTestEnabled(bool enabled);
 	void SetCullMode(VkCullModeFlags mode);
 	void SetPolygonMode(VkPolygonMode polygonMode);
@@ -48,7 +46,6 @@ public:
 
 	[[nodiscard]] VkPipeline GetPipeline() const;
 	[[nodiscard]] VkPipelineLayout GetPipelineLayout() const;
-	[[nodiscard]] const std::vector<VkDescriptorSet>& GetDescriptorSets() const;
 	[[nodiscard]] PipelineContainer GetPipelineContainer() const;
 
 private:

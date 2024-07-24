@@ -37,7 +37,7 @@ void LoadBunny() {
     }
 
     if (bunnyMesh->vertices.size() == 0) {
-        throw std::runtime_error("Model 'Stanford-bunny.obj' has no vertices");
+        throw std::runtime_error("Model 'stanford-bunny.obj' has no vertices");
     }
 
     if (bunnyMesh->indices.size() == 0) {
@@ -45,9 +45,8 @@ void LoadBunny() {
     }
 }
 
-void LoadMonkey() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+void LoadMonkey(ModelManager& modelManager)
+{
     auto suzanneMesh = modelManager.LoadModel("suzanne.obj", "basic");
     if (suzanneMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'suzanne.obj'");
@@ -62,9 +61,8 @@ void LoadMonkey() {
     }
 }
 
-void LoadCube() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+void LoadCube(ModelManager& modelManager)
+{
     auto cubeMesh = modelManager.LoadModel("cube.obj", "basic");
     if (cubeMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'cube.obj'");

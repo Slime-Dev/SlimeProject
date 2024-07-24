@@ -1,4 +1,11 @@
 #include "ResourcePathManager.h"
+#include <spdlog/spdlog.h>
+
+#ifdef _WIN32
+	#include <direct.h>
+#else
+	#include <unistd.h>
+#endif
 
 std::string ResourcePathManager::s_rootDirectory;
 std::unordered_map<ResourcePathManager::ResourceType, std::string> ResourcePathManager::s_directories;
@@ -65,8 +72,63 @@ std::string ResourcePathManager::GetFontPath(const std::string& fontName)
 
 std::string ResourcePathManager::SetRootDirectory()
 {
-	auto srcPath = std::filesystem::absolute(__FILE__);
-	return std::filesystem::path(srcPath).parent_path().parent_path().string() + "/resources";
+    char* path = nullptr;
+    #ifdef _WIN32
+        path = _getcwd(nullptr, 0);
+    #else
+        path = getcwd(nullptr, 0);
+    #endif
+   
+    if (path == nullptr) {
+        throw std::runtime_error("Failed to get current working directory");
+    }
+   
+    // The application can have many places where it is run from so we set multiple options
+    const char* possibleSubDirs[] = {
+        "/bin/Release/resources",
+        "/bin/Debug/resources",
+        "/bin/resources",
+        "/build/resources",
+        "/resources",
+        "/assets",
+        "/data",
+        "/../bin/resources",
+        "/../bin/assets",
+        "/../bin/data",
+		"/../bin/Release/resources",
+		"/../bin/Debug/resources",
+		"/../resources",
+        "/../assets",
+        "/../data",
+        "/bin/x64/Release/resources",
+        "/bin/x64/Debug/resources",
+        "/bin/x86/Release/resources",
+        "/bin/x86/Debug/resources",
+        "/out/build/x64-Release/resources",
+        "/out/build/x64-Debug/resources",
+        "/out/build/x86-Release/resources",
+        "/out/build/x86-Debug/resources",
+        "/build/Release/resources",
+        "/build/Debug/resources"
+    };
+
+    for (const char* subDir : possibleSubDirs)
+    {
+        std::string currentPath = std::string(path) + subDir;
+        if (std::filesystem::exists(currentPath))
+        {
+			spdlog::info("Found resources directory at: {}", currentPath);
+            free(path);
+            return currentPath;
+        }
+    }
+
+	spdlog::warn("Failed to find resources directory, using current working directory");
+
+    // If none of the above paths exist, default to the original fallback
+    std::string currentPath = std::string(path) + "/resources";
+    free(path);
+    return currentPath;
 }
 
 void ResourcePathManager::InitializeDirectories()
