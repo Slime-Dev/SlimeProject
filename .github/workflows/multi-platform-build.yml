@@ -2,8 +2,7 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches:
-      [ "build" ]
+    branches: [ "build" ]
 
 jobs:
   build:
@@ -37,20 +36,12 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: UBUNTU - Cache CPM packages
-        if: matrix.os == 'ubuntu-latest'
+      - name: Restore CPM cache
         uses: actions/cache@v4
         with:
-          path: ~/.cpm
-          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: |
-            ${{ runner.os }}-cpm-
-
-      - name: WINDOWS - Cache CPM packages
-        if: matrix.os == 'windows-latest'
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/.cpm
+          path: |
+            ~/.cpm
+            ${{ github.workspace }}/.cpm
           key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
             ${{ runner.os }}-cpm-
@@ -82,97 +73,66 @@ jobs:
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-      - name: UBUNUTU - Configure CMake
-        if: matrix.os == 'ubuntu-latest'
-        run: >
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -S ${{ github.workspace }}
-          -DCPM_SOURCE_CACHE=~/.cpm
-          -DENABLE_TESTING=OFF
-
-      - name: WINDOWS - Configure CMake
-        if: runner.os == 'Windows'
+      - name: Configure CMake
+        shell: bash
         run: |
-          cmake -B ${{ steps.strings.outputs.build-output-dir }} `
-            -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} `
-            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} `
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
-            -S ${{ github.workspace }} `
-            -DCPM_SOURCE_CACHE=${{ github.workspace }}/.cpm `
-            -DENABLE_TESTING=OFF
-        shell: pwsh
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S ${{ github.workspace }} \
+              -DCPM_SOURCE_CACHE=${{ github.workspace }}/.cpm \
+              -DENABLE_TESTING=OFF
+          else
+            cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S ${{ github.workspace }} \
+              -DCPM_SOURCE_CACHE=~/.cpm \
+              -DENABLE_TESTING=OFF
+          fi
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-      # - name: List files in directory (Windows)
-      #   if: matrix.os == 'windows-latest'
-      #   run: |
-      #     $directory = "${{ steps.strings.outputs.build-output-dir }}"
-      #     Write-Output "Listing files in $directory:"
-      #     Get-ChildItem -Path $directory -Recurse
-      #   shell: pwsh
+      - name: Save CPM cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cpm
+            ${{ github.workspace }}/.cpm
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-      # - name: List files in directory (Linux)
-      #   if: matrix.os == 'ubuntu-latest'
-      #   run: |
-      #     directory="${{ steps.strings.outputs.build-output-dir }}"
-      #     echo "Listing files in $directory:"
-      #     ls -R $directory
-
-      - name: WINDOWS - Check if directory is empty
-        if: matrix.os == 'windows-latest'
-        id: check_directory_windows
+      - name: Check if build directory is empty
+        id: check_directory
+        shell: bash
         run: |
-          $directory = "${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}"
-          if ((Get-ChildItem -Path $directory -Recurse | Measure-Object).Count -eq 0) {
-            Write-Output "Directory is empty."
-            exit 1
-          } else {
-            Write-Output "Directory is not empty."
-          }
-        shell: pwsh
-
-      - name: UBUNTU - Check if directory is empty
-        if: matrix.os == 'ubuntu-latest'
-        id: check_directory_linux
-        run: |
-          if [ -z "$(find ${{ steps.strings.outputs.build-output-dir }}/bin -mindepth 1 -print -quit)" ]; then
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            BUILD_DIR="${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}"
+          else
+            BUILD_DIR="${{ steps.strings.outputs.build-output-dir }}/bin"
+          fi
+          if [ -z "$(ls -A $BUILD_DIR)" ]; then
             echo "Directory is empty."
             exit 1
           else
             echo "Directory is not empty."
+            echo "artifact_path=$BUILD_DIR" >> $GITHUB_OUTPUT
           fi
 
-      - name: WINDOWS - Upload Artifact
-        if: success() && matrix.os == 'windows-latest'
+      - name: Upload Artifact
+        if: success()
         uses: actions/upload-artifact@v4
-        id: windows-artifact-upload-step
+        id: artifact-upload-step
         with:
-            name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
-            path: ${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}
+          name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
+          path: ${{ steps.check_directory.outputs.artifact_path }}
 
-      - name: UBUNTU - Upload Artifact
-        if: success() && matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        id: linux-artifact-upload-step
-        with:
-            name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
-            path: ${{ steps.strings.outputs.build-output-dir }}/bin
-
-      - name: WINDOWS - Post results to Discord
-        if: success() && matrix.os == 'windows-latest'
+      - name: Post results to Discord
+        if: success()
         uses: tsickert/discord-webhook@v6.0.0
         with:
-            webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-            content: 'Windows build URL is ${{ steps.windows-artifact-upload-step.outputs.artifact-url }}'
-
-      - name: UBUNTU - Post results to Discord
-        if: success() && matrix.os == 'ubuntu-latest'
-        uses: tsickert/discord-webhook@v6.0.0
-        with:
-            webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-            content: 'Linux build URL is ${{ steps.linux-artifact-upload-step.outputs.artifact-url }}'
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: '${{ matrix.os }} build URL is ${{ steps.artifact-upload-step.outputs.artifact-url }}'
