@@ -2,7 +2,8 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches: [ "build" ]
+    branches:
+      [ "build" ]
 
 jobs:
   build:
@@ -36,7 +37,7 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Cache CPM packages
+      - name: UBUNTU - Cache CPM packages
         uses: actions/cache@v4
         with:
           path: ~/.cpm
@@ -44,15 +45,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cpm-
 
-      # - name: Cache build outputs
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: |
-      #       ${{ github.workspace }}/build/bin
-      #       ${{ github.workspace }}/build/lib
-      #     key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-build-
+      - name: WINDOWS - Cache CPM packages
+        uses: actions/cache@v4
+        with:
+          path: $env:$env:USERPROFILE\\.cpm
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ${{ runner.os }}-cpm-
 
       - name: UBUNTU - Install dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -81,7 +80,7 @@ jobs:
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-      - name: Configure CMake
+      - name: UBUNUTU - Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
@@ -90,6 +89,18 @@ jobs:
           -S ${{ github.workspace }}
           -DCPM_SOURCE_CACHE=~/.cpm
           -DENABLE_TESTING=OFF
+
+      - name: WINDOWS - Configure CMake
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B ${{ steps.strings.outputs.build-output-dir }} `
+            -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} `
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -S ${{ github.workspace }} `
+            -DCPM_SOURCE_CACHE=$env:$env:USERPROFILE\\.cpm `
+            -DENABLE_TESTING=OFF
+        shell: pwsh
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
@@ -109,7 +120,7 @@ jobs:
       #     echo "Listing files in $directory:"
       #     ls -R $directory
 
-      - name: Check if directory is empty (Windows)
+      - name: WINDOWS - Check if directory is empty
         if: matrix.os == 'windows-latest'
         id: check_directory_windows
         run: |
@@ -122,7 +133,7 @@ jobs:
           }
         shell: pwsh
 
-      - name: Check if directory is empty (Linux)
+      - name: UBUNTU - Check if directory is empty
         if: matrix.os == 'ubuntu-latest'
         id: check_directory_linux
         run: |
@@ -133,7 +144,7 @@ jobs:
             echo "Directory is not empty."
           fi
 
-      - name: Upload Windows Artifact
+      - name: WINDOWS - Upload Artifact
         if: success() && matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         id: windows-artifact-upload-step
@@ -141,7 +152,7 @@ jobs:
             name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
             path: ${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}
 
-      - name: Upload Linux Artifact
+      - name: UBUNTU - Upload Artifact
         if: success() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         id: linux-artifact-upload-step
@@ -149,16 +160,16 @@ jobs:
             name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
             path: ${{ steps.strings.outputs.build-output-dir }}/bin
 
-      - name: Post results to Discord
+      - name: WINDOWS - Post results to Discord
         if: success() && matrix.os == 'windows-latest'
         uses: tsickert/discord-webhook@v6.0.0
         with:
             webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
             content: 'Windows build URL is ${{ steps.windows-artifact-upload-step.outputs.artifact-url }}'
 
-      - name: Post results to Discord
-        if: success() && matrix.os == 'linux-latest'
+      - name: UBUNTU - Post results to Discord
+        if: success() && matrix.os == 'ubuntu-latest'
         uses: tsickert/discord-webhook@v6.0.0
         with:
             webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-            content: 'Windows build URL is ${{ steps.linux-artifact-upload-step.outputs.artifact-url }}'
+            content: 'Linux build URL is ${{ steps.linux-artifact-upload-step.outputs.artifact-url }}'
