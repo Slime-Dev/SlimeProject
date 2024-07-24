@@ -27,6 +27,21 @@ file(GLOB_RECURSE SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
+# Function to create symlink or copy based on the build type
+function(link_or_copy_resources TARGET_NAME)
+    add_custom_command(
+        TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TARGET_NAME}>"
+        COMMAND ${CMAKE_COMMAND}
+        -D SOURCE_DIR=${SLIME_RESOURCES_DIR}
+        -D DESTINATION_DIR="$<TARGET_FILE_DIR:${TARGET_NAME}>/resources"
+        -D BUILD_TYPE=$<CONFIG>
+        -P "${SLIME_CMAKE_DIR}/CopyOrLink.cmake" 
+        COMMENT "Linking or copying SlimeOdyssey resources to executable directory"
+    )
+endfunction()
+
+
 # Create executable
 add_executable(ModelLoading test_main.cpp)
 
@@ -43,6 +58,9 @@ target_include_directories(ModelLoading PRIVATE
 set_target_properties(ModelLoading PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+target_precompile_headers(ModelLoading REUSE_FROM SlimeOdyssey)
+link_or_copy_resources(ModelLoading)
 
 add_test(NAME ModelTest COMMAND ModelLoading)
 
@@ -62,6 +80,9 @@ target_include_directories(CameraInitalizing PRIVATE
 set_target_properties(CameraInitalizing PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+target_precompile_headers(CameraInitalizing REUSE_FROM SlimeOdyssey)
+link_or_copy_resources(CameraInitalizing)
 
 add_test(NAME CameraTest COMMAND CameraInitalizing)
 
