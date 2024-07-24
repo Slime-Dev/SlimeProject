@@ -1,5 +1,9 @@
 #include "ResourcePathManager.h"
-#include <direct.h>
+#ifdef _WIN32
+	#include <direct.h>
+#else
+	#include <unistd.h>
+#endif
 
 std::string ResourcePathManager::s_rootDirectory;
 std::unordered_map<ResourcePathManager::ResourceType, std::string> ResourcePathManager::s_directories;
