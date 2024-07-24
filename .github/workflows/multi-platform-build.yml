@@ -2,7 +2,8 @@ name: Building for multiple platforms
 
 on:
   push:
-    branches: [ "build" ]
+    branches:
+      [ "build" ]
 
 jobs:
   build:
@@ -97,38 +98,15 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
-      - name: Save CPM cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cpm
-            ${{ github.workspace }}/.cpm
-          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-
-      - name: Check if build directory is empty
-        id: check_directory
-        shell: bash
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            BUILD_DIR="${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}"
-          else
-            BUILD_DIR="${{ steps.strings.outputs.build-output-dir }}/bin"
-          fi
-          if [ -z "$(ls -A "$BUILD_DIR")" ]; then
-            echo "Directory is empty."
-            exit 1
-          else
-            echo "Directory is not empty."
-            echo "artifact_path=$BUILD_DIR" >> $GITHUB_OUTPUT
-          fi
-
       - name: Upload Artifact
         if: success()
         uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
           name: ${{ matrix.os }}-${{ matrix.c_compiler}}-build
-          path: ${{ steps.check_directory.outputs.artifact_path }}
+          path: |
+            ${{ steps.strings.outputs.build-output-dir }}/bin/${{ matrix.build_type }}
+            ${{ steps.strings.outputs.build-output-dir }}/bin/
 
       - name: Post results to Discord
         if: success()

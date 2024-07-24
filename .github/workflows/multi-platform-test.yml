@@ -2,10 +2,11 @@ name: Testing for multiple platforms
 
 on:
   push:
-    branches-ignore:
-      - 'build'
+    branches:
+      [ "*" ]
   pull_request:
-    branches: [ "main" ]
+    branches:
+      [ "main" ]
 
 jobs:
   build:
@@ -42,7 +43,9 @@ jobs:
       - name: Restore CPM cache
         uses: actions/cache@v4
         with:
-          path: ~/.cpm
+          path: |
+            ~/.cpm
+            ${{ github.workspace }}/.cpm
           key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
             ${{ runner.os }}-cpm-
@@ -75,14 +78,25 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
       - name: Configure CMake
-        run: >
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -S ${{ github.workspace }}
-          -DCPM_SOURCE_CACHE=~/.cpm
-          -DENABLE_TESTING=ON
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S "${{ github.workspace }}" \
+              -DCPM_SOURCE_CACHE="${{ github.workspace }}/.cpm" \
+              -DENABLE_TESTING=OFF
+          else
+            cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S ${{ github.workspace }} \
+              -DCPM_SOURCE_CACHE=~/.cpm \
+              -DENABLE_TESTING=OFF
+          fi
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
@@ -91,12 +105,6 @@ jobs:
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
-
-      - name: Save CPM cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cpm
-          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Convert XML to CTRF
         if: success()
