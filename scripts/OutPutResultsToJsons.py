@@ -46,19 +46,22 @@ def xml_to_json(xml_file, tool_name):
         test_case = {
             "name": testcase.get('name'),
             "status": status,
-            "duration": int(float(testcase.get('time')) * 1000),  # Convert to milliseconds
+            "duration": int(float(testcase.get('time', 0)) * 1000),  # Convert to milliseconds, default to 0 if not present
             "message": message
         }
         test_cases.append(test_case)
 
     # Get the 'timestamp' attribute of the 'testsuite' element
     timestamp_str = root.get('timestamp')
+    if timestamp_str:
+        # Convert the timestamp string to a datetime object
+        timestamp_dt = datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S')
 
-    # Convert the timestamp string to a datetime object
-    timestamp_dt = datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S')
-
-    # Convert the datetime object to seconds since the epoch
-    timestamp_seconds = int(timestamp_dt.replace(tzinfo=timezone.utc).timestamp())
+        # Convert the datetime object to seconds since the epoch
+        timestamp_seconds = int(timestamp_dt.replace(tzinfo=timezone.utc).timestamp())
+    else:
+        # Default timestamp if not present
+        timestamp_seconds = int(datetime.now(timezone.utc).timestamp())
 
     # Get the current time in seconds since the epoch
     current_time_seconds = int(datetime.now(timezone.utc).timestamp())
@@ -88,15 +91,16 @@ def xml_to_json(xml_file, tool_name):
 
     return json_structure
 
-def json_to_discord_json(json_data, os, compiler, event):
+def json_to_discord_json(json_data, os_name, compiler, event):
     summary = json_data["results"]["summary"]
     tests = json_data["results"]["tests"]
 
     duration_seconds = summary["stop"] - summary["start"]
     duration_str = time.strftime("%H:%M:%S", time.gmtime(duration_seconds))
 
-    name_width = max(len(test['name']) for test in tests) + 2
-    status_width = max(len(test['status']) for test in tests) + 2
+    # Handle empty test cases list
+    name_width = max((len(test['name']) for test in tests), default=0) + 2
+    status_width = max((len(test['status']) for test in tests), default=0) + 2
     duration_width = len("Duration (ms)") + 2
     flaky_width = len("Flaky 🍂") + 2
 
@@ -120,7 +124,7 @@ def json_to_discord_json(json_data, os, compiler, event):
                     failed_tests_summary += f"{test['message'].strip()}\n"
         failed_tests_summary += "```\n"
 
-    content = f"Test Results for **{os}-{compiler}** triggered by **{event}**"
+    content = f"Test Results for **{os_name}-{compiler}** triggered by **{event}**"
     embeds = [
         {
             "title": "Test Summary",
@@ -150,9 +154,6 @@ def json_to_discord_json(json_data, os, compiler, event):
     }
 
     return discord_json
-
-
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
