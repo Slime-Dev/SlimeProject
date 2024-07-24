@@ -6,8 +6,7 @@
 #include <vector>
 
 void LoadBunny() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+    ModelManager modelManager = ModelManager();
     // Upper case for Windows
     auto bunnyMesh = modelManager.LoadModel("Stanford-bunny.obj", "basic");
     if (bunnyMesh == nullptr) {
@@ -28,8 +27,7 @@ void LoadBunny() {
 }
 
 void LoadMonkey() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+    ModelManager modelManager = ModelManager();
     auto suzanneMesh = modelManager.LoadModel("suzanne.obj", "basic");
     if (suzanneMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'suzanne.obj'");
@@ -45,8 +43,7 @@ void LoadMonkey() {
 }
 
 void LoadCube() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
+    ModelManager modelManager = ModelManager();
     auto cubeMesh = modelManager.LoadModel("cube.obj", "basic");
     if (cubeMesh == nullptr) {
         throw std::runtime_error("Failed to load model 'cube.obj'");
