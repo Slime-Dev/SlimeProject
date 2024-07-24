@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <list>
 #include <vulkan/vulkan_core.h>
 
 // Forward declarations
