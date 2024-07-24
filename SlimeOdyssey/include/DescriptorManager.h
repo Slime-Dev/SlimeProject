@@ -25,6 +25,7 @@ public:
 	VkDescriptorSet GetDescriptorSet(uint32_t layoutIndex);
 	size_t AddDescriptorSetLayout(VkDescriptorSetLayout layout);
 	size_t AddDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
+	void FreeDescriptorSet(VkDescriptorSet descriptorSet);
 
 	// Resource Binding
 	void BindBuffer(VkDescriptorSet descriptorSet, uint32_t binding, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);

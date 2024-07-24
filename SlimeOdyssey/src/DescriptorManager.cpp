@@ -67,6 +67,11 @@ size_t DescriptorManager::AddDescriptorSetLayouts(const std::vector<VkDescriptor
 	return startIndex;
 }
 
+void DescriptorManager::FreeDescriptorSet(VkDescriptorSet descriptorSet)
+{
+	VK_CHECK(m_disp.freeDescriptorSets(m_descriptorPool, 1, &descriptorSet));
+}
+
 void DescriptorManager::BindBuffer(VkDescriptorSet descriptorSet, uint32_t binding, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
 {
 	VkDescriptorBufferInfo bufferInfo{};
@@ -114,9 +119,10 @@ void DescriptorManager::CreateDescriptorPool()
 
 	VkDescriptorPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	poolInfo.poolSizeCount = 2;
 	poolInfo.pPoolSizes = poolSizes;
-	poolInfo.maxSets = 100; // Adjust this based on your needs
+	poolInfo.maxSets = 100;
 
 	VK_CHECK(m_disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool));
 }

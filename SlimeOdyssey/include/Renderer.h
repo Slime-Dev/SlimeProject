@@ -58,6 +58,7 @@ public:
 	void DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
 
 private:
+
 	// Push Constant
 	struct MVP
 	{
@@ -65,7 +66,6 @@ private:
 		glm::mat3 normalMatrix;
 	} m_mvp;
 
-	std::unordered_map<size_t, VkDescriptorSet> m_materialDescriptorCache;
 
 	void UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene);
 	void UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allocator);
@@ -79,6 +79,16 @@ private:
 	//
 	/// MATERIALS ///////////////////////////////////
 	//
+	struct LRUCacheEntry
+	{
+		size_t hash;
+		VkDescriptorSet descriptorSet;
+	};
+
+	std::list<LRUCacheEntry> m_lruList;
+	std::unordered_map<size_t, std::list<LRUCacheEntry>::iterator> m_materialDescriptorCache;
+	const size_t MAX_CACHE_SIZE = 75;
+
 	VkDescriptorSet GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
 	void UpdateBasicMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, Entity* entity, VmaAllocator allocator);
 	void UpdatePBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator);

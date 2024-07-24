@@ -200,11 +200,13 @@ VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, Pipel
 	auto it = m_materialDescriptorCache.find(materialHash);
 	if (it != m_materialDescriptorCache.end())
 	{
-		return it->second;
+		// Move the accessed item to the front of the LRU list
+		m_lruList.splice(m_lruList.begin(), m_lruList, it->second);
+		return it->second->descriptorSet;
 	}
 
 	// If not found in cache, create a new descriptor set
-	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineContainer->descriptorSetLayouts[1]); //TODO Fix this as it doesnt clean old cached descriptor sets and will quickly run out
+	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineContainer->descriptorSetLayouts[1]);
 	debugUtils.SetObjectName(newDescriptorSet, pipelineContainer->name + " Material Descriptor Set");
 
 	// Update the new descriptor set
@@ -217,8 +219,18 @@ VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, Pipel
 		UpdatePBRMaterialDescriptors(descriptorManager, newDescriptorSet, entity, allocator);
 	}
 
-	// Cache the new descriptor set
-	m_materialDescriptorCache[materialHash] = newDescriptorSet;
+	// If cache is full, remove the least recently used item
+	if (m_materialDescriptorCache.size() >= MAX_CACHE_SIZE)
+	{
+		auto last = m_lruList.back(); // This is the least recently used item
+		m_materialDescriptorCache.erase(last.hash);
+		descriptorManager.FreeDescriptorSet(last.descriptorSet);
+		m_lruList.pop_back();
+	}
+
+	// Add the new item to the front of the LRU list (most recently used)
+	m_lruList.push_front({ materialHash, newDescriptorSet });
+	m_materialDescriptorCache[materialHash] = m_lruList.begin();
 
 	return newDescriptorSet;
 }
