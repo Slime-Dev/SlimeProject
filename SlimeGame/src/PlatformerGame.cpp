@@ -52,7 +52,7 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	SetupShaders(vulkanContext, modelManager, shaderManager, descriptorManager);
-	
+
 	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
 	std::shared_ptr<BasicMaterialResource> basicMaterialResource = descriptorManager.CreateBasicMaterial(vulkanContext, modelManager, "Basic Material");
 
@@ -183,7 +183,7 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 	auto debugPipeline = modelManager.GetPipelines()["debug_wire"];
 	vulkanContext.GetDispatchTable().destroyPipeline(debugPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugPipeline.pipelineLayout, nullptr);
-	
+
 	auto debugSolidPipeline = modelManager.GetPipelines()["debug_solid"];
 	vulkanContext.GetDispatchTable().destroyPipeline(debugSolidPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugSolidPipeline.pipelineLayout, nullptr);

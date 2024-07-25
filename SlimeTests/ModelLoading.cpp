@@ -12,9 +12,10 @@ struct TestResult {
     std::string errorMessage;
 };
 
-TestResult RunTest(const std::string& testName, void (*testFunction)()) {
+TestResult RunTest(const std::string& testName, std::function<void(ModelManager& modelManager)> testFunction) {
+    ModelManager modelManager = ModelManager();
     try {
-        testFunction();
+        testFunction(modelManager);
         return { testName, true, "" };
     } catch (const std::exception& e) {
         return { testName, false, e.what() };
@@ -23,13 +24,11 @@ TestResult RunTest(const std::string& testName, void (*testFunction)()) {
     }
 }
 
-void LoadBunny() {
-    ResourcePathManager resourcePathManager;
-    ModelManager modelManager = ModelManager(resourcePathManager);
-
-    bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
+void LoadBunny(ModelManager& modelManager)
+{
+    auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "basic");
     if (bunnyMesh == nullptr) {
-        throw std::runtime_error("Failed to load model 'Stanford-bunny.obj'");
+        throw std::runtime_error("Failed to load model 'stanford-bunny.obj'");
     }
 
     if (bunnyMesh->vertices.size() == 0) {
@@ -75,7 +74,6 @@ void LoadCube(ModelManager& modelManager)
 
 int main() {
     std::vector<TestResult> testResults;
-
     testResults.push_back(RunTest("LoadBunny", LoadBunny));
     testResults.push_back(RunTest("LoadMonkey", LoadMonkey));
     testResults.push_back(RunTest("LoadCube", LoadCube));
