@@ -2,7 +2,6 @@
 #include <stdexcept>
 #include <vector>
 #include <string>
-#include "ResourcePathManager.h"
 #include "ModelManager.h"
 #include <spdlog/spdlog.h>
 
