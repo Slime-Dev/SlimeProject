@@ -651,6 +651,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 
 int VulkanContext::GenerateShadowMap(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
 {
+	m_debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
 	// Transition shadow map image to depth attachment optimal
 	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_shadowMapImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
@@ -689,6 +690,8 @@ int VulkanContext::GenerateShadowMap(VkCommandBuffer& cmd, ModelManager& modelMa
 
 	// Transition shadow map image to shader read-only optimal
 	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_shadowMapImage, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	
+	m_debugUtils.EndDebugMarker(cmd);
 
 	return 0;
 }
@@ -750,8 +753,10 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	if (scene)
 	{
-		scene->Render(*this, modelManager);
 		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene, m_shadowMapImageView);
+	
+		m_debugUtils.BeginDebugMarker(cmd, "Draw ImGui", debugUtil_BindDescriptorSetColour);
+		scene->Render(*this, modelManager);
 	}
 
 	ImGui::Render();
@@ -762,6 +767,8 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 		// Record dear imgui primitives into command buffer
 		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
 	}
+
+	m_debugUtils.EndDebugMarker(cmd);
 
 	m_disp.cmdEndRendering(cmd);
 

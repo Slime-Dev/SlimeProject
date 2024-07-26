@@ -26,8 +26,6 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
 {
-	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
-
 	EntityManager& entityManager = scene->m_entityManager;
 	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Transform>();
 
@@ -82,8 +80,6 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 
 		debugUtils.EndDebugMarker(cmd);
 	}
-
-	debugUtils.EndDebugMarker(cmd);
 }
 
 void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene, VkImageView shadowMap)
