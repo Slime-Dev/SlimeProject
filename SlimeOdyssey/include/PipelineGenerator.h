@@ -1,21 +1,15 @@
-//
-// Created by alexm on 3/07/24.
-//
-
 #pragma once
 
-#include <string>
+#include <functional>
+#include <optional>
 #include <vector>
 #include <vulkan/vulkan.h>
 
 #include "ShaderManager.h"
 
 class VulkanContext;
-class ModelManager;
-class DescriptorManager;
-namespace vkb { struct DispatchTable; }
 
-struct PipelineContainer
+struct PipelineConfig
 {
 	std::string name;
 	VkPipelineLayout pipelineLayout;
@@ -27,57 +21,79 @@ class PipelineGenerator
 {
 public:
 	explicit PipelineGenerator(VulkanContext& vulkanContext);
+	~PipelineGenerator() = default;
 
-	~PipelineGenerator();
+	// Builder methods
+	PipelineGenerator& SetName(const std::string& name);
+	PipelineGenerator& SetShaderStages(const std::vector<VkPipelineShaderStageCreateInfo>& stages);
+	PipelineGenerator& SetVertexInputState(const VkPipelineVertexInputStateCreateInfo& vertexInputInfo);
+	PipelineGenerator& SetInputAssemblyState(const VkPipelineInputAssemblyStateCreateInfo& inputAssembly);
+	PipelineGenerator& SetViewportState(const VkPipelineViewportStateCreateInfo& viewportState);
+	PipelineGenerator& SetRasterizationState(const VkPipelineRasterizationStateCreateInfo& rasterizer);
+	PipelineGenerator& SetMultisampleState(const VkPipelineMultisampleStateCreateInfo& multisampling);
+	PipelineGenerator& SetDepthStencilState(const VkPipelineDepthStencilStateCreateInfo& depthStencil);
+	PipelineGenerator& SetColorBlendState(const VkPipelineColorBlendStateCreateInfo& colorBlending);
+	PipelineGenerator& SetDynamicState(const VkPipelineDynamicStateCreateInfo& dynamicState);
+	PipelineGenerator& SetLayout(VkPipelineLayout layout);
+	PipelineGenerator& SetRenderPass(VkRenderPass renderPass, uint32_t subpass);
+	PipelineGenerator& SetBasePipeline(VkPipeline basePipeline, int32_t basePipelineIndex);
+	PipelineGenerator& SetRenderingInfo(VkPipelineRenderingCreateInfo renderingInfo);
 
-	void SetName(const std::string& name);
+	// Convenience methods for common configurations
+	PipelineGenerator& SetDefaultVertexInput();
+	PipelineGenerator& SetDefaultInputAssembly();
+	PipelineGenerator& SetDefaultViewportState();
+	PipelineGenerator& SetDefaultRasterizationState();
+	PipelineGenerator& SetDefaultMultisampleState();
+	PipelineGenerator& SetDefaultDepthStencilState();
+	PipelineGenerator& SetDefaultColorBlendState();
+	PipelineGenerator& SetDefaultDynamicState();
 
-	void SetShaderModules(const ShaderModule& vertexShader, const ShaderModule& fragmentShader);
-	void SetVertexInputState(const std::vector<VkVertexInputAttributeDescription>& attributeDescriptions, const std::vector<VkVertexInputBindingDescription>& bindingDescription);
-	void SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
-	void SetPushConstantRanges(const std::vector<VkPushConstantRange>& pushConstantRanges);
-	void SetDepthTestEnabled(bool enabled);
-	void SetCullMode(VkCullModeFlags mode);
-	void SetPolygonMode(VkPolygonMode polygonMode);
+	// Advanced configuration
+	PipelineGenerator& AddDynamicState(VkDynamicState state);
+	PipelineGenerator& SetPolygonMode(VkPolygonMode mode);
+	PipelineGenerator& SetCullMode(VkCullModeFlags mode);
+	PipelineGenerator& SetDepthTestEnable(bool enable);
+	PipelineGenerator& SetDepthWriteEnable(bool enable);
+	PipelineGenerator& SetDepthCompareOp(VkCompareOp op);
+	PipelineGenerator& SetBlendEnable(bool enable);
+	PipelineGenerator& SetColorBlendOp(VkBlendOp op);
+	PipelineGenerator& SetAlphaBlendOp(VkBlendOp op);
 
-	void Generate();
+	// Descriptor set and push constant configuration
+	PipelineGenerator& SetDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& layouts);
+	PipelineGenerator& SetPushConstantRanges(const std::vector<VkPushConstantRange>& ranges);
 
-	void PrepareDescriptorSetLayouts(const ShaderManager::ShaderResources& resources);
-
-	[[nodiscard]] VkPipeline GetPipeline() const;
-	[[nodiscard]] VkPipelineLayout GetPipelineLayout() const;
-	[[nodiscard]] PipelineContainer GetPipelineContainer() const;
+	// Build methods
+	PipelineConfig Build();
+	void Reset();
 
 private:
-	const vkb::DispatchTable& m_disp;
 	VulkanContext& m_vulkanContext;
-	ShaderModule m_vertexShader;
-	ShaderModule m_fragmentShader;
+	const vkb::DispatchTable& m_disp;
 
-	std::vector<VkVertexInputAttributeDescription> m_attributeDescriptions;
-	std::vector<VkVertexInputBindingDescription> m_vertexInputBindingDescriptions;
+	// Pipeline state
+	std::string m_name;
+	std::vector<VkPipelineShaderStageCreateInfo> m_shaderStages;
+	std::optional<VkPipelineVertexInputStateCreateInfo> m_vertexInputState;
+	std::optional<VkPipelineInputAssemblyStateCreateInfo> m_inputAssemblyState;
+	std::optional<VkPipelineViewportStateCreateInfo> m_viewportState;
+	std::optional<VkPipelineRasterizationStateCreateInfo> m_rasterizationState;
+	std::optional<VkPipelineMultisampleStateCreateInfo> m_multisampleState;
+	std::optional<VkPipelineDepthStencilStateCreateInfo> m_depthStencilState;
+	std::optional<VkPipelineColorBlendStateCreateInfo> m_colorBlendState;
+	std::optional<VkPipelineDynamicStateCreateInfo> m_dynamicState;
+	std::optional<VkPipelineRenderingCreateInfo> m_renderingInfo;
+	VkPipelineLayout m_layout = VK_NULL_HANDLE;
+	VkRenderPass m_renderPass = VK_NULL_HANDLE;
+	uint32_t m_subpass = 0;
+	VkPipeline m_basePipeline = VK_NULL_HANDLE;
+	int32_t m_basePipelineIndex = -1;
+
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
 	std::vector<VkPushConstantRange> m_pushConstantRanges;
 
-	VkPipelineShaderStageCreateInfo m_vertexShaderStageInfo{};
-	VkPipelineShaderStageCreateInfo m_fragmentShaderStageInfo{};
-	VkPipelineVertexInputStateCreateInfo m_vertexInputInfo{};
-	VkPipelineInputAssemblyStateCreateInfo m_inputAssembly{};
-	VkPipelineViewportStateCreateInfo m_viewportState{};
-	VkPipelineRasterizationStateCreateInfo m_rasterizer{};
-	VkPipelineMultisampleStateCreateInfo m_multisampling{};
-	VkPipelineColorBlendAttachmentState m_colorBlendAttachment{};
-	VkPipelineColorBlendStateCreateInfo m_colorBlending{};
-	VkPipelineLayoutCreateInfo m_pipelineLayoutInfo{};
-
-	VkPolygonMode m_vkPolygonMode = VK_POLYGON_MODE_FILL;
-
-	bool m_dephtestEnabled = true;
-	VkCullModeFlags m_cullMode = VK_CULL_MODE_BACK_BIT;
-
-	PipelineContainer m_pipelineContainer;
-
+	// Helper methods
 	void CreatePipelineLayout();
 	void CreatePipeline();
-
 };

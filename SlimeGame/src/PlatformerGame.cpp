@@ -191,6 +191,10 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 	auto infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
 	vulkanContext.GetDispatchTable().destroyPipeline(infiniteGridPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(infiniteGridPipeline.pipelineLayout, nullptr);
+
+	auto shadowPipeline = modelManager.GetPipelines()["ShadowMap"];
+	vulkanContext.GetDispatchTable().destroyPipeline(shadowPipeline.pipeline, nullptr);
+	vulkanContext.GetDispatchTable().destroyPipelineLayout(shadowPipeline.pipelineLayout, nullptr);
 }
 
 void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -254,6 +258,8 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 {
 	ResourcePathManager resourcePaths;
 
+	// Set up the shadow map pipeline
+
 	// Set up a basic pipeline
 	modelManager.CreatePipeline("basic", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"), true);
 
@@ -266,6 +272,8 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 
 	// Set up InfiniteGrid pipeline
 	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("grid.vert.spv"), resourcePaths.GetShaderPath("grid.frag.spv"), false, VK_CULL_MODE_NONE);
+
+	modelManager.CreateShadowMapPipeline(vulkanContext, shaderManager, descriptorManager);
 }
 
 void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)

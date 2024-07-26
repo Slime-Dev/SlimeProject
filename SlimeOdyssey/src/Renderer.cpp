@@ -24,7 +24,69 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
+void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
+{
+	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
+
+	EntityManager& entityManager = scene->m_entityManager;
+	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Transform>();
+
+	// Get the light entity and its transform
+	auto lightEntity = entityManager.GetEntityByName("Light");
+	PointLightObject& light = lightEntity->GetComponent<PointLightObject>();
+
+	// Calculate light's view-projection matrix
+	glm::mat4 lightViewMatrix = glm::lookAt(light.light.pos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 lightProjectionMatrix = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 100.0f);
+	glm::mat4 lightViewProjectionMatrix = lightProjectionMatrix * lightViewMatrix;
+
+	// Bind the shadow map pipeline
+	PipelineConfig* shadowMapPipeline = BindPipeline(disp, cmd, modelManager, "ShadowMap", debugUtils);
+	if (!shadowMapPipeline)
+	{
+		debugUtils.EndDebugMarker(cmd);
+		return;
+	}
+
+	VkBool32 depthTestEnable = VK_TRUE;
+	disp.cmdSetDepthTestEnable(cmd, depthTestEnable);
+
+	VkBool32 depthWriteEnable = VK_TRUE;
+	disp.cmdSetDepthWriteEnable(cmd, depthWriteEnable);
+
+	VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
+	disp.cmdSetDepthCompareOp(cmd, depthCompareOp);
+
+	for (const auto& entity: modelEntities)
+	{
+		ModelResource* model = entity->GetComponent<Model>().modelResource;
+		Transform& transform = entity->GetComponent<Transform>();
+
+		debugUtils.BeginDebugMarker(cmd, ("Process Model for Shadow: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
+
+		// Update push constants for shadow mapping
+		struct ShadowMapPushConstants
+		{
+			glm::mat4 lightSpaceMatrix;
+			glm::mat4 modelMatrix;
+		} pushConstants;
+
+		pushConstants.lightSpaceMatrix = lightViewProjectionMatrix;
+		pushConstants.modelMatrix = transform.GetModelMatrix();
+
+		disp.cmdPushConstants(cmd, shadowMapPipeline->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowMapPushConstants), &pushConstants);
+
+		debugUtils.BeginDebugMarker(cmd, "Draw Model for Shadow", debugUtil_DrawModelColour);
+		modelManager.DrawModel(disp, cmd, *model);
+		debugUtils.EndDebugMarker(cmd);
+
+		debugUtils.EndDebugMarker(cmd);
+	}
+
+	debugUtils.EndDebugMarker(cmd);
+}
+
+void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene, VkImageView shadowMap)
 {
 	debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
 
@@ -45,8 +107,8 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	// Update shared descriptors before the loop
 	UpdateSharedDescriptors(descriptorManager, sharedDescriptorSet.first, sharedDescriptorSet.second, entityManager, allocator);
 
-	std::unordered_map<std::string, PipelineContainer*> pipelineCache;
-	PipelineContainer* pipelineContainer = nullptr;
+	std::unordered_map<std::string, PipelineConfig*> pipelineCache;
+	PipelineConfig* pipelineConfig = nullptr;
 	std::string lastUsedPipeline;
 
 	for (const auto& entity: modelEntities)
@@ -64,16 +126,16 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 			auto pipelineIt = pipelineCache.find(pipelineName);
 			if (pipelineIt == pipelineCache.end())
 			{
-				pipelineContainer = BindPipeline(disp, cmd, modelManager, pipelineName, debugUtils);
-				pipelineCache[pipelineName] = pipelineContainer;
+				pipelineConfig = BindPipeline(disp, cmd, modelManager, pipelineName, debugUtils);
+				pipelineCache[pipelineName] = pipelineConfig;
 			}
 			else
 			{
-				pipelineContainer = pipelineIt->second;
-				disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipeline);
+				pipelineConfig = pipelineIt->second;
+				disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineConfig->pipeline);
 			}
 
-			if (!pipelineContainer)
+			if (!pipelineConfig)
 			{
 				debugUtils.EndDebugMarker(cmd);
 				continue;
@@ -82,14 +144,14 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 			lastUsedPipeline = pipelineName;
 
 			// Bind shared descriptor set after binding the pipeline
-			disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
+			disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineConfig->pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
 		}
 
 		// Bind material descriptor set
-		VkDescriptorSet materialDescriptorSet = GetOrUpdateMaterialDescriptorSet(entity.get(), pipelineContainer, descriptorManager, allocator, debugUtils);
-		disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipelineLayout, 1, 1, &materialDescriptorSet, 0, nullptr);
+		VkDescriptorSet materialDescriptorSet = GetOrUpdateMaterialDescriptorSet(entity.get(), pipelineConfig, descriptorManager, allocator, debugUtils);
+		disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineConfig->pipelineLayout, 1, 1, &materialDescriptorSet, 0, nullptr);
 
-		UpdatePushConstants(disp, cmd, *pipelineContainer, transform, debugUtils);
+		UpdatePushConstants(disp, cmd, *pipelineConfig, transform, debugUtils);
 
 		debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
 		modelManager.DrawModel(disp, cmd, *model);
@@ -99,7 +161,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	}
 
 	Camera& camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
-	PipelineContainer& infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
+	PipelineConfig& infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
 	DrawInfiniteGrid(disp, cmd, camera, infiniteGridPipeline.pipeline, infiniteGridPipeline.pipelineLayout);
 
 	debugUtils.EndDebugMarker(cmd);
@@ -137,7 +199,7 @@ void Renderer::UpdateCameraBuffer(EntityManager& entityManager, VmaAllocator all
 	SlimeUtil::CopyStructToBuffer(camera.GetCameraUBO(), allocator, camera.GetCameraUBOAllocation());
 }
 
-PipelineContainer* Renderer::BindPipeline(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, const std::string& pipelineName, VulkanDebugUtils& debugUtils)
+PipelineConfig* Renderer::BindPipeline(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, const std::string& pipelineName, VulkanDebugUtils& debugUtils)
 {
 	auto pipelineIt = modelManager.GetPipelines().find(pipelineName);
 	if (pipelineIt == modelManager.GetPipelines().end())
@@ -146,18 +208,18 @@ PipelineContainer* Renderer::BindPipeline(vkb::DispatchTable& disp, VkCommandBuf
 		return nullptr;
 	}
 
-	PipelineContainer* pipelineContainer = &pipelineIt->second;
-	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineContainer->pipeline);
+	PipelineConfig* pipelineConfig = &pipelineIt->second;
+	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineConfig->pipeline);
 	debugUtils.InsertDebugMarker(cmd, "Bind Pipeline", debugUtil_White);
 
-	return pipelineContainer;
+	return pipelineConfig;
 }
 
-void Renderer::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineContainer& pipelineContainer, Transform& transform, VulkanDebugUtils& debugUtils)
+void Renderer::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, PipelineConfig& pipelineConfig, Transform& transform, VulkanDebugUtils& debugUtils)
 {
 	m_mvp.model = transform.GetModelMatrix();
 	m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
-	disp.cmdPushConstants(cmd, pipelineContainer.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
+	disp.cmdPushConstants(cmd, pipelineConfig.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
 	debugUtils.InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
 }
 
@@ -193,7 +255,7 @@ void Renderer::UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkD
 //
 /// MATERIALS ///////////////////////////////////
 //
-VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineContainer* pipelineContainer, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils)
+VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils)
 {
 	size_t materialHash = GenerateMaterialHash(entity);
 
@@ -206,8 +268,8 @@ VkDescriptorSet Renderer::GetOrUpdateMaterialDescriptorSet(Entity* entity, Pipel
 	}
 
 	// If not found in cache, create a new descriptor set
-	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineContainer->descriptorSetLayouts[1]);
-	debugUtils.SetObjectName(newDescriptorSet, pipelineContainer->name + " Material Descriptor Set");
+	VkDescriptorSet newDescriptorSet = descriptorManager.AllocateDescriptorSet(pipelineConfig->descriptorSetLayouts[1]);
+	debugUtils.SetObjectName(newDescriptorSet, pipelineConfig->name + " Material Descriptor Set");
 
 	// Update the new descriptor set
 	if (entity->HasComponent<BasicMaterial>())

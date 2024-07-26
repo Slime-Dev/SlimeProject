@@ -447,7 +447,7 @@ void ModelManager::UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator all
 	spdlog::info("All resources unloaded");
 }
 
-std::map<std::string, PipelineContainer>& ModelManager::GetPipelines()
+std::map<std::string, PipelineConfig>& ModelManager::GetPipelines()
 {
 	return m_pipelines;
 }
@@ -613,9 +613,23 @@ void ModelManager::TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graph
 		sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+	}
 	else
 	{
-		throw std::invalid_argument("unsupported layout transition!");
+		spdlog::error("unsupported layout transition!");
 	}
 
 	disp.cmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
@@ -643,36 +657,205 @@ void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQ
 	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
+void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	const std::string pipelineName = "ShadowMap";
+	const std::string vertShaderPath = ResourcePathManager::GetShaderPath("shadowmap.vert.spv");
+	const std::string fragShaderPath = ResourcePathManager::GetShaderPath("shadowmap.frag.spv");
+
+	if (m_pipelines.contains(pipelineName))
+	{
+		spdlog::error("Shadow map pipeline already exists.");
+		return;
+	}
+
+	// Load and parse vertex shader only
+	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
+	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
+	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+
+	PipelineGenerator pipelineGenerator(vulkanContext);
+
+	pipelineGenerator.SetName(pipelineName);
+
+	// Set up rendering info for dynamic rendering
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+	VkPipelineRenderingCreateInfo renderingInfo{};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	renderingInfo.depthAttachmentFormat = depthFormat;
+	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+	renderingInfo.colorAttachmentCount = 0;
+	renderingInfo.pColorAttachmentFormats = nullptr;
+	pipelineGenerator.SetRenderingInfo(renderingInfo);
+
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {
+		{.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_VERTEX_BIT, .module = vertexShaderModule.handle, .pName = "main"},
+        {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragmentShaderModule.handle, .pName = "main"}
+	};
+	pipelineGenerator.SetShaderStages(shaderStages);
+
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(combinedResources.bindingDescriptions.size());
+	vertexInputInfo.pVertexBindingDescriptions = combinedResources.bindingDescriptions.data();
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(combinedResources.attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions = combinedResources.attributeDescriptions.data();
+	pipelineGenerator.SetVertexInputState(vertexInputInfo);
+
+	pipelineGenerator.SetDefaultInputAssembly();
+	pipelineGenerator.SetDefaultViewportState();
+
+	VkPipelineRasterizationStateCreateInfo rasterizer{};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthBiasEnable = VK_FALSE;
+	rasterizer.lineWidth = 1.0f;
+	pipelineGenerator.SetRasterizationState(rasterizer);
+
+	// Set up multisample state
+	VkPipelineMultisampleStateCreateInfo multisampling{};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.minSampleShading = 1.0f;
+	multisampling.pSampleMask = nullptr;
+	multisampling.alphaToCoverageEnable = VK_FALSE;
+	multisampling.alphaToOneEnable = VK_FALSE;
+	pipelineGenerator.SetMultisampleState(multisampling);
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+	pipelineGenerator.SetDepthStencilState(depthStencil);
+
+	// For shadow mapping, we typically don't use color attachments
+	VkPipelineColorBlendStateCreateInfo colorBlending{};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.attachmentCount = 0;
+	colorBlending.pAttachments = nullptr;
+	pipelineGenerator.SetColorBlendState(colorBlending);
+
+	std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT, VK_DYNAMIC_STATE_LINE_WIDTH };
+	pipelineGenerator.SetDynamicState({ .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() });
+
+	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+
+	PipelineConfig config = pipelineGenerator.Build();
+
+	// Store the pipeline
+	m_pipelines[pipelineName] = config;
+
+	spdlog::debug("Created the Shadow Map Pipeline");
+}
+
 void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode, VkPolygonMode polygonMode)
 {
 	if (m_pipelines.contains(pipelineName))
 	{
-		spdlog::error("Pipeline with that name already exists.");
+		spdlog::error("Pipeline with name '{}' already exists.", pipelineName);
 		return;
 	}
 
 	// Load and parse shaders
 	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
 	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
-	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
-	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
 	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
 
 	// Set up descriptor set layout
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
 
+	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM; // Adjust if your swapchain format is different
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;     // Adjust if your depth format is different
+
 	PipelineGenerator pipelineGenerator(vulkanContext);
+
 	pipelineGenerator.SetName(pipelineName);
-	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
-	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+
+	VkPipelineRenderingCreateInfo renderingInfo{};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachmentFormats = &colorFormat;
+	renderingInfo.depthAttachmentFormat = depthFormat;
+	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineGenerator.SetRenderingInfo(renderingInfo);
+
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {
+		{.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,   .stage = VK_SHADER_STAGE_VERTEX_BIT,   .module = vertexShaderModule.handle, .pName = "main"},
+        {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragmentShaderModule.handle, .pName = "main"}
+	};
+	pipelineGenerator.SetShaderStages(shaderStages);
+
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(combinedResources.bindingDescriptions.size());
+	vertexInputInfo.pVertexBindingDescriptions = combinedResources.bindingDescriptions.data();
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(combinedResources.attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions = combinedResources.attributeDescriptions.data();
+	pipelineGenerator.SetVertexInputState(vertexInputInfo);
+
+	pipelineGenerator.SetDefaultInputAssembly();
+	pipelineGenerator.SetDefaultViewportState();
+
+	VkPipelineRasterizationStateCreateInfo rasterizer{};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = polygonMode;
+	rasterizer.cullMode = cullMode;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthBiasEnable = VK_FALSE;
+	rasterizer.lineWidth = 1.0f;
+	pipelineGenerator.SetRasterizationState(rasterizer);
+
+	pipelineGenerator.SetDefaultMultisampleState();
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = depthTestEnabled;
+	depthStencil.depthWriteEnable = depthTestEnabled;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL; // Assuming reverse-Z
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+	pipelineGenerator.SetDepthStencilState(depthStencil);
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+	colorBlendAttachment.blendEnable = VK_TRUE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colorBlending{};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &colorBlendAttachment;
+	pipelineGenerator.SetColorBlendState(colorBlending);
+
+	std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT, VK_DYNAMIC_STATE_LINE_WIDTH };
+	pipelineGenerator.SetDynamicState({ .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() });
+
 	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
-	pipelineGenerator.SetPolygonMode(polygonMode);
-	pipelineGenerator.SetDepthTestEnabled(depthTestEnabled);
-	pipelineGenerator.SetCullMode(cullMode);
-	pipelineGenerator.Generate();
 
-	m_pipelines[pipelineName] = pipelineGenerator.GetPipelineContainer();
+	PipelineConfig config = pipelineGenerator.Build();
+
+	// Store the pipeline
+	m_pipelines[pipelineName] = config;
+
+	spdlog::debug("Created pipeline: {}", pipelineName);
 }
 
 ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)

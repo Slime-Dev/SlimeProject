@@ -49,6 +49,7 @@ private:
 	int CreateRenderCommandBuffers();
 	int InitSyncObjects();
 	int InitImGui(SlimeWindow* window);
+	int GenerateShadowMap(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
 
 	// Rendering methods
 	int Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene);
@@ -75,6 +76,11 @@ private:
 	std::vector<VkFence> m_inFlightFences;
 	std::vector<VkFence> m_imageInFlight;
 	size_t m_currentFrame = 0;
+
+	// Shadows
+	VkImageView m_shadowMapImageView = VK_NULL_HANDLE;
+	VkImage m_shadowMapImage = VK_NULL_HANDLE;
+	VmaAllocation m_shadowMapImageAllocation;
 
 	// Depth image might want this elsewhere?
 	VkImage m_depthImage = VK_NULL_HANDLE;
