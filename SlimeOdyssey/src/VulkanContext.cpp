@@ -21,7 +21,7 @@
 
 #define MAX_FRAMES_IN_FLIGHT 2
 #define SHADOW_MAP_WIDTH 1920
-#define SHADOW_MAP_HEIGHT 1080
+#define SHADOW_MAP_HEIGHT 1920
 
 // IMGUI
 #include "backends/imgui_impl_glfw.h"

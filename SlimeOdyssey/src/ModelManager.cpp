@@ -452,6 +452,16 @@ std::map<std::string, PipelineConfig>& ModelManager::GetPipelines()
 	return m_pipelines;
 }
 
+void ModelManager::CleanUpAllPipelines(vkb::DispatchTable& disp)
+{
+	for (auto& [name, pipeline]: m_pipelines)
+	{
+		disp.destroyPipeline(pipeline.pipeline, nullptr);
+		disp.destroyPipelineLayout(pipeline.pipelineLayout, nullptr);
+	}
+	m_pipelines.clear();
+}
+
 VkImageView ModelManager::CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format)
 {
 	VkImageViewCreateInfo viewInfo{};
@@ -948,7 +958,7 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 
 ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 {
-	std::string name = "debug_cube" + std::to_string(size);
+	std::string name = "cube_" + std::to_string(size);
 	if (m_modelResources.contains(name))
 	{
 		return &m_modelResources[name];
@@ -976,14 +986,21 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 		{ 0.0f,  1.0f,  0.0f}, // Top
 		{ 0.0f, -1.0f,  0.0f}  // Bottom
 	};
-	// Define the vertices for each face
+	// Define the vertices for each face (corrected winding order)
 	const int faceVertices[6][4] = {
-		{0, 1, 2, 3}, // Front face
-		{5, 4, 7, 6}, // Back face (reversed)
-		{1, 5, 6, 2}, // Right face
-		{4, 0, 3, 7}, // Left face (reversed)
-		{3, 2, 6, 7}, // Top face
-		{4, 5, 1, 0}  // Bottom face (reversed)
+		{0, 3, 2, 1}, // Front face
+		{5, 6, 7, 4}, // Back face
+		{1, 2, 6, 5}, // Right face
+		{4, 7, 3, 0}, // Left face
+		{3, 7, 6, 2}, // Top face
+		{4, 0, 1, 5}  // Bottom face
+	};
+	// Define UVs for each face
+	const glm::vec2 faceUVs[4] = {
+		{0.0f, 1.0f}, // bottom-left
+		{0.0f, 0.0f}, // top-left
+		{1.0f, 0.0f}, // top-right
+		{1.0f, 1.0f}  // bottom-right
 	};
 	// Create vertices and indices
 	std::vector<uint32_t> newIndices;
@@ -995,18 +1012,23 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 			Vertex vertex;
 			vertex.pos = positions[faceVertices[face][i]];
 			vertex.normal = normals[face];
-			vertex.texCoord = glm::vec2((i & 1) ? 1.0f : 0.0f, (i & 2) ? 1.0f : 0.0f);
-			// Improved tangent space calculation
+			vertex.texCoord = faceUVs[i];
+			// Tangent space calculation
 			glm::vec3 tangent, bitangent;
-			if (face % 2 == 0)
-			{ // even faces
-				tangent = glm::vec3(0.0f, 1.0f, 0.0f);
-				bitangent = glm::cross(normals[face], tangent);
-			}
-			else
-			{ // odd faces
+			if (face == 0 || face == 1) // Front and Back faces
+			{
 				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-				bitangent = glm::cross(normals[face], tangent);
+				bitangent = glm::vec3(0.0f, -1.0f, 0.0f);
+			}
+			else if (face == 2 || face == 3) // Right and Left faces
+			{
+				tangent = glm::vec3(0.0f, 0.0f, -1.0f);
+				bitangent = glm::vec3(0.0f, -1.0f, 0.0f);
+			}
+			else // Top and Bottom faces
+			{
+				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+				bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
 			}
 			vertex.tangent = tangent;
 			vertex.bitangent = bitangent;
@@ -1027,6 +1049,7 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 	spdlog::debug("{} generated.", name);
 	return &m_modelResources[name];
 }
+
 
 ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, int segments, int rings)
 {

@@ -42,6 +42,8 @@ public:
 
 	std::map<std::string, PipelineConfig>& GetPipelines();
 
+	void CleanUpAllPipelines(vkb::DispatchTable& disp);
+
 private:
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;

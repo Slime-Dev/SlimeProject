@@ -25,7 +25,7 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 }
 
 glm::vec3 sceneCenter = glm::vec3(0.0f);
-float sceneRadius = 5.0f;
+float sceneRadius = 15.0f;
 
 // Near and far planes
 float nearPlane = 0.001f;
@@ -43,7 +43,7 @@ void calculateDirectionalLightMatrix(DirectionalLight& dirLight)
 	glm::mat4 lightView = glm::lookAt(lightPos, sceneCenter, glm::vec3(0.0f, 1.0f, 0.0f));
 
 	// Calculate orthographic projection bounds
-	float aspect = 1920 / (float)1080;
+	float aspect = 1;
 	float orthoSize = sceneRadius * 2.0f;
 
 	// Create the orthographic projection matrix
@@ -60,8 +60,14 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 
 	// Get the light entity and its transform
 	auto lightEntity = entityManager.GetEntityByName("Light");
-	DirectionalLight& light = lightEntity->GetComponent<DirectionalLightObject>().light;
 
+	if (!lightEntity)
+	{
+		spdlog::error("Light entity not found, skipping shadow mapping.");
+		return;
+	}
+
+	DirectionalLight& light = lightEntity->GetComponent<DirectionalLightObject>().light;
 	calculateDirectionalLightMatrix(light);
 
 	// Bind the shadow map pipeline
@@ -185,9 +191,12 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 		debugUtils.EndDebugMarker(cmd);
 	}
 
-	Camera& camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
 	PipelineConfig& infiniteGridPipeline = modelManager.GetPipelines()["InfiniteGrid"];
-	DrawInfiniteGrid(disp, cmd, camera, infiniteGridPipeline.pipeline, infiniteGridPipeline.pipelineLayout);
+	if (infiniteGridPipeline.pipeline != VK_NULL_HANDLE)
+	{
+		Camera& camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+		DrawInfiniteGrid(disp, cmd, camera, infiniteGridPipeline.pipeline, infiniteGridPipeline.pipelineLayout);
+	}
 
 	debugUtils.EndDebugMarker(cmd);
 }
@@ -209,8 +218,14 @@ void Renderer::UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator al
 
 void Renderer::UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allocator)
 {
-	DirectionalLightObject& light = entityManager.GetEntityByName("Light")->GetComponent<DirectionalLightObject>();
-	
+	auto lightEntity = entityManager.GetEntityByName("Light");
+	if (!lightEntity)
+	{
+		spdlog::critical("Light entity not found in UpdateLightBuffer.");
+		return;
+	}
+
+	DirectionalLightObject& light = lightEntity->GetComponent<DirectionalLightObject>();
 	if (light.buffer == VK_NULL_HANDLE)
 	{
 		SlimeUtil::CreateBuffer("Light Buffer", allocator, sizeof(light.light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
@@ -335,7 +350,14 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 {
 	if (setIndex == 1) // Light
 	{
-		DirectionalLightObject& light = entityManager.GetEntityByName("Light")->GetComponent<DirectionalLightObject>();
+		auto lightEntity = entityManager.GetEntityByName("Light");
+		if (!lightEntity)
+		{
+			spdlog::critical("Light entity not found in UpdatePBRMaterialDescriptors.");
+			return;
+		}
+
+		DirectionalLightObject& light = lightEntity->GetComponent<DirectionalLightObject>();
 		descriptorManager.BindBuffer(descSet, 0, light.buffer, 0, sizeof(light.light));
 	}
 	else if (setIndex == 2) // Material

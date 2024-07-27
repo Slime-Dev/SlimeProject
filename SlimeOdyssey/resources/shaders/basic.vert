@@ -40,6 +40,12 @@ layout(set = 1, binding = 0, scalar) uniform LightUBO {
     mat4 lightSpaceMatrix;
 } light;
 
+vec4 CalcShadowCoord() {
+    vec4 fragPosLightSpace = light.lightSpaceMatrix * vec4(FragPos, 1.0);
+    // Keep the w component for perspective division in the fragment shader
+    return fragPosLightSpace;
+}
+
 void main() {
     // Calculate vertex position in world space
     FragPos = vec3(transform.model * vec4(inPosition, 1.0));
@@ -53,8 +59,7 @@ void main() {
     TexCoords = inTexCoords;
     
     // Calculate fragment position in light space for shadow mapping
-    FragPosLightSpace = light.lightSpaceMatrix * vec4(FragPos, 1.0);
-    FragPosLightSpace.y = -FragPosLightSpace.y; // Flip y-coordinate for shadow map
+    FragPosLightSpace = CalcShadowCoord();
     
     // Calculate final vertex position
     gl_Position = camera.viewProjection * vec4(FragPos, 1.0);

@@ -45,7 +45,6 @@ private:
 
 	// Vectors for materials and models
 	std::vector<std::shared_ptr<PBRMaterialResource>> m_pbrMaterials;
-	std::vector<std::shared_ptr<BasicMaterialResource>> m_basicMaterials;
 	std::vector<std::shared_ptr<Model>> m_models;
 
 	// Camera state
@@ -58,17 +57,6 @@ private:
 	};
 
 	CameraState m_cameraState;
-	bool m_cameraMouseControl = true;
-	float m_manualYaw = 0.0f;
-	float m_manualPitch = 10.0f;
-	float m_manualDistance = 10.0f;
-
-	bool m_flyCamEnabled = false;
-	glm::vec3 m_flyCamPosition = glm::vec3(0.0f, 5.0f, -10.0f);
-	float m_flyCamYaw = 0.0f;
-	float m_flyCamPitch = 0.0f;
-	bool m_rightMousePressed = false;
-	void UpdateFlyCam(float dt, const InputManager* inputManager);
 
 	bool m_gameOver = false;
 

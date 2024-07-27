@@ -97,10 +97,12 @@ void main()
     float NdotL = max(dot(N, L), 0.0);
 
     // Calculate shadow
-    //float shadow = ShadowCalculation(FragPosLightSpace);
+    float shadow = ShadowCalculation(FragPosLightSpace);
+    // FragColor = vec4(vec3(shadow), 1.0);
+    // return;
 
     // Combine lighting
-    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL;// * (1.0 - shadow);
+    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (shadow);
     vec3 ambient = light.ambientStrength * albedo * ao;
 
     vec3 color = ambient + Lo;
@@ -156,9 +158,8 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 {
     // Perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    // Transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
-    
+
     // Get depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     
@@ -166,7 +167,7 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     vec3 normal = normalize(Normal);
     vec3 lightDir = normalize(-light.direction);
     float bias = max(0.1 * (1.0 - dot(normal, lightDir)), 0.01);
-    
+
     // PCF
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
