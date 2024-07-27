@@ -21,7 +21,7 @@ public:
 	~ModelManager();
 
 	ModelResource* LoadModel(const std::string& name, const std::string& pipelineName);
-	
+
 	ModelResource* CreatePlane(VmaAllocator allocator, float size, int divisions);
 	ModelResource* CreateLinePlane(VmaAllocator allocator);
 	ModelResource* CreateCube(VmaAllocator allocator, float size = 1.0f);

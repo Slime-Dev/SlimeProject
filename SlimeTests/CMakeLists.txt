@@ -54,9 +54,10 @@ function(create_test_executable NAME SOURCE_FILE)
     )
     target_precompile_headers(${NAME} REUSE_FROM SlimeOdyssey)
     link_or_copy_resources(${NAME})
-    add_test(NAME ${NAME}Test COMMAND ${NAME})
+    add_test(NAME ${NAME} COMMAND ${NAME})
 endfunction()
 
 # Create test executables
-create_test_executable(ModelLoading test_main.cpp)
-create_test_executable(CameraInitalizing second_test.cpp)
+create_test_executable(ModelLoading ModelLoading.cpp)
+create_test_executable(CameraInitializing CameraInitializing.cpp)
+create_test_executable(ShaderLoading ShaderLoading.cpp)
