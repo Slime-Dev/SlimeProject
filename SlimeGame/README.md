@@ -28,7 +28,7 @@ This project uses cmake to build as well as CPM.cmake to manage dependencies.
 ### Windows and Linux
 
 1. Clone the repository
-2. Run `cmake -B build -S .`
+2. Run `cmake -B build -S . -DENABLE_TESTING=OFF`
 3. Run `cmake --build build`
 
 ### MacOS

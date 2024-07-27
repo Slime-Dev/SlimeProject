@@ -78,11 +78,11 @@ std::string ResourcePathManager::SetRootDirectory()
     #else
         path = getcwd(nullptr, 0);
     #endif
-   
+
     if (path == nullptr) {
         throw std::runtime_error("Failed to get current working directory");
     }
-   
+
     // The application can have many places where it is run from so we set multiple options
     const char* possibleSubDirs[] = {
         "/bin/Release/resources",

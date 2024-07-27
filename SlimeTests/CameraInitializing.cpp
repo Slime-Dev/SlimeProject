@@ -4,7 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <glm/vec3.hpp>
 
-void SecondTest() {
+void CameraInit() {
     Camera camera = Camera(90.0f, 800.0f / 600.0f, 0.001f, 100.0f);
 
     glm::vec3 testPos = glm::vec3(90, 90, 90);
@@ -17,7 +17,7 @@ void SecondTest() {
 
 int main() {
     try {
-        SecondTest();
+        CameraInit();
     }
     catch (const std::exception& e) {
         spdlog::error("Test failed with exception: {}", e.what());
@@ -27,6 +27,6 @@ int main() {
         spdlog::error("Unknown exception occurred during testing.");
         return 2;
     }
-    spdlog::info("All Tests Passed!");
+    spdlog::info("Camera Initializing Test Passed!");
     return 0;
 }
