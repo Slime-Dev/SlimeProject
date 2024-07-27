@@ -5,6 +5,8 @@
 #include <list>
 #include <vulkan/vulkan_core.h>
 #include "Model.h"
+#include "PipelineGenerator.h"
+#include <Light.h>
 
 // Forward declarations
 class Camera;
@@ -13,7 +15,6 @@ class Entity;
 class EntityManager;
 class Model;
 class ModelManager;
-class PipelineGenerator;
 class Scene;
 class VulkanContext;
 class VulkanDebugUtils;
@@ -48,6 +49,18 @@ namespace std
 			return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
 		}
 	};
+
+	template<>
+	struct hash<DirectionalLight>
+	{
+		size_t operator()(const DirectionalLight& light) const
+		{
+			size_t h1 = hash<glm::vec3>()(light.direction);
+			size_t h2 = hash<glm::vec3>()(light.color);
+			size_t h3 = hash<float>()(light.ambientStrength);
+			return h1 ^ (h2 << 1) ^ (h3 << 2);
+		}
+	};
 } // namespace std
 
 class Renderer
@@ -58,7 +71,7 @@ public:
 
 	void SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd);
 	void DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene);
-	void DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene, VkImageView shadowMap);
+	void DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene, TextureResource* shadowMap);
 
 private:
 
@@ -92,9 +105,9 @@ private:
 	std::unordered_map<size_t, std::list<LRUCacheEntry>::iterator> m_materialDescriptorCache;
 	const size_t MAX_CACHE_SIZE = 75;
 
-	VkDescriptorSet GetOrUpdateMaterialDescriptorSet(Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
-	void UpdateBasicMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet materialSet, Entity* entity, VmaAllocator allocator);
-	void UpdatePBRMaterialDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator);
+	VkDescriptorSet GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils, TextureResource* shadowMap, int setIndex);
+	void UpdateBasicMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet materialSet, Entity* entity, VmaAllocator allocator, int setIndex);
+	void UpdatePBRMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator, TextureResource* shadowMap, int setIndex);
 
-	size_t GenerateMaterialHash(const Entity* entity);
+	size_t GenerateDescriptorHash(const Entity* entity, int setIndex);
 };

@@ -10,6 +10,7 @@
 #include "VulkanDebugUtils.h"
 #include "Renderer.h"
 #include "SlimeWindow.h"
+#include <imgui.h>
 
 struct TempMaterialTextures;
 struct PipelineContainer;
@@ -78,9 +79,8 @@ private:
 	size_t m_currentFrame = 0;
 
 	// Shadows
-	VkImageView m_shadowMapImageView = VK_NULL_HANDLE;
-	VkImage m_shadowMapImage = VK_NULL_HANDLE;
-	VmaAllocation m_shadowMapImageAllocation;
+	TextureResource m_shadowMap;
+	ImTextureID m_shadowMapId;
 
 	// Depth image might want this elsewhere?
 	VkImage m_depthImage = VK_NULL_HANDLE;

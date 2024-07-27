@@ -117,7 +117,7 @@ std::string ResourcePathManager::SetRootDirectory()
         std::string currentPath = std::string(path) + subDir;
         if (std::filesystem::exists(currentPath))
         {
-			spdlog::info("Found resources directory at: {}", currentPath);
+			spdlog::debug("Found resources directory at: {}", currentPath);
             free(path);
             return currentPath;
         }

@@ -339,7 +339,7 @@ ModelResource* ModelManager::LoadModel(const std::string& name, const std::strin
 	model.pipeLineName = pipelineName;
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("Model '{}' loaded successfully", name);
+	spdlog::debug("Model '{}' loaded successfully", name);
 
 	return &m_modelResources[name];
 }
@@ -400,7 +400,7 @@ TextureResource* ModelManager::LoadTexture(vkb::DispatchTable& disp, VkQueue gra
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
 	m_textures[name] = std::move(texture);
-	spdlog::info("Texture '{}' loaded successfully", name);
+	spdlog::debug("Texture '{}' loaded successfully", name);
 	return &m_textures[name];
 }
 
@@ -444,7 +444,7 @@ void ModelManager::UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator all
 	}
 	m_textures.clear();
 
-	spdlog::info("All resources unloaded");
+	spdlog::debug("All resources unloaded");
 }
 
 std::map<std::string, PipelineConfig>& ModelManager::GetPipelines()
@@ -890,7 +890,7 @@ ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 	model.indices = { 0, 1, 1, 2, 2, 3, 3, 0 };
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 
 	return &m_modelResources[name];
 }
@@ -902,13 +902,10 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 	{
 		return &m_modelResources[name];
 	}
-
 	ModelResource model;
-	model.pipeLineName = "basic";
-
+	model.pipeLineName = "pbr";
 	// Calculate the step size
 	float step = size / divisions;
-
 	// Create vertices
 	for (int i = 0; i <= divisions; ++i)
 	{
@@ -918,14 +915,13 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			float z = -size / 2 + j * step;
 			Vertex vertex;
 			vertex.pos = glm::vec3(x, 0.0f, z);
-			vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+			vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f); // Inverted normal
 			vertex.texCoord = glm::vec2(static_cast<float>(i) / divisions, static_cast<float>(j) / divisions);
 			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-			vertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
+			vertex.bitangent = glm::vec3(0.0f, 0.0f, -1.0f); // Inverted bitangent
 			model.vertices.push_back(vertex);
 		}
 	}
-
 	// Create indices for triangles
 	for (int i = 0; i < divisions; ++i)
 	{
@@ -935,22 +931,18 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			int topRight = topLeft + 1;
 			int bottomLeft = (i + 1) * (divisions + 1) + j;
 			int bottomRight = bottomLeft + 1;
-
-			// First triangle
+			// First triangle (changed winding order)
 			model.indices.push_back(topLeft);
-			model.indices.push_back(bottomLeft);
-			model.indices.push_back(topRight);
-
-			// Second triangle
 			model.indices.push_back(topRight);
 			model.indices.push_back(bottomLeft);
+			// Second triangle (changed winding order)
+			model.indices.push_back(topRight);
 			model.indices.push_back(bottomRight);
+			model.indices.push_back(bottomLeft);
 		}
 	}
-
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
-
+	spdlog::debug("{} generated.", name);
 	return &m_modelResources[name];
 }
 
@@ -962,7 +954,7 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 		return &m_modelResources[name];
 	}
 	ModelResource model;
-	model.pipeLineName = "basic"; // Assume a default pipeline for basic shapes can be changed after
+	model.pipeLineName = "pbr"; // Assume a default pipeline for basic shapes can be changed after
 	float halfSize = size / 2.0f;
 	// Define the 8 vertices of the cube
 	std::vector<glm::vec3> positions = {
@@ -1032,7 +1024,7 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 	// Assign the new indices to the model
 	model.indices = newIndices;
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 	return &m_modelResources[name];
 }
 
@@ -1045,7 +1037,7 @@ ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, 
 	}
 
 	ModelResource model;
-	model.pipeLineName = "basic";
+	model.pipeLineName = "pbr";
 
 	for (int ring = 0; ring <= rings; ++ring)
 	{
@@ -1092,7 +1084,7 @@ ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, 
 	}
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 
 	return &m_modelResources[name];
 }
@@ -1106,7 +1098,7 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	}
 
 	ModelResource model;
-	model.pipeLineName = "basic";
+	model.pipeLineName = "pbr";
 
 	float halfHeight = height / 2.0f;
 
@@ -1193,7 +1185,7 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	}
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 
 	return &m_modelResources[name];
 }

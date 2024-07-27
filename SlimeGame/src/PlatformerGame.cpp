@@ -45,7 +45,7 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 
 	// Light
 	auto lightEntity = std::make_shared<Entity>("Light");
-	PointLight& light = lightEntity->AddComponent<PointLightObject>().light;
+	DirectionalLight& light = lightEntity->AddComponent<DirectionalLightObject>().light;
 	m_entityManager.AddEntity(lightEntity);
 }
 
@@ -89,10 +89,6 @@ void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputM
 			m_window->SetCursorMode(GLFW_CURSOR_NORMAL);
 		}
 	}
-
-	PointLight& light = m_entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>().light;
-	auto& lightCubeTransform = m_lightCube->AddComponent<Transform>();
-	lightCubeTransform.position = light.pos;
 
 	if (m_flyCamEnabled)
 	{
@@ -168,6 +164,13 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 
+	lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLightObject>();
+	for (const auto& entity: lightEntities)
+	{
+		DirectionalLightObject& light = entity->GetComponent<DirectionalLightObject>();
+		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
+	}
+
 	// Clean up cameras
 	std::vector<std::shared_ptr<Entity>> cameraEntities = m_entityManager.GetEntitiesWithComponents<Camera>();
 	for (const auto& entity: cameraEntities)
@@ -176,15 +179,15 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 		camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator());
 	}
 
-	auto basicPipeline = modelManager.GetPipelines()["basic"];
+	auto basicPipeline = modelManager.GetPipelines()["pbr"];
 	vulkanContext.GetDispatchTable().destroyPipeline(basicPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(basicPipeline.pipelineLayout, nullptr);
 
-	auto debugPipeline = modelManager.GetPipelines()["debug_wire"];
+	auto debugPipeline = modelManager.GetPipelines()["basic_wire"];
 	vulkanContext.GetDispatchTable().destroyPipeline(debugPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugPipeline.pipelineLayout, nullptr);
-
-	auto debugSolidPipeline = modelManager.GetPipelines()["debug_solid"];
+	
+	auto debugSolidPipeline = modelManager.GetPipelines()["basic_solid"];
 	vulkanContext.GetDispatchTable().destroyPipeline(debugSolidPipeline.pipeline, nullptr);
 	vulkanContext.GetDispatchTable().destroyPipelineLayout(debugSolidPipeline.pipelineLayout, nullptr);
 
@@ -200,7 +203,7 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	VmaAllocator allocator = vulkanContext.GetAllocator();
-	std::string pipelineName = "basic";
+	std::string pipelineName = "pbr";
 
 	// Create Model Resources
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", pipelineName);
@@ -209,13 +212,12 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	auto suzanneMesh = modelManager.LoadModel("suzanne.obj", pipelineName);
 	modelManager.CreateBuffersForMesh(allocator, *suzanneMesh);
 
+	auto groundCubeModel = modelManager.CreatePlane(allocator, 30.0f, 10.0f);
+	modelManager.CreateBuffersForMesh(allocator, *groundCubeModel);
+
 	auto debugMesh = modelManager.CreateCube(allocator);
 	modelManager.CreateBuffersForMesh(allocator, *debugMesh);
-	debugMesh->pipeLineName = "debug_wire";
-
-	auto lightCube = modelManager.CreateCube(allocator, 0.1f);
-	modelManager.CreateBuffersForMesh(allocator, *lightCube);
-	lightCube->pipeLineName = "debug_solid";
+	debugMesh->pipeLineName = "basic_wire";
 
 	// Initialize player
 	m_player->AddComponent<Model>(bunnyMesh);
@@ -232,22 +234,23 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	obstacleTransform.position = glm::vec3(5.0f, 4.0f, 5.0f);
 	obstacleTransform.scale = glm::vec3(0.75f);
 
-	// Light cube
-	m_lightCube->AddComponent<Model>(lightCube);
-	m_lightCube->AddComponent<BasicMaterial>(m_basicMaterials[0]);
-
-	PointLight& light = m_entityManager.GetEntityByName("Light")->GetComponent<PointLightObject>().light;
-	auto& lightCubeTransform = m_lightCube->AddComponent<Transform>();
-	lightCubeTransform.position = light.pos;
+	// Ground
+	Entity groundCube = Entity("Ground Cube");
+	groundCube.AddComponent<Model>(groundCubeModel);
+	groundCube.AddComponent<PBRMaterial>(m_pbrMaterials[0]);
+	auto& groundTransform = groundCube.AddComponent<Transform>();
+	groundTransform.position = glm::vec3(0.0f, 0.05f, 0.0f);
+	m_entityManager.AddEntity(groundCube);
 
 	// Debug ground
 	Entity debugWireFrameCube = Entity("WireFrame Cube");
 	debugWireFrameCube.AddComponent<Model>(debugMesh);
 	debugWireFrameCube.AddComponent<BasicMaterial>(m_basicMaterials[1]);
-	auto& debugGroundTransform = debugWireFrameCube.AddComponent<Transform>();
+	//auto& debugGroundTransform = debugWireFrameCube.AddComponent<Transform>();
+	//debugGroundTransform.position = glm::vec3(-4.0f, 0.0f, -4.0f);
+	//debugGroundTransform.scale = glm::vec3(4.0f, 1.0f, 4.0f);
 	m_entityManager.AddEntity(debugWireFrameCube);
-	debugGroundTransform.position = glm::vec3(-4.0f, 0.0f, -4.0f);
-	debugGroundTransform.scale = glm::vec3(4.0f, 1.0f, 4.0f);
+
 
 	m_entityManager.AddEntity(m_player);
 	m_entityManager.AddEntity(m_obstacle);
@@ -261,14 +264,14 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 	// Set up the shadow map pipeline
 
 	// Set up a basic pipeline
-	modelManager.CreatePipeline("basic", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"), true);
+	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("basic.vert.spv"), resourcePaths.GetShaderPath("basic.frag.spv"), true);
 
 	// Set up the shared descriptor set pair (Grabbing it from the basic descriptors)
-	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["basic"].descriptorSetLayouts[0]);
+	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["pbr"].descriptorSetLayouts[0]);
 
 	// Set up a debug_wire pipeline
-	modelManager.CreatePipeline("debug_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true, VK_CULL_MODE_NONE, VK_POLYGON_MODE_LINE);
-	modelManager.CreatePipeline("debug_solid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true);
+	modelManager.CreatePipeline("basic_wire", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true, VK_CULL_MODE_NONE, VK_POLYGON_MODE_LINE);
+	modelManager.CreatePipeline("basic_solid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("wire.vert.spv"), resourcePaths.GetShaderPath("wire.frag.spv"), true);
 
 	// Set up InfiniteGrid pipeline
 	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, resourcePaths.GetShaderPath("grid.vert.spv"), resourcePaths.GetShaderPath("grid.frag.spv"), false, VK_CULL_MODE_NONE);

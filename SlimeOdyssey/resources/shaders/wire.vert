@@ -18,11 +18,12 @@ layout(push_constant) uniform TransformUBO {
 	mat3 normalMatrix;
 } transform;
 
-layout(set = 0, binding = 0) uniform CameraUBO {
-	mat4 view;
-	mat4 projection;
-	mat4 viewProjection;
-	vec4 viewPos;
+layout(set = 0, binding = 0, scalar) uniform CameraUBO {
+    mat4 view;
+    mat4 projection;
+    mat4 viewProjection;
+    vec3 viewPos;
+    float padding;  // Add padding to ensure 16-byte alignment
 } camera;
 
 layout(set = 1, binding = 0, scalar) uniform ConfigBuffer {

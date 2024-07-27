@@ -76,9 +76,9 @@ struct PBRMaterialResource : public MaterialResource
 	struct Config
 	{
 		glm::vec4 albedo = glm::vec4(1.0f); // Colour
-		float metallic = 1.0f;              // Strength
-		float roughness = 1.0f;             // Strength
-		float ao = 1.0f;                    // Strength
+		float metallic = 0.5f;              // Strength
+		float roughness = 0.5f;             // Strength
+		float ao = 0.5f;                    // Strength
 	};
 
 	TextureResource* albedoTex;

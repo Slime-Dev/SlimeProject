@@ -10,6 +10,7 @@
 #include <string>
 #include <typeindex>
 #include <type_traits>
+#include <algorithm>
 
 #include "imgui.h"
 #include <glm/common.hpp>

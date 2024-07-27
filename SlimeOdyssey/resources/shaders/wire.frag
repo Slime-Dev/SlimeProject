@@ -9,17 +9,9 @@ layout(set = 0, binding = 0, scalar) uniform CameraUBO {
     mat4 view;
     mat4 projection;
     mat4 viewProjection;
-    vec4 viewPos;
+    vec3 viewPos;
+    float padding;  // Add padding to ensure 16-byte alignment
 } camera;
-
-layout(set = 0, binding = 1, scalar) uniform LightUBO {
-	vec3 position;
-	vec3 color;
-	vec3 view;
-	float ambientStrength;
-	float specularStrength;
-	float shininess;
-} light;
 
 void main() {
     outColor = FragColour;

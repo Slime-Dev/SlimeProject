@@ -1,15 +1,17 @@
 #pragma once
 #include <glm/fwd.hpp>
 #include "Component.h"
+#include <vk_mem_alloc.h>
 
 struct PointLight
 {
 	glm::vec3 pos = glm::vec3(-6.0f, 6.0f, 6.0f);
-	glm::vec3 colour = glm::vec3(1.0f, 0.8f, 0.95f);
-	glm::vec3 view = glm::vec3(0.0f);
 	float ambientStrength = 0.0f;
+	glm::vec3 colour = glm::vec3(1.0f, 0.8f, 0.95f);
 	float specularStrength = 0.0f;
+	glm::vec3 direction = glm::vec3(0.0f);
 	float shininess = 0.0f;
+	glm::mat4 lightSpaceMatrix = glm::mat4(1.0f);
 };
 
 struct PointLightObject : public Component
@@ -24,8 +26,11 @@ struct PointLightObject : public Component
 
 struct DirectionalLight
 {
-	glm::vec3 direction;
-	glm::vec3 lightColor;
+	glm::vec3 direction = glm::vec3(1.0f, 1.0f, 1.0f);
+	float ambientStrength = 0.01f;
+	glm::vec3 color = glm::vec3(1.0f);
+	float padding;
+	glm::mat4 lightSpaceMatrix = glm::mat4();
 };
 
 struct DirectionalLightObject : public Component
