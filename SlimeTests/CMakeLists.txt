@@ -54,7 +54,7 @@ function(create_test_executable NAME SOURCE_FILE)
     )
     target_precompile_headers(${NAME} REUSE_FROM SlimeOdyssey)
     link_or_copy_resources(${NAME})
-    add_test(NAME ${NAME}Test COMMAND ${NAME})
+    add_test(NAME ${NAME} COMMAND ${NAME})
 endfunction()
 
 # Create test executables
