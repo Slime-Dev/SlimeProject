@@ -24,31 +24,29 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-glm::vec3 sceneCenter = glm::vec3(0.0f);
-float sceneRadius = 15.0f;
-
-// Near and far planes
-float nearPlane = 0.001f;
-float farPlane = 1000.0f;
-
 void calculateDirectionalLightMatrix(DirectionalLight& dirLight)
 {
-	// Define the initial light direction (slightly angled from the sky)
-	glm::vec3 initialLightDir = glm::normalize(glm::vec3(-1.0f, 3.0f, -1.0f));
+	// Near and far planes
+	float nearPlane = 50.0f;
+	float farPlane = 1000.0f;
 
-	// Calculate light position based on scene center and radius
-	glm::vec3 lightPos = sceneCenter - dirLight.direction * (sceneRadius * 2.0f);
+	// Calculate the scene center and radius
+	glm::vec3 sceneCenter = glm::vec3(0.0f);
+	float sceneRadius = 10.0f;
+
+	// Calculate the light position
+	glm::vec3 lightPos = -dirLight.direction * sceneRadius * 2.0f;
 
 	// Create the view matrix
 	glm::mat4 lightView = glm::lookAt(lightPos, sceneCenter, glm::vec3(0.0f, 1.0f, 0.0f));
-
+	
 	// Calculate orthographic projection bounds
 	float aspect = 1;
 	float orthoSize = sceneRadius * 2.0f;
-
+	
 	// Create the orthographic projection matrix
 	glm::mat4 lightProjection = glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, nearPlane, farPlane + sceneRadius * 4.0f);
-
+	
 	// Combine view and projection matrices
 	dirLight.lightSpaceMatrix = lightProjection * lightView;
 }
@@ -84,7 +82,7 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 	VkBool32 depthWriteEnable = VK_TRUE;
 	disp.cmdSetDepthWriteEnable(cmd, depthWriteEnable);
 
-	VkCompareOp depthCompareOp = VK_COMPARE_OP_GREATER;
+	VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
 	disp.cmdSetDepthCompareOp(cmd, depthCompareOp);
 
 	for (const auto& entity: modelEntities)

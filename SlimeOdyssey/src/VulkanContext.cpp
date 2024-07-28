@@ -689,7 +689,7 @@ int VulkanContext::GenerateShadowMap(VkCommandBuffer& cmd, ModelManager& modelMa
 	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue.depthStencil.depth = 0.0f;
+	depthAttachmentInfo.clearValue.depthStencil.depth = 1.0f;
 
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;

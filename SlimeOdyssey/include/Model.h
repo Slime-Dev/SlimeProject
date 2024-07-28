@@ -79,6 +79,7 @@ struct PBRMaterialResource : public MaterialResource
 		float metallic = 0.5f;              // Strength
 		float roughness = 0.5f;             // Strength
 		float ao = 0.5f;                    // Strength
+		glm::vec2 padding;
 	};
 
 	TextureResource* albedoTex;

@@ -98,8 +98,6 @@ void main()
 
     // Calculate shadow
     float shadow = ShadowCalculation(FragPosLightSpace);
-    // FragColor = vec4(vec3(shadow), 1.0);
-    // return;
 
     // Combine lighting
     vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (shadow);
@@ -156,34 +154,12 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
-    // Perform perspective divide
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-
-    // Get depth of current fragment from light's perspective
-    float currentDepth = projCoords.z;
-    
-    // Calculate bias (based on depth map resolution and slope)
-    vec3 normal = normalize(Normal);
-    vec3 lightDir = normalize(-light.direction);
-    float bias = max(0.1 * (1.0 - dot(normal, lightDir)), 0.01);
-
-    // PCF
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-    for(int x = -1; x <= 1; ++x)
+    float shadow = 1.0;
+    vec4 shadowCoords = fragPosLightSpace / fragPosLightSpace.w;
+    if( texture( shadowMap, shadowCoords.xy ).r < shadowCoords.z - 0.005 )
     {
-        for(int y = -1; y <= 1; ++y)
-        {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;        
-        }    
-    }
-    shadow /= 9.0;
-    
-    // Keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
-    if(projCoords.z > 1.0)
         shadow = 0.0;
-        
+    }
+
     return shadow;
 }
