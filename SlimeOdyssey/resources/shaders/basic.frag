@@ -18,7 +18,6 @@ layout(set = 0, binding = 0, scalar) uniform CameraUBO {
     mat4 projection;
     mat4 viewProjection;
     vec3 viewPos;
-    float padding;  // Add padding to ensure 16-byte alignment
 } camera;
 
 // Light uniforms (set = 1)
@@ -100,7 +99,7 @@ void main()
     float shadow = ShadowCalculation(FragPosLightSpace);
 
     // Combine lighting
-    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (shadow);
+    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (1 - shadow);
     vec3 ambient = light.ambientStrength * albedo * ao;
 
     vec3 color = ambient + Lo;
@@ -156,10 +155,28 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 {
     float shadow = 1.0;
     vec4 shadowCoords = fragPosLightSpace / fragPosLightSpace.w;
-    if( texture( shadowMap, shadowCoords.xy ).r < shadowCoords.z - 0.005 )
-    {
+    float currentDepth = shadowCoords.z;
+    float bias = 0.005;
+    float shadowSample = texture(shadowMap, shadowCoords.xy).r;
+
+    if (shadowCoords.z > 1.0)
         shadow = 0.0;
+    else
+        shadow = currentDepth - bias > shadowSample ? 1.0 : 0.0;
+
+    // Apply PCF
+
+    float shadowSum = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(shadowMap, shadowCoords.xy + vec2(x, y) * texelSize).r;
+            shadowSum += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
     }
+    shadow = shadowSum / 9.0;
 
     return shadow;
 }

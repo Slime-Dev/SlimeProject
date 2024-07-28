@@ -24,14 +24,14 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-void calculateDirectionalLightMatrix(DirectionalLight& dirLight)
+void calculateDirectionalLightMatrix(DirectionalLight& dirLight, Camera& camera)
 {
 	// Near and far planes
 	float nearPlane = 50.0f;
 	float farPlane = 1000.0f;
 
 	// Calculate the scene center and radius
-	glm::vec3 sceneCenter = glm::vec3(0.0f);
+	glm::vec3 sceneCenter = camera.GetPosition();
 	float sceneRadius = 10.0f;
 
 	// Calculate the light position
@@ -45,7 +45,7 @@ void calculateDirectionalLightMatrix(DirectionalLight& dirLight)
 	float orthoSize = sceneRadius * 2.0f;
 	
 	// Create the orthographic projection matrix
-	glm::mat4 lightProjection = glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, nearPlane, farPlane + sceneRadius * 4.0f);
+	glm::mat4 lightProjection = glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, nearPlane, farPlane + sceneRadius);
 	
 	// Combine view and projection matrices
 	dirLight.lightSpaceMatrix = lightProjection * lightView;
@@ -66,7 +66,8 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 	}
 
 	DirectionalLight& light = lightEntity->GetComponent<DirectionalLightObject>().light;
-	calculateDirectionalLightMatrix(light);
+	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	calculateDirectionalLightMatrix(light, camera);
 
 	// Bind the shadow map pipeline
 	PipelineConfig* shadowMapPipeline = BindPipeline(disp, cmd, modelManager, "ShadowMap", debugUtils);

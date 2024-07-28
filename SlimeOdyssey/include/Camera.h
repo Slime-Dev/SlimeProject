@@ -10,7 +10,7 @@ struct CameraUBO
 	glm::mat4 view;
 	glm::mat4 projection;
 	glm::mat4 viewProjection;
-	glm::vec4 viewPos;
+	glm::vec3 viewPos;
 };
 
 class Camera : public Component

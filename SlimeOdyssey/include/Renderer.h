@@ -42,7 +42,7 @@ namespace std
 	{
 		size_t operator()(const PBRMaterialResource::Config& config) const
 		{
-			size_t h1 = hash<glm::vec4>()(config.albedo);
+			size_t h1 = hash<glm::vec3>()(config.albedo);
 			size_t h2 = hash<float>()(config.metallic);
 			size_t h3 = hash<float>()(config.roughness);
 			size_t h4 = hash<float>()(config.ao);

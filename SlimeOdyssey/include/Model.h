@@ -75,7 +75,7 @@ struct PBRMaterialResource : public MaterialResource
 {
 	struct Config
 	{
-		glm::vec4 albedo = glm::vec4(1.0f); // Colour
+		glm::vec3 albedo = glm::vec3(1.0f); // Colour
 		float metallic = 0.5f;              // Strength
 		float roughness = 0.5f;             // Strength
 		float ao = 0.5f;                    // Strength

@@ -28,7 +28,6 @@ layout(set = 0, binding = 0, scalar) uniform CameraUBO {
     mat4 projection;
     mat4 viewProjection;
     vec3 viewPos;
-    float padding;  // Add padding to ensure 16-byte alignment
 } camera;
 
 // Light uniforms (set = 1)
