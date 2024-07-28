@@ -70,6 +70,18 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
     modelManager.CreateBuffersForMesh(allocator, *debugMesh);
 	debugMesh->pipelineName = "pbr";
 
+	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
+	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
+
+	// Create a bunny
+	Entity bunny = Entity("Bunny");
+	bunny.AddComponent<Model>(bunnyMesh);
+	bunny.AddComponent<PBRMaterial>(m_pbrMaterials[0]);
+	auto& bunnyTransform = bunny.AddComponent<Transform>();
+	bunnyTransform.position = glm::vec3(10.0f, 4.0f, -10.0f);
+	bunnyTransform.scale = glm::vec3(20.0f);
+	m_entityManager.AddEntity(bunny);
+
     // Large cube at Y=1
     CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);
 
