@@ -127,7 +127,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	std::vector<std::shared_ptr<Entity>> modelEntities = pbrModelEntities;
 	modelEntities.insert(modelEntities.end(), basicModelEntities.begin(), basicModelEntities.end());
 
-	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipeLineName < b->template GetComponent<Model>().modelResource->pipeLineName; });
+	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipelineName < b->template GetComponent<Model>().modelResource->pipelineName; });
 
 	// Get the shared descriptor set
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> sharedDescriptorSet = descriptorManager.GetSharedDescriptorSet();
@@ -146,7 +146,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 
 		debugUtils.BeginDebugMarker(cmd, ("Process Model: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
 
-		std::string pipelineName = model->pipeLineName;
+		std::string pipelineName = model->pipelineName;
 
 		// Bind pipeline if it's different from the last one
 		if (lastUsedPipeline != pipelineName)

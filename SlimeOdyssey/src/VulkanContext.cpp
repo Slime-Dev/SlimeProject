@@ -123,6 +123,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 	// Select physical device //
 	spdlog::debug("Selecting physical device...");
+
 	// Enable VK_EXT_extended_dynamic_state3 features
 	VkPhysicalDeviceExtendedDynamicState3FeaturesEXT extendedDynamicState3Features = {};
 	extendedDynamicState3Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
@@ -141,31 +142,51 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	extendedDynamicStateFeatures.extendedDynamicState = VK_TRUE;
 	extendedDynamicStateFeatures.pNext = &extendedDynamicState3Features;
 
+		// Enable mesh shader features
+	VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures = {};
+	meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+	meshShaderFeatures.taskShader = VK_TRUE;
+	meshShaderFeatures.meshShader = VK_TRUE;
+	meshShaderFeatures.multiviewMeshShader = VK_TRUE;
+	meshShaderFeatures.primitiveFragmentShadingRateMeshShader = VK_TRUE;
+	meshShaderFeatures.meshShaderQueries = VK_TRUE;
+	meshShaderFeatures.pNext = &extendedDynamicState3Features;
+
+	// Enable Vulkan 1.3 features
 	VkPhysicalDeviceVulkan13Features features13 = {};
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	features13.dynamicRendering = VK_TRUE;
 	features13.synchronization2 = VK_TRUE;
+	features13.maintenance4 = VK_TRUE;
+	features13.pNext = &meshShaderFeatures;
 
+	// Enable Vulkan 1.2 features
 	VkPhysicalDeviceVulkan12Features features12 = {};
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.bufferDeviceAddress = VK_TRUE;
 	features12.descriptorIndexing = VK_TRUE;
+	features12.pNext = &features13;
 
+	// Enable Vulkan 1.1 features
 	VkPhysicalDeviceVulkan11Features features11 = {};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 	features11.multiview = VK_TRUE;
+	features11.pNext = &features12;
 
+	// Set up basic device features
 	VkPhysicalDeviceFeatures2 features2 = {};
 	features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	features2.features.fillModeNonSolid = VK_TRUE;
 	features2.features.wideLines = VK_TRUE;
 	features2.features.geometryShader = VK_TRUE;
-	
+	features2.pNext = &features11;
+
 	vkb::PhysicalDeviceSelector phys_device_selector(m_instance);
 	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3)
-	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME)   //
-	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_2_EXTENSION_NAME)   //
-	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME) //
+	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME)
+	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_2_EXTENSION_NAME)
+	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME)
+	                               .add_required_extension(VK_EXT_MESH_SHADER_EXTENSION_NAME)
 	                               .set_required_features_11(features11)
 	                               .set_required_features_12(features12)
 	                               .set_required_features_13(features13)

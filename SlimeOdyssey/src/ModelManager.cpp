@@ -336,7 +336,7 @@ ModelResource* ModelManager::LoadModel(const std::string& name, const std::strin
 
 	CalculateTangentsAndBitangents(model);
 
-	model.pipeLineName = pipelineName;
+	model.pipelineName = pipelineName;
 
 	m_modelResources[name] = std::move(model);
 	spdlog::debug("Model '{}' loaded successfully", name);
@@ -670,8 +670,6 @@ void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQ
 void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
 	const std::string pipelineName = "ShadowMap";
-	const std::string vertShaderPath = ResourcePathManager::GetShaderPath("shadowmap.vert.spv");
-	const std::string fragShaderPath = ResourcePathManager::GetShaderPath("shadowmap.frag.spv");
 
 	if (m_pipelines.contains(pipelineName))
 	{
@@ -679,10 +677,21 @@ void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderM
 		return;
 	}
 
-	// Load and parse vertex shader only
-	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
-	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
-	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+	std::vector<std::pair<std::string, VkShaderStageFlagBits>> shaderPaths = {
+		{ResourcePathManager::GetShaderPath("shadowmap.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
+        {ResourcePathManager::GetShaderPath("shadowmap.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+	};
+
+	// Load and parse shaders
+	std::vector<ShaderModule> shaderModules;
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	for (const auto& [shaderPath, shaderStage]: shaderPaths)
+	{
+		auto shaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), shaderPath, shaderStage);
+		shaderModules.push_back(shaderModule);
+		shaderStages.push_back({ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = shaderStage, .module = shaderModule.handle, .pName = "main" });
+	}
+	auto combinedResources = shaderManager.CombineResources(shaderModules);
 
 	PipelineGenerator pipelineGenerator(vulkanContext);
 
@@ -698,10 +707,6 @@ void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderM
 	renderingInfo.pColorAttachmentFormats = nullptr;
 	pipelineGenerator.SetRenderingInfo(renderingInfo);
 
-	std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {
-		{.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_VERTEX_BIT, .module = vertexShaderModule.handle, .pName = "main"},
-        {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragmentShaderModule.handle, .pName = "main"}
-	};
 	pipelineGenerator.SetShaderStages(shaderStages);
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -767,7 +772,7 @@ void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderM
 	spdlog::debug("Created the Shadow Map Pipeline");
 }
 
-void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode, VkPolygonMode polygonMode)
+void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::vector<std::pair<std::string, VkShaderStageFlagBits>>& shaderPaths, bool depthTestEnabled, VkCullModeFlags cullMode, VkPolygonMode polygonMode)
 {
 	if (m_pipelines.contains(pipelineName))
 	{
@@ -776,15 +781,21 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	}
 
 	// Load and parse shaders
-	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
-	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
-	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+	std::vector<ShaderModule> shaderModules;
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	for (const auto& [shaderPath, shaderStage]: shaderPaths)
+	{
+		auto shaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), shaderPath, shaderStage);
+		shaderModules.push_back(shaderModule);
+		shaderStages.push_back({ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = shaderStage, .module = shaderModule.handle, .pName = "main" });
+	}
+	auto combinedResources = shaderManager.CombineResources(shaderModules);
 
 	// Set up descriptor set layout
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
 
-	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM; // Adjust if your swapchain format is different
-	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;     // Adjust if your depth format is different
+	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
 	PipelineGenerator pipelineGenerator(vulkanContext);
 
@@ -798,19 +809,19 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 	pipelineGenerator.SetRenderingInfo(renderingInfo);
 
-	std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {
-		{.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,   .stage = VK_SHADER_STAGE_VERTEX_BIT,   .module = vertexShaderModule.handle, .pName = "main"},
-        {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragmentShaderModule.handle, .pName = "main"}
-	};
 	pipelineGenerator.SetShaderStages(shaderStages);
 
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(combinedResources.bindingDescriptions.size());
-	vertexInputInfo.pVertexBindingDescriptions = combinedResources.bindingDescriptions.data();
-	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(combinedResources.attributeDescriptions.size());
-	vertexInputInfo.pVertexAttributeDescriptions = combinedResources.attributeDescriptions.data();
-	pipelineGenerator.SetVertexInputState(vertexInputInfo);
+	// Set vertex input state only if vertex shader is present
+	if (std::find_if(shaderPaths.begin(), shaderPaths.end(), [](const auto& pair) { return pair.second == VK_SHADER_STAGE_VERTEX_BIT; }) != shaderPaths.end())
+	{
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(combinedResources.bindingDescriptions.size());
+		vertexInputInfo.pVertexBindingDescriptions = combinedResources.bindingDescriptions.data();
+		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(combinedResources.attributeDescriptions.size());
+		vertexInputInfo.pVertexAttributeDescriptions = combinedResources.attributeDescriptions.data();
+		pipelineGenerator.SetVertexInputState(vertexInputInfo);
+	}
 
 	pipelineGenerator.SetDefaultInputAssembly();
 	pipelineGenerator.SetDefaultViewportState();
@@ -877,7 +888,7 @@ ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 	}
 
 	ModelResource model;
-	model.pipeLineName = "debug_wire";
+	model.pipelineName = "debug_wire";
 
 	// Create vertices
 	Vertex vertex;
@@ -913,7 +924,7 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 		return &m_modelResources[name];
 	}
 	ModelResource model;
-	model.pipeLineName = "pbr";
+	model.pipelineName = "pbr";
 	// Calculate the step size
 	float step = size / divisions;
 	// Create vertices
@@ -964,7 +975,7 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 		return &m_modelResources[name];
 	}
 	ModelResource model;
-	model.pipeLineName = "pbr"; // Assume a default pipeline for basic shapes can be changed after
+	model.pipelineName = "pbr"; // Assume a default pipeline for basic shapes can be changed after
 	float halfSize = size / 2.0f;
 	// Define the 8 vertices of the cube
 	std::vector<glm::vec3> positions = {
@@ -1060,7 +1071,7 @@ ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, 
 	}
 
 	ModelResource model;
-	model.pipeLineName = "pbr";
+	model.pipelineName = "pbr";
 
 	for (int ring = 0; ring <= rings; ++ring)
 	{
@@ -1121,7 +1132,7 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	}
 
 	ModelResource model;
-	model.pipeLineName = "pbr";
+	model.pipelineName = "pbr";
 
 	float halfHeight = height / 2.0f;
 

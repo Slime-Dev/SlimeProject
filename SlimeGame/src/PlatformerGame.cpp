@@ -67,7 +67,11 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 	modelManager.CreateShadowMapPipeline(vulkanContext, shaderManager, descriptorManager);
 
 	// Set up a basic pipeline
-	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, ResourcePathManager::GetShaderPath("basic.vert.spv"), ResourcePathManager::GetShaderPath("basic.frag.spv"), true);
+	std::vector<std::pair<std::string, VkShaderStageFlagBits>> pbrShaderPaths = {
+		{ResourcePathManager::GetShaderPath("basic.vert.spv"), VK_SHADER_STAGE_VERTEX_BIT},
+        {ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+	};
+	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, pbrShaderPaths, true);
 
 	// Set up the shared descriptor set pair (Grabbing it from the basic descriptors)
 	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["pbr"].descriptorSetLayouts[0]);

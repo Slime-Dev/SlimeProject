@@ -39,17 +39,23 @@ void DebugScene::SetupShaders(VulkanContext& vulkanContext, ModelManager& modelM
 	modelManager.CreateShadowMapPipeline(vulkanContext, shaderManager, descriptorManager);
 
 	// Set up a basic pipeline
-	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, ResourcePathManager::GetShaderPath("basic.vert.spv"), ResourcePathManager::GetShaderPath("basic.frag.spv"), true);
+	std::vector<std::pair<std::string, VkShaderStageFlagBits>> meshShaderPaths = {
+		{ResourcePathManager::GetShaderPath("basic.vert.spv"), VK_SHADER_STAGE_VERTEX_BIT},
+        {ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+	};
+
+	std::vector<std::pair<std::string, VkShaderStageFlagBits>> gridShaderPaths = {
+		{ResourcePathManager::GetShaderPath("grid.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
+        {ResourcePathManager::GetShaderPath("grid.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+	};
+
+	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, meshShaderPaths, true);
 
 	// Set up the shared descriptor set pair (Grabbing it from the basic descriptors)
 	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["pbr"].descriptorSetLayouts[0]);
 
-	// Set up a debug_wire pipeline
-	modelManager.CreatePipeline("basic_wire", vulkanContext, shaderManager, descriptorManager, ResourcePathManager::GetShaderPath("wire.vert.spv"), ResourcePathManager::GetShaderPath("wire.frag.spv"), true, VK_CULL_MODE_NONE, VK_POLYGON_MODE_LINE);
-	modelManager.CreatePipeline("basic_solid", vulkanContext, shaderManager, descriptorManager, ResourcePathManager::GetShaderPath("wire.vert.spv"), ResourcePathManager::GetShaderPath("wire.frag.spv"), true);
-
 	// Set up InfiniteGrid pipeline
-	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, ResourcePathManager::GetShaderPath("grid.vert.spv"), ResourcePathManager::GetShaderPath("grid.frag.spv"), false, VK_CULL_MODE_NONE);
+	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, gridShaderPaths, false, VK_CULL_MODE_NONE);
 }
 
 void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -62,7 +68,7 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
     VmaAllocator allocator = vulkanContext.GetAllocator();
     auto debugMesh = modelManager.CreateCube(allocator);
     modelManager.CreateBuffersForMesh(allocator, *debugMesh);
-    debugMesh->pipeLineName = "pbr";
+	debugMesh->pipelineName = "pbr";
 
     // Large cube at Y=1
     CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);

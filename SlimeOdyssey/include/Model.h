@@ -38,7 +38,7 @@ struct ModelResource
 	VkBuffer indexBuffer;
 	VmaAllocation indexAllocation;
 
-	std::string pipeLineName;
+	std::string pipelineName;
 };
 
 struct TextureResource

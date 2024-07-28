@@ -1,0 +1,87 @@
+#version 450
+#extension GL_EXT_mesh_shader : require
+#extension GL_EXT_scalar_block_layout : enable
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = 64, max_primitives = 126) out;
+
+// Outputs to fragment shader
+layout(location = 0) out vec3 FragPos[64];
+layout(location = 1) out vec3 Normal[64];
+layout(location = 2) out vec2 TexCoords[64];
+layout(location = 3) out vec3 Tangent[64];
+layout(location = 4) out vec3 Bitangent[64];
+layout(location = 5) out vec4 FragPosLightSpace[64];
+
+// Push constant for per-object transform
+layout(push_constant) uniform TransformUBO {
+    mat4 model;
+    mat3 normalMatrix;
+} transform;
+
+// Camera uniforms (set = 0)
+layout(set = 0, binding = 0, scalar) uniform CameraUBO {
+    mat4 view;
+    mat4 projection;
+    mat4 viewProjection;
+    vec3 viewPos;
+    float padding;
+} camera;
+
+// Light uniforms (set = 1)
+layout(set = 1, binding = 0, scalar) uniform LightUBO {
+    vec3 direction;
+    float ambientStrength;
+    vec3 color;
+    float padding1;
+    mat4 lightSpaceMatrix;
+} light;
+
+struct Vertex {
+    vec3 position;
+    vec3 normal;
+    vec2 texCoord;
+    vec3 tangent;
+    vec3 bitangent;
+};
+
+layout(set = 2, binding = 0) buffer MeshData {
+    Vertex vertices[];
+} meshData;
+
+vec4 CalcShadowCoord(vec3 worldPos) {
+    return light.lightSpaceMatrix * vec4(worldPos, 1.0);
+}
+
+void main() {
+    uint meshletIndex = gl_WorkGroupID.x;
+    uint vertexIndex = gl_LocalInvocationID.x;
+
+    // Set the number of vertices and primitives for this meshlet
+    // (You'll need to adapt this based on your mesh data structure)
+    SetMeshOutputsEXT(64, 126);
+
+    if (vertexIndex < 64) {
+        // Load vertex data
+        Vertex vertex = meshData.vertices[meshletIndex * 64 + vertexIndex];
+
+        // Transform vertex position to world space
+        vec3 worldPos = vec3(transform.model * vec4(vertex.position, 1.0));
+
+        // Output vertex data
+        gl_MeshVerticesEXT[vertexIndex].gl_Position = camera.viewProjection * vec4(worldPos, 1.0);
+        FragPos[vertexIndex] = worldPos;
+        Normal[vertexIndex] = normalize(transform.normalMatrix * vertex.normal);
+        TexCoords[vertexIndex] = vertex.texCoord;
+        Tangent[vertexIndex] = normalize(transform.normalMatrix * vertex.tangent);
+        Bitangent[vertexIndex] = normalize(transform.normalMatrix * vertex.bitangent);
+        FragPosLightSpace[vertexIndex] = CalcShadowCoord(worldPos);
+    }
+
+    // Set up primitive connectivity
+    // (You'll need to adapt this based on your mesh data structure)
+    if (gl_LocalInvocationID.x < 126) {
+        uint i = gl_LocalInvocationID.x * 3;
+        gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationID.x] = uvec3(i, i+1, i+2);
+    }
+}

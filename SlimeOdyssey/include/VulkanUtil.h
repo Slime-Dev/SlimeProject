@@ -82,7 +82,7 @@ namespace SlimeUtil
 
 		if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS)
 		{
-			throw std::runtime_error("failed to create buffer!");
+			spdlog::critical("failed to create buffer: {}", name);
 		}
 
 		vmaSetAllocationName(allocator, allocation, name);
