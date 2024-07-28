@@ -79,8 +79,17 @@ private:
 	size_t m_currentFrame = 0;
 
 	// Shadows
+	void CreateShadowMapStagingBuffer();
+	void DestroyShadowMapStagingBuffer();
+
+	float GetShadowMapPixelValue(ModelManager& modelManager, int x, int y);
+	void RenderShadowMapInspector(ModelManager& modelManager);
 	TextureResource m_shadowMap;
 	ImTextureID m_shadowMapId;
+	float m_shadowMapZoom = 1.0f;
+	VkBuffer m_shadowMapStagingBuffer = VK_NULL_HANDLE;
+	VmaAllocation m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
+	VkDeviceSize m_shadowMapStagingBufferSize = 0;
 
 	// Depth image might want this elsewhere?
 	VkImage m_depthImage = VK_NULL_HANDLE;
