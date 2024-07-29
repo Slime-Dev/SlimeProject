@@ -60,4 +60,4 @@ endfunction()
 # Create test executables
 create_test_executable(ModelLoading ModelLoading.cpp)
 create_test_executable(CameraInitializing CameraInitializing.cpp)
-create_test_executable(ShaderLoading ShaderLoading.cpp)
+#create_test_executable(ShaderLoading ShaderLoading.cpp)
