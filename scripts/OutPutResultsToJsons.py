@@ -143,7 +143,9 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
         },
         {
             "title": "Detailed Test Results",
-            "description": detailed_results,
+            "description": detailed_results
+        },
+        {
             "title": "Failed Test Summary",
             "description": failed_tests_summary
         }

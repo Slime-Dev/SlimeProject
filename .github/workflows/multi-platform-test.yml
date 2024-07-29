@@ -112,8 +112,8 @@ jobs:
         run: |
           pip install defusedxml
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            $branch = $env:GITHUB_REF -replace 'refs/heads/', ''
-            python ${{ github.workspace }}/scripts/OutPutResultsToJsons.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --json_output ${{ github.workspace }}/scripts/finalresult.json --discord_json_output ${{ github.workspace }}/scripts/discordJson_output.json --os ${{ runner.os }} --compiler ${{ matrix.c_compiler }} --event ${{ github.event_name }} --author $env:GITHUB_ACTOR --branch $branch
+            branch="${GITHUB_REF#refs/heads/}"
+            python ${{ github.workspace }}/scripts/OutPutResultsToJsons.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --json_output ${{ github.workspace }}/scripts/finalresult.json --discord_json_output ${{ github.workspace }}/scripts/discordJson_output.json --os ${{ runner.os }} --compiler ${{ matrix.c_compiler }} --event ${{ github.event_name }} --author $GITHUB_ACTOR --branch $branch
           else
             branch="${GITHUB_REF#refs/heads/}"
             python ${{ github.workspace }}/scripts/OutPutResultsToJsons.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --json_output ${{ github.workspace }}/scripts/finalresult.json --discord_json_output ${{ github.workspace }}/scripts/discordJson_output.json --os ${{ runner.os }} --compiler ${{ matrix.c_compiler }} --event ${{ github.event_name }} --author $GITHUB_ACTOR --branch $branch
