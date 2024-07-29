@@ -10,6 +10,127 @@
 #include "vk_mem_alloc.h"
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
+#include <backends/imgui_impl_vulkan.h>
+#include <backends/imgui_impl_glfw.h>
+
+void Renderer::SetUp(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
+{
+	CreateDepthImage(disp, allocator, swapchain, debugUtils);
+	CreateShadowMap(disp, allocator, debugUtils);
+	m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+void Renderer::CleanUp(vkb::DispatchTable& disp, VmaAllocator allocator)
+{
+	CleanUpShadowMap(disp, allocator);
+	CleanupDepthImage(disp, allocator);
+}
+
+int Renderer::Draw(vkb::DispatchTable& disp,
+        VkCommandBuffer& cmd,
+        ModelManager& modelManager,
+        DescriptorManager& descriptorManager,
+        VmaAllocator allocator,
+        VkCommandPool commandPool,
+        VkQueue graphicsQueue,
+        VulkanDebugUtils& debugUtils,
+        vkb::Swapchain swapchain,
+        std::vector<VkImage>& swapchainImages,
+        std::vector<VkImageView>& swapchainImageViews,
+        uint32_t imageIndex,
+        Scene* scene)
+{
+	if (SlimeUtil::BeginCommandBuffer(disp, cmd) != 0)
+		return -1;
+
+	// Generate shadow map
+	GenerateShadowMap(disp, cmd, modelManager, descriptorManager, allocator, commandPool, graphicsQueue, debugUtils, scene);
+
+	SetupViewportAndScissor(swapchain, disp, cmd);
+	SlimeUtil::SetupDepthTestingAndLineWidth(disp, cmd);
+
+	// Transition color image to color attachment optimal
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	// Transition depth image to depth attachment optimal
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+	VkRenderingAttachmentInfo colorAttachmentInfo = {};
+	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	colorAttachmentInfo.imageView = swapchainImageViews[imageIndex];
+	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 0.0f } } };
+
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachmentInfo.imageView = m_depthImageView;
+	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea = {
+		.offset = {0, 0},
+          .extent = swapchain.extent
+	};
+	renderingInfo.layerCount = 1;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &colorAttachmentInfo;
+	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+
+	disp.cmdBeginRendering(cmd, &renderingInfo);
+
+	// Start the Dear ImGui frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	// Create a full screen docking space for ImGui
+	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
+
+	if (scene)
+	{
+		DrawModels(disp, cmd, modelManager, descriptorManager, allocator, commandPool, graphicsQueue, debugUtils, scene);
+
+		debugUtils.BeginDebugMarker(cmd, "Draw ImGui", debugUtil_BindDescriptorSetColour);
+		scene->Render();
+	}
+
+	DrawImguiDebugger(disp, allocator, commandPool, graphicsQueue, modelManager);
+
+	ImGui::Render();
+	ImDrawData* drawData = ImGui::GetDrawData();
+	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
+	if (!isMinimized)
+	{
+		// Record dear imgui primitives into command buffer
+		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
+	}
+
+	debugUtils.EndDebugMarker(cmd);
+
+	disp.cmdEndRendering(cmd);
+
+	// Transition color image to present src layout
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+	if (SlimeUtil::EndCommandBuffer(disp, cmd) != 0)
+		return -1;
+
+	// Handle multi-viewport rendering here, outside of the main command buffer
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
+
+	return 0;
+}
 
 void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd)
 {
@@ -113,7 +234,7 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 	}
 }
 
-void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene, TextureResource* shadowMap)
+void Renderer::DrawModels(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene)
 {
 	debugUtils.BeginDebugMarker(cmd, "Draw Models", debugUtil_BeginColour);
 
@@ -177,7 +298,7 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 		// Bind descriptor sets
 		for (size_t i = 1; i < pipelineConfig->descriptorSetLayouts.size(); i++)
 		{
-			VkDescriptorSet currentDescriptorSet = GetOrUpdateDescriptorSet(entityManager, entity.get(), pipelineConfig, descriptorManager, allocator, debugUtils, shadowMap, i);
+			VkDescriptorSet currentDescriptorSet = GetOrUpdateDescriptorSet(entityManager, entity.get(), pipelineConfig, descriptorManager, allocator, debugUtils, i);
 			disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineConfig->pipelineLayout, i, 1, &currentDescriptorSet, 0, nullptr);
 		}
 
@@ -198,6 +319,11 @@ void Renderer::DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils,
 	}
 
 	debugUtils.EndDebugMarker(cmd);
+}
+
+void Renderer::DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager)
+{
+	RenderShadowMapInspector(disp, allocator, commandPool, graphicsQueue, modelManager);
 }
 
 void Renderer::UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene)
@@ -293,7 +419,7 @@ void Renderer::UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkD
 //
 /// MATERIALS ///////////////////////////////////
 //
-VkDescriptorSet Renderer::GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils, TextureResource* shadowMap, int setIndex)
+VkDescriptorSet Renderer::GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils, int setIndex)
 {
 	size_t descriptorHash = GenerateDescriptorHash(entity, setIndex);
 
@@ -316,7 +442,7 @@ VkDescriptorSet Renderer::GetOrUpdateDescriptorSet(EntityManager& entityManager,
 	}
 	else if (entity->HasComponent<PBRMaterial>())
 	{
-		UpdatePBRMaterialDescriptors(entityManager, descriptorManager, newDescriptorSet, entity, allocator, shadowMap, setIndex);
+		UpdatePBRMaterialDescriptors(entityManager, descriptorManager, newDescriptorSet, entity, allocator, setIndex);
 	}
 
 	// If cache is full, remove the least recently used item
@@ -345,7 +471,7 @@ void Renderer::UpdateBasicMaterialDescriptors(EntityManager& entityManager, Desc
 	}
 }
 
-void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator, TextureResource* shadowMap, int setIndex)
+void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator, int setIndex)
 {
 	if (setIndex == 1) // Light
 	{
@@ -367,7 +493,7 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 		SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
 		descriptorManager.BindBuffer(descSet, 0, materialResource.configBuffer, 0, sizeof(PBRMaterialResource::Config));
 
-		descriptorManager.BindImage(descSet, 1, shadowMap->imageView, shadowMap->sampler);
+		descriptorManager.BindImage(descSet, 1, m_shadowMap.imageView, m_shadowMap.sampler);
 
 		if (materialResource.albedoTex)
 			descriptorManager.BindImage(descSet, 2, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
@@ -380,6 +506,359 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 		if (materialResource.aoTex)
 			descriptorManager.BindImage(descSet, 6, materialResource.aoTex->imageView, materialResource.aoTex->sampler);
 	}
+}
+
+//
+/// SHADOWS ///////////////////////////////////
+//
+void Renderer::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils)
+{
+	spdlog::debug("Creating shadow maps");
+	if (m_shadowMap.image != VK_NULL_HANDLE)
+	{
+		vmaDestroyImage(allocator, m_shadowMap.image, m_shadowMap.allocation);
+		disp.destroyImageView(m_shadowMap.imageView, nullptr);
+		disp.destroySampler(m_shadowMap.sampler, nullptr);
+	}
+
+	// Create Shadow map image
+	VkImageCreateInfo shadowMapImageInfo = {};
+	shadowMapImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	shadowMapImageInfo.imageType = VK_IMAGE_TYPE_2D;
+	shadowMapImageInfo.extent.width = m_shadowMapWidth;
+	shadowMapImageInfo.extent.height = m_shadowMapHeight;
+	shadowMapImageInfo.extent.depth = 1;
+	shadowMapImageInfo.mipLevels = 1;
+	shadowMapImageInfo.arrayLayers = 1;
+	shadowMapImageInfo.format = VK_FORMAT_D32_SFLOAT;
+	shadowMapImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	shadowMapImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	shadowMapImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	shadowMapImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	shadowMapImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo shadowMapAllocInfo = {};
+	shadowMapAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	VK_CHECK(vmaCreateImage(allocator, &shadowMapImageInfo, &shadowMapAllocInfo, &m_shadowMap.image, &m_shadowMap.allocation, nullptr));
+	debugUtils.SetObjectName(m_shadowMap.image, "ShadowMapImage");
+
+	// Create the shadow map image view
+	VkImageViewCreateInfo shadowMapImageViewInfo = {};
+	shadowMapImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	shadowMapImageViewInfo.image = m_shadowMap.image;
+	shadowMapImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	shadowMapImageViewInfo.format = VK_FORMAT_D32_SFLOAT;
+	shadowMapImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	shadowMapImageViewInfo.subresourceRange.baseMipLevel = 0;
+	shadowMapImageViewInfo.subresourceRange.levelCount = 1;
+	shadowMapImageViewInfo.subresourceRange.baseArrayLayer = 0;
+	shadowMapImageViewInfo.subresourceRange.layerCount = 1;
+
+	VK_CHECK(disp.createImageView(&shadowMapImageViewInfo, nullptr, &m_shadowMap.imageView));
+	debugUtils.SetObjectName(m_shadowMap.imageView, "ShadowMapImageView");
+
+	// Create the shadow map sampler
+	m_shadowMap.sampler = SlimeUtil::CreateSampler(disp);
+	debugUtils.SetObjectName(m_shadowMap.sampler, "ShadowMapSampler");
+
+	m_shadowMapStagingBufferSize = sizeof(float);
+	SlimeUtil::CreateBuffer("ShadowMapPixelStagingBuffer", allocator, m_shadowMapStagingBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
+}
+
+void Renderer::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene)
+{
+	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
+	// Transition shadow map image to depth attachment optimal
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachmentInfo.imageView = m_shadowMap.imageView;
+	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentInfo.clearValue.depthStencil.depth = 1.0f;
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea = {
+		.offset = {               0,                 0},
+          .extent = {m_shadowMapWidth, m_shadowMapHeight}
+	};
+	renderingInfo.layerCount = 1;
+	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+
+	disp.cmdBeginRendering(cmd, &renderingInfo);
+
+	// Set viewport and scissor for shadow map
+	VkViewport viewport = { 0, 0, m_shadowMapWidth, m_shadowMapHeight, 0.0f, 1.0f };
+	VkRect2D scissor = {
+		{		       0,		         0},
+        {m_shadowMapWidth, m_shadowMapHeight}
+	};
+	disp.cmdSetViewport(cmd, 0, 1, &viewport);
+	disp.cmdSetScissor(cmd, 0, 1, &scissor);
+
+	// Draw models for shadow map
+	DrawModelsForShadowMap(disp, debugUtils, cmd, modelManager, scene);
+
+	disp.cmdEndRendering(cmd);
+
+	// Transition shadow map image to shader read-only optimal
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	debugUtils.EndDebugMarker(cmd);
+}
+
+void Renderer::CleanUpShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator)
+{
+	// Clean up shadow map image and image view
+	vmaDestroyImage(allocator, m_shadowMap.image, m_shadowMap.allocation);
+	disp.destroyImageView(m_shadowMap.imageView, nullptr);
+	disp.destroySampler(m_shadowMap.sampler, nullptr);
+
+	if (m_shadowMapStagingBuffer != VK_NULL_HANDLE)
+	{
+		vmaDestroyBuffer(allocator, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
+		m_shadowMapStagingBuffer = VK_NULL_HANDLE;
+		m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
+	}
+}
+
+float Renderer::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, int x, int y)
+{
+	// Ensure x and y are within bounds
+	x = std::clamp(x, 0, static_cast<int>(m_shadowMapWidth) - 1);
+	y = std::clamp(y, 0, static_cast<int>(m_shadowMapHeight) - 1);
+
+	// Create command buffer for copy operation
+	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(disp, commandPool);
+
+	// Transition shadow map image layout for transfer
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = m_shadowMap.image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+	disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+	// Copy image to buffer
+	VkBufferImageCopy region{};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+	region.imageOffset = { x, y, 0 };
+	region.imageExtent = { 1, 1, 1 };
+
+	disp.cmdCopyImageToBuffer(commandBuffer, m_shadowMap.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_shadowMapStagingBuffer, 1, &region);
+
+	// Transition shadow map image layout back
+	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+	disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
+
+	// Read data from staging buffer
+	float pixelValue;
+	void* data;
+	vmaMapMemory(allocator, m_shadowMapStagingBufferAllocation, &data);
+	memcpy(&pixelValue, data, sizeof(float));
+	vmaUnmapMemory(allocator, m_shadowMapStagingBufferAllocation);
+
+	return pixelValue;
+}
+
+void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager)
+{
+	ImGui::Begin("Shadow Map Inspector");
+
+	// Window size and aspect ratio
+	ImVec2 windowSize = ImGui::GetContentRegionAvail();
+	float shadowmapAspectRatio = m_shadowMapWidth / (float) m_shadowMapHeight;
+
+	// Zoom and pan controls
+	static float zoom = 1.0f;
+	static ImVec2 pan = ImVec2(0.0f, 0.0f);
+	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
+	ImGui::DragFloat2("Pan", &pan.x, 0.01f);
+
+	// Contrast control
+	static float contrast = 1.0f;
+	ImGui::SliderFloat("Contrast", &contrast, 0.1f, 5.0f);
+
+	// Display a depth scale
+	ImGui::Text("Depth Scale:");
+	ImVec2 scaleSize(200, 20);
+	ImVec2 scalePos = ImGui::GetCursorScreenPos();
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+	for (int i = 0; i < 100; i++)
+	{
+		float t = i / 99.0f;
+		float enhancedT = std::pow((t - 0.5f) * contrast + 0.5f, 2.2f);
+		enhancedT = std::clamp(enhancedT, 0.0f, 1.0f);
+		ImU32 color = ImGui::ColorConvertFloat4ToU32(ImVec4(enhancedT, enhancedT, enhancedT, 1.0f));
+		drawList->AddRectFilled(ImVec2(scalePos.x + t * scaleSize.x, scalePos.y), ImVec2(scalePos.x + (t + 0.01f) * scaleSize.x, scalePos.y + scaleSize.y), color);
+	}
+	drawList->AddRect(scalePos, ImVec2(scalePos.x + scaleSize.x, scalePos.y + scaleSize.y), IM_COL32_WHITE);
+
+	ImGui::Dummy(scaleSize);
+	ImGui::Text("0.0");
+	ImGui::SameLine(185);
+	ImGui::Text("1.0");
+
+	// Calculate image size
+	ImVec2 imageSize;
+	if (windowSize.x / windowSize.y > shadowmapAspectRatio)
+	{
+		imageSize = ImVec2(windowSize.y * shadowmapAspectRatio, windowSize.y);
+	}
+	else
+	{
+		imageSize = ImVec2(windowSize.x, windowSize.x / shadowmapAspectRatio);
+	}
+
+	// Apply zoom and pan
+	imageSize.x *= zoom;
+	imageSize.y *= zoom;
+
+	// Display shadow map
+	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
+	ImGui::SetCursorPos(ImVec2(pan.x, pan.y));
+	// Flip the image vertically
+	ImGui::Image((ImTextureID) m_shadowMapId, imageSize, ImVec2(0, 1), ImVec2(1, 0));
+
+	// Pixel info on hover
+	if (ImGui::IsItemHovered())
+	{
+		// Disable window manipulation while hovering
+		ImGui::SetWindowFocus();
+
+		ImVec2 mousePos = ImGui::GetMousePos();
+		ImVec2 imagePos = ImGui::GetItemRectMin();
+		ImVec2 relativePos = ImVec2(mousePos.x - imagePos.x, mousePos.y - imagePos.y);
+
+		int pixelX = (int) ((relativePos.x / imageSize.x) * m_shadowMapWidth);
+		int pixelY = (int) ((relativePos.y / imageSize.y) * m_shadowMapHeight);
+
+		float pixelValue = GetShadowMapPixelValue(disp, allocator, commandPool, graphicsQueue, modelManager, pixelX, pixelY);
+
+		// Apply contrast enhancement
+		float enhancedValue = std::pow((pixelValue - 0.5f) * contrast + 0.5f, 2.2f);
+		enhancedValue = std::clamp(enhancedValue, 0.0f, 1.0f);
+
+		ImGui::BeginTooltip();
+		ImGui::Text("Pixel: (%d, %d)", pixelX, pixelY);
+		ImGui::Text("Depth: %.3f", pixelValue);
+		ImGui::Text("Enhanced: %.3f", enhancedValue);
+
+		// Display a color swatch representing the depth
+		ImVec4 depthColor(enhancedValue, enhancedValue, enhancedValue, 1.0f);
+		ImGui::ColorButton("Depth Color", depthColor, 0, ImVec2(40, 20));
+
+		ImGui::EndTooltip();
+
+		float wheel = ImGui::GetIO().MouseWheel;
+		if (ImGui::GetIO().KeyShift && wheel != 0)
+		{
+			const float zoomSpeed = 0.1f;
+			zoom *= (1.0f + wheel * zoomSpeed);
+			zoom = std::clamp(zoom, 0.1f, 10.0f);
+
+			// Adjust pan to zoom towards mouse position
+			ImVec2 mousePos = ImGui::GetMousePos();
+			ImVec2 center = ImGui::GetWindowPos() + windowSize * 0.5f;
+			pan += (mousePos - center) * (wheel * zoomSpeed);
+		}
+
+		// Left click and drag to pan
+		if (ImGui::IsMouseDragging(0))
+		{
+			ImVec2 delta = ImGui::GetIO().MouseDelta;
+			pan += delta;
+		}
+	}
+
+	ImGui::EndChild();
+
+	ImGui::End();
+}
+
+//
+/// DEPTH TESTING ///////////////////////////////////
+//
+void Renderer::CreateDepthImage(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
+{
+	spdlog::debug("Creating depth image");
+
+	// Clean up old depth image and image view
+	if (m_depthImage)
+	{
+		CleanupDepthImage(disp, allocator);
+	}
+
+	// Create the depth image
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT; // Or VK_FORMAT_D32_SFLOAT_S8_UINT if you need stencil
+	VkImageCreateInfo depthImageInfo = {};
+	depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
+	depthImageInfo.extent.width = swapchain.extent.width;
+	depthImageInfo.extent.height = swapchain.extent.height;
+	depthImageInfo.extent.depth = 1;
+	depthImageInfo.mipLevels = 1;
+	depthImageInfo.arrayLayers = 1;
+	depthImageInfo.format = depthFormat;
+	depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	depthImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo depthAllocInfo = {};
+	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	VK_CHECK(vmaCreateImage(allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
+	debugUtils.SetObjectName(m_depthImage, "DepthImage");
+
+	// Create the depth image view
+	VkImageViewCreateInfo depthImageViewInfo = {};
+	depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	depthImageViewInfo.image = m_depthImage;
+	depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	depthImageViewInfo.format = depthFormat;
+	depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthImageViewInfo.subresourceRange.baseMipLevel = 0;
+	depthImageViewInfo.subresourceRange.levelCount = 1;
+	depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
+	depthImageViewInfo.subresourceRange.layerCount = 1;
+
+	VK_CHECK(disp.createImageView(&depthImageViewInfo, nullptr, &m_depthImageView));
+	debugUtils.SetObjectName(m_depthImageView, "DepthImageView");
+}
+
+void Renderer::CleanupDepthImage(vkb::DispatchTable& disp, VmaAllocator allocator)
+{
+	vmaDestroyImage(allocator, m_depthImage, m_depthImageAllocation);
+	disp.destroyImageView(m_depthImageView, nullptr);
 }
 
 // Helper function to generate a hash for a material

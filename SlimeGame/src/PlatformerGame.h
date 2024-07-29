@@ -20,7 +20,7 @@ public:
 	PlatformerGame(SlimeWindow* window);
 	int Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager) override;
 	void Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager) override;
-	void Render(VulkanContext& vulkanContext, ModelManager& modelManager) override;
+	void Render() override;
 	void Exit(VulkanContext& vulkanContext, ModelManager& modelManager) override;
 
 private:

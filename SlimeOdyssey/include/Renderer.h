@@ -7,6 +7,12 @@
 #include "Model.h"
 #include "PipelineGenerator.h"
 #include <Light.h>
+#include <type_traits>
+#include <glm/fwd.hpp>
+#include <glm/gtx/hash.hpp>
+#include <imgui.h>
+#include <vk_mem_alloc.h>
+#include "ModelManager.h"
 
 // Forward declarations
 class Camera;
@@ -69,9 +75,30 @@ public:
 	Renderer() = default;
 	~Renderer() = default;
 
+	void SetUp(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils);
+	void CleanUp(vkb::DispatchTable& disp, VmaAllocator allocator);
+
+	int Draw(vkb::DispatchTable& disp,
+	        VkCommandBuffer& cmd,
+	        ModelManager& modelManager,
+	        DescriptorManager& descriptorManager,
+	        VmaAllocator allocator,
+	        VkCommandPool commandPool,
+	        VkQueue graphicsQueue,
+	        VulkanDebugUtils& debugUtils,
+	        vkb::Swapchain swapchain,
+	        std::vector<VkImage>& swapchainImages,
+	        std::vector<VkImageView>& swapchainImageViews,
+	        uint32_t imageIndex,
+	        Scene* scene);
+
 	void SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTable disp, VkCommandBuffer& cmd);
 	void DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene);
-	void DrawModels(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene, TextureResource* shadowMap);
+	void DrawModels(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene);
+
+	void DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager);
+
+	void CreateDepthImage(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils);
 
 private:
 
@@ -105,9 +132,35 @@ private:
 	std::unordered_map<size_t, std::list<LRUCacheEntry>::iterator> m_materialDescriptorCache;
 	const size_t MAX_CACHE_SIZE = 75;
 
-	VkDescriptorSet GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils, TextureResource* shadowMap, int setIndex);
+	VkDescriptorSet GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity, PipelineConfig* pipelineConfig, DescriptorManager& descriptorManager, VmaAllocator allocator, VulkanDebugUtils& debugUtils, int setIndex);
 	void UpdateBasicMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet materialSet, Entity* entity, VmaAllocator allocator, int setIndex);
-	void UpdatePBRMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator, TextureResource* shadowMap, int setIndex);
+	void UpdatePBRMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator, int setIndex);
+
+	//
+	/// SHADOWS ///////////////////////////////////
+	//
+	void GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene);
+	void CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
+	void CleanUpShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator);
+	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, int x, int y);
+	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager);
+	
+	TextureResource m_shadowMap;
+	ImTextureID m_shadowMapId;
+	float m_shadowMapZoom = 1.0f;
+	VkBuffer m_shadowMapStagingBuffer = VK_NULL_HANDLE;
+	VmaAllocation m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
+	VkDeviceSize m_shadowMapStagingBufferSize = 0;
+	unsigned int m_shadowMapWidth = 1080;
+	unsigned int m_shadowMapHeight = 1080;
+
+	//
+	/// DEPTH TESTING ///////////////////////////////////
+	//
+	void CleanupDepthImage(vkb::DispatchTable& disp, VmaAllocator allocator);
+	VkImage m_depthImage = VK_NULL_HANDLE;
+	VkImageView m_depthImageView = VK_NULL_HANDLE;
+	VmaAllocation m_depthImageAllocation;
 
 	size_t GenerateDescriptorHash(const Entity* entity, int setIndex);
 };

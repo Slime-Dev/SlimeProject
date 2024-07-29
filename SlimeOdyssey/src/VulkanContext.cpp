@@ -20,8 +20,6 @@
 #include "VulkanUtil.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
-#define SHADOW_MAP_WIDTH 1920
-#define SHADOW_MAP_HEIGHT 1920
 
 // IMGUI
 #include "backends/imgui_impl_glfw.h"
@@ -51,6 +49,8 @@ int VulkanContext::CreateContext(SlimeWindow* window)
 		return -1;
 	if (InitImGui(window) != 0) // Add this line
 		return -1;
+
+	m_renderer.SetUp(m_disp, m_allocator, m_swapchain, m_debugUtils);
 
 	return 0;
 }
@@ -266,8 +266,6 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 	spdlog::debug("Creating swapchain...");
 	m_disp.deviceWaitIdle();
 
-	bool recreate = m_swapchain.swapchain != VK_NULL_HANDLE;
-
 	vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
 
 	auto swap_ret = swapchain_builder.use_default_format_selection()
@@ -302,97 +300,7 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 		m_debugUtils.SetObjectName(m_swapchainImageViews[i], "SwapchainImageView_" + std::to_string(i));
 	}
 
-	// Clean up old depth image and image view
-	if (m_depthImage)
-	{
-		vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
-		m_disp.destroyImageView(m_depthImageView, nullptr);
-	}
-
-	// Create the depth image
-	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT; // Or VK_FORMAT_D32_SFLOAT_S8_UINT if you need stencil
-	VkImageCreateInfo depthImageInfo = {};
-	depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
-	depthImageInfo.extent.width = m_swapchain.extent.width;
-	depthImageInfo.extent.height = m_swapchain.extent.height;
-	depthImageInfo.extent.depth = 1;
-	depthImageInfo.mipLevels = 1;
-	depthImageInfo.arrayLayers = 1;
-	depthImageInfo.format = depthFormat;
-	depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	depthImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo depthAllocInfo = {};
-	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-	VK_CHECK(vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
-	m_debugUtils.SetObjectName(m_depthImage, "DepthImage");
-
-	// Create the depth image view
-	VkImageViewCreateInfo depthImageViewInfo = {};
-	depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	depthImageViewInfo.image = m_depthImage;
-	depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	depthImageViewInfo.format = depthFormat;
-	depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	depthImageViewInfo.subresourceRange.baseMipLevel = 0;
-	depthImageViewInfo.subresourceRange.levelCount = 1;
-	depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
-	depthImageViewInfo.subresourceRange.layerCount = 1;
-
-	VK_CHECK(m_disp.createImageView(&depthImageViewInfo, nullptr, &m_depthImageView));
-	m_debugUtils.SetObjectName(m_depthImageView, "DepthImageView");
-
-	// If we are recreating the swapchain we dont need to recreate the shadow map
-	if (recreate)
-	{
-		return 0;
-	}
-
-	// Create Shadow map image
-	VkImageCreateInfo shadowMapImageInfo = {};
-	shadowMapImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	shadowMapImageInfo.imageType = VK_IMAGE_TYPE_2D;
-	shadowMapImageInfo.extent.width = SHADOW_MAP_WIDTH;
-	shadowMapImageInfo.extent.height = SHADOW_MAP_HEIGHT;
-	shadowMapImageInfo.extent.depth = 1;
-	shadowMapImageInfo.mipLevels = 1;
-	shadowMapImageInfo.arrayLayers = 1;
-	shadowMapImageInfo.format = VK_FORMAT_D32_SFLOAT;
-	shadowMapImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	shadowMapImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	shadowMapImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	shadowMapImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	shadowMapImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo shadowMapAllocInfo = {};
-	shadowMapAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-	VK_CHECK(vmaCreateImage(m_allocator, &shadowMapImageInfo, &shadowMapAllocInfo, &m_shadowMap.image, &m_shadowMap.allocation, nullptr));
-	m_debugUtils.SetObjectName(m_shadowMap.image, "ShadowMapImage");
-
-	// Create the shadow map image view
-	VkImageViewCreateInfo shadowMapImageViewInfo = {};
-	shadowMapImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	shadowMapImageViewInfo.image = m_shadowMap.image;
-	shadowMapImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	shadowMapImageViewInfo.format = VK_FORMAT_D32_SFLOAT;
-	shadowMapImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	shadowMapImageViewInfo.subresourceRange.baseMipLevel = 0;
-	shadowMapImageViewInfo.subresourceRange.levelCount = 1;
-	shadowMapImageViewInfo.subresourceRange.baseArrayLayer = 0;
-	shadowMapImageViewInfo.subresourceRange.layerCount = 1;
-
-	VK_CHECK(m_disp.createImageView(&shadowMapImageViewInfo, nullptr, &m_shadowMap.imageView));
-	m_debugUtils.SetObjectName(m_shadowMap.imageView, "ShadowMapImageView");
-	
-	// Create the shadow map sampler
-	m_shadowMap.sampler = SlimeUtil::CreateSampler(m_disp);
-	m_debugUtils.SetObjectName(m_shadowMap.sampler, "ShadowMapSampler");
+	m_renderer.CreateDepthImage(m_disp, m_allocator, m_swapchain, m_debugUtils);
 
 	return 0;
 }
@@ -672,350 +580,6 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
-	m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	return 0;
-}
-
-int VulkanContext::GenerateShadowMap(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
-{
-	m_debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
-	// Transition shadow map image to depth attachment optimal
-	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-
-	VkRenderingAttachmentInfo depthAttachmentInfo = {};
-	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachmentInfo.imageView = m_shadowMap.imageView;
-	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue.depthStencil.depth = 1.0f;
-
-	VkRenderingInfo renderingInfo = {};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderingInfo.renderArea = {
-		.offset = {               0,                 0},
-          .extent = {SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT}
-	};
-	renderingInfo.layerCount = 1;
-	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
-
-	m_disp.cmdBeginRendering(cmd, &renderingInfo);
-
-	// Set viewport and scissor for shadow map
-	VkViewport viewport = { 0, 0, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 0.0f, 1.0f };
-	VkRect2D scissor = {
-		{		       0,		         0},
-        {SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT}
-	};
-	m_disp.cmdSetViewport(cmd, 0, 1, &viewport);
-	m_disp.cmdSetScissor(cmd, 0, 1, &scissor);
-
-	// Draw models for shadow map
-	m_renderer.DrawModelsForShadowMap(m_disp, m_debugUtils, cmd, modelManager, scene);
-
-	m_disp.cmdEndRendering(cmd);
-
-	// Transition shadow map image to shader read-only optimal
-	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	
-	m_debugUtils.EndDebugMarker(cmd);
-
-	return 0;
-}
-
-void VulkanContext::CreateShadowMapStagingBuffer()
-{
-	m_shadowMapStagingBufferSize = sizeof(float);
-	SlimeUtil::CreateBuffer("ShadowMapPixelStagingBuffer", m_allocator, m_shadowMapStagingBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
-}
-
-void VulkanContext::DestroyShadowMapStagingBuffer()
-{
-	if (m_shadowMapStagingBuffer != VK_NULL_HANDLE)
-	{
-		vmaDestroyBuffer(m_allocator, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
-		m_shadowMapStagingBuffer = VK_NULL_HANDLE;
-		m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
-	}
-}
-
-float VulkanContext::GetShadowMapPixelValue(ModelManager& modelManager, int x, int y)
-{
-	// Ensure x and y are within bounds
-	x = std::clamp(x, 0, static_cast<int>(SHADOW_MAP_WIDTH) - 1);
-	y = std::clamp(y, 0, static_cast<int>(SHADOW_MAP_HEIGHT) - 1);
-
-	// Create the staging buffer if it doesn't exist
-	if (m_shadowMapStagingBuffer == VK_NULL_HANDLE)
-	{
-		CreateShadowMapStagingBuffer();
-	}
-
-	// Create command buffer for copy operation
-	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(m_disp, m_commandPool);
-
-	// Transition shadow map image layout for transfer
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = m_shadowMap.image;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-	m_disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-	// Copy image to buffer
-	VkBufferImageCopy region{};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-	region.imageOffset = { x, y, 0 };
-	region.imageExtent = { 1, 1, 1 };
-
-	m_disp.cmdCopyImageToBuffer(commandBuffer, m_shadowMap.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_shadowMapStagingBuffer, 1, &region);
-
-	// Transition shadow map image layout back
-	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	m_disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-	SlimeUtil::EndSingleTimeCommands(m_disp, m_graphicsQueue, m_commandPool, commandBuffer);
-
-	// Read data from staging buffer
-	float pixelValue;
-	void* data;
-	vmaMapMemory(m_allocator, m_shadowMapStagingBufferAllocation, &data);
-	memcpy(&pixelValue, data, sizeof(float));
-	vmaUnmapMemory(m_allocator, m_shadowMapStagingBufferAllocation);
-
-	return pixelValue;
-}
-
-// Shadow map debug
-void VulkanContext::RenderShadowMapInspector(ModelManager& modelManager)
-{
-	ImGui::Begin("Shadow Map Inspector");
-
-	// Window size and aspect ratio
-	ImVec2 windowSize = ImGui::GetContentRegionAvail();
-	float shadowmapAspectRatio = SHADOW_MAP_WIDTH / (float) SHADOW_MAP_HEIGHT;
-
-	// Zoom and pan controls
-	static float zoom = 1.0f;
-	static ImVec2 pan = ImVec2(0.0f, 0.0f);
-	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
-	ImGui::DragFloat2("Pan", &pan.x, 0.01f);
-
-	// Contrast control
-	static float contrast = 1.0f;
-	ImGui::SliderFloat("Contrast", &contrast, 0.1f, 5.0f);
-
-	// Display a depth scale
-	ImGui::Text("Depth Scale:");
-	ImVec2 scaleSize(200, 20);
-	ImVec2 scalePos = ImGui::GetCursorScreenPos();
-	ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-	for (int i = 0; i < 100; i++)
-	{
-		float t = i / 99.0f;
-		float enhancedT = std::pow((t - 0.5f) * contrast + 0.5f, 2.2f);
-		enhancedT = std::clamp(enhancedT, 0.0f, 1.0f);
-		ImU32 color = ImGui::ColorConvertFloat4ToU32(ImVec4(enhancedT, enhancedT, enhancedT, 1.0f));
-		drawList->AddRectFilled(ImVec2(scalePos.x + t * scaleSize.x, scalePos.y), ImVec2(scalePos.x + (t + 0.01f) * scaleSize.x, scalePos.y + scaleSize.y), color);
-	}
-	drawList->AddRect(scalePos, ImVec2(scalePos.x + scaleSize.x, scalePos.y + scaleSize.y), IM_COL32_WHITE);
-
-	ImGui::Dummy(scaleSize);
-	ImGui::Text("0.0");
-	ImGui::SameLine(185);
-	ImGui::Text("1.0");
-
-	// Calculate image size
-	ImVec2 imageSize;
-	if (windowSize.x / windowSize.y > shadowmapAspectRatio)
-	{
-		imageSize = ImVec2(windowSize.y * shadowmapAspectRatio, windowSize.y);
-	}
-	else
-	{
-		imageSize = ImVec2(windowSize.x, windowSize.x / shadowmapAspectRatio);
-	}
-
-	// Apply zoom and pan
-	imageSize.x *= zoom;
-	imageSize.y *= zoom;
-
-	// Display shadow map
-	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
-	ImGui::SetCursorPos(ImVec2(pan.x, pan.y));
-	// Flip the image vertically
-	ImGui::Image((ImTextureID) m_shadowMapId, imageSize, ImVec2(0, 1), ImVec2(1, 0));
-
-	// Pixel info on hover
-	if (ImGui::IsItemHovered())
-	{
-		// Disable window manipulation while hovering
-		ImGui::SetWindowFocus();
-
-		ImVec2 mousePos = ImGui::GetMousePos();
-		ImVec2 imagePos = ImGui::GetItemRectMin();
-		ImVec2 relativePos = ImVec2(mousePos.x - imagePos.x, mousePos.y - imagePos.y);
-
-		int pixelX = (int) ((relativePos.x / imageSize.x) * SHADOW_MAP_WIDTH);
-		int pixelY = (int) ((relativePos.y / imageSize.y) * SHADOW_MAP_HEIGHT);
-
-		float pixelValue = GetShadowMapPixelValue(modelManager, pixelX, pixelY);
-
-		// Apply contrast enhancement
-		float enhancedValue = std::pow((pixelValue - 0.5f) * contrast + 0.5f, 2.2f);
-		enhancedValue = std::clamp(enhancedValue, 0.0f, 1.0f);
-
-		ImGui::BeginTooltip();
-		ImGui::Text("Pixel: (%d, %d)", pixelX, pixelY);
-		ImGui::Text("Depth: %.3f", pixelValue);
-		ImGui::Text("Enhanced: %.3f", enhancedValue);
-
-		// Display a color swatch representing the depth
-		ImVec4 depthColor(enhancedValue, enhancedValue, enhancedValue, 1.0f);
-		ImGui::ColorButton("Depth Color", depthColor, 0, ImVec2(40, 20));
-
-		ImGui::EndTooltip();
-
-		float wheel = ImGui::GetIO().MouseWheel;
-		if (ImGui::GetIO().KeyShift && wheel != 0)
-		{
-			const float zoomSpeed = 0.1f;
-			zoom *= (1.0f + wheel * zoomSpeed);
-			zoom = std::clamp(zoom, 0.1f, 10.0f);
-
-			// Adjust pan to zoom towards mouse position
-			ImVec2 mousePos = ImGui::GetMousePos();
-			ImVec2 center = ImGui::GetWindowPos() + windowSize * 0.5f;
-			pan += (mousePos - center) * (wheel * zoomSpeed);
-		}
-
-		// Left click and drag to pan
-		if (ImGui::IsMouseDragging(0))
-		{
-			ImVec2 delta = ImGui::GetIO().MouseDelta;
-			pan += delta;
-		}
-	}
-
-	ImGui::EndChild();
-
-	ImGui::End();
-}
-
-int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
-{
-	if (SlimeUtil::BeginCommandBuffer(m_disp, cmd) != 0)
-		return -1;
-
-	// Generate shadow map
-	if (GenerateShadowMap(cmd, modelManager, descriptorManager, scene) != 0)
-		return -1;
-
-	m_renderer.SetupViewportAndScissor(m_swapchain, m_disp, cmd);
-	SlimeUtil::SetupDepthTestingAndLineWidth(m_disp, cmd);
-
-	// Transition color image to color attachment optimal
-	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	// Transition depth image to depth attachment optimal
-	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-
-	VkRenderingAttachmentInfo colorAttachmentInfo = {};
-	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
-	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 0.0f } } };
-
-	VkRenderingAttachmentInfo depthAttachmentInfo = {};
-	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachmentInfo.imageView = m_depthImageView;
-	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
-
-	VkRenderingInfo renderingInfo = {};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderingInfo.renderArea = {
-		.offset = {0, 0},
-          .extent = m_swapchain.extent
-	};
-	renderingInfo.layerCount = 1;
-	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &colorAttachmentInfo;
-	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
-
-	m_disp.cmdBeginRendering(cmd, &renderingInfo);
-
-	// Start the Dear ImGui frame
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-
-	// Create a full screen docking space for ImGui
-	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
-	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
-
-	if (scene)
-	{
-		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene, &m_shadowMap);
-	
-		m_debugUtils.BeginDebugMarker(cmd, "Draw ImGui", debugUtil_BindDescriptorSetColour);
-		scene->Render(*this, modelManager);
-	}
-
-	RenderShadowMapInspector(modelManager);
-
-	ImGui::Render();
-	ImDrawData* drawData = ImGui::GetDrawData();
-	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
-	if (!isMinimized)
-	{
-		// Record dear imgui primitives into command buffer
-		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
-	}
-
-	m_debugUtils.EndDebugMarker(cmd);
-
-	m_disp.cmdEndRendering(cmd);
-
-	// Transition color image to present src layout
-	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-	if (SlimeUtil::EndCommandBuffer(m_disp, cmd) != 0)
-		return -1;
-
-	// Handle multi-viewport rendering here, outside of the main command buffer
-	ImGuiIO& io = ImGui::GetIO();
-	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-	{
-		ImGui::UpdatePlatformWindows();
-		ImGui::RenderPlatformWindowsDefault();
-	}
-
 	return 0;
 }
 
@@ -1030,8 +594,8 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	// Wait for the frame to be finished
 	VK_CHECK(m_disp.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX));
 
-	uint32_t image_index;
-	VkResult result = m_disp.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_availableSemaphores[m_currentFrame], VK_NULL_HANDLE, &image_index);
+	uint32_t imageIndex;
+	VkResult result = m_disp.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_availableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
@@ -1045,18 +609,18 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	}
 
 	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
-	if (m_imageInFlight[image_index] != VK_NULL_HANDLE)
+	if (m_imageInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
-		m_disp.waitForFences(1, &m_imageInFlight[image_index], VK_TRUE, UINT64_MAX);
+		m_disp.waitForFences(1, &m_imageInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 	}
 
 	// Mark the image as now being in use by this frame
-	m_imageInFlight[image_index] = m_inFlightFences[m_currentFrame];
+	m_imageInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
 	// Begin command buffer recording
-	VkCommandBuffer cmd = m_renderCommandBuffers[image_index];
+	VkCommandBuffer cmd = m_renderCommandBuffers[imageIndex];
 
-	if (Draw(cmd, image_index, modelManager, descriptorManager, scene) != 0)
+	if (m_renderer.Draw(m_disp, cmd, modelManager, descriptorManager, m_allocator, m_commandPool, m_graphicsQueue, m_debugUtils, m_swapchain, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
 		return -1;
 
 	VkSubmitInfo submit_info = {};
@@ -1089,7 +653,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	VkSwapchainKHR swapchains[] = { m_swapchain };
 	present_info.swapchainCount = 1;
 	present_info.pSwapchains = swapchains;
-	present_info.pImageIndices = &image_index;
+	present_info.pImageIndices = &imageIndex;
 
 	result = m_disp.queuePresentKHR(m_presentQueue, &present_info);
 
@@ -1146,16 +710,7 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 
 	descriptorManager.Cleanup();
 
-	// Clean up old depth image and image view
-	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
-	m_disp.destroyImageView(m_depthImageView, nullptr);
-
-	// Clean up shadow map image and image view
-	vmaDestroyImage(m_allocator, m_shadowMap.image, m_shadowMap.allocation);
-	m_disp.destroyImageView(m_shadowMap.imageView, nullptr);
-	m_disp.destroySampler(m_shadowMap.sampler, nullptr);
-
-	DestroyShadowMapStagingBuffer();
+	m_renderer.CleanUp(m_disp, m_allocator);
 
 	shaderManager.CleanupShaderModules(m_disp);
 

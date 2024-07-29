@@ -78,7 +78,7 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	bunny.AddComponent<Model>(bunnyMesh);
 	bunny.AddComponent<PBRMaterial>(m_pbrMaterials[0]);
 	auto& bunnyTransform = bunny.AddComponent<Transform>();
-	bunnyTransform.position = glm::vec3(10.0f, 4.0f, -10.0f);
+	bunnyTransform.position = glm::vec3(10.0f, 3.0f, -10.0f);
 	bunnyTransform.scale = glm::vec3(20.0f);
 	m_entityManager.AddEntity(bunny);
 
@@ -136,7 +136,7 @@ void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManag
     }
 }
 
-void DebugScene::Render(VulkanContext& vulkanContext, ModelManager& modelManager)
+void DebugScene::Render()
 {
 	// scene Camera info
 	ImGui::Begin("Camera Info");

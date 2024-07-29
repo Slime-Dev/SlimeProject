@@ -145,7 +145,7 @@ void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputM
 	}
 }
 
-void PlatformerGame::Render(VulkanContext& vulkanContext, ModelManager& modelManager)
+void PlatformerGame::Render()
 {
 	// m_entityManager.ImGuiDebug();
 }

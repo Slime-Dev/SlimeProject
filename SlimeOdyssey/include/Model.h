@@ -32,22 +32,22 @@ struct ModelResource
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 
-	VkBuffer vertexBuffer;
-	VmaAllocation vertexAllocation;
+	VkBuffer vertexBuffer = VK_NULL_HANDLE;
+	VmaAllocation vertexAllocation = VK_NULL_HANDLE;
 
-	VkBuffer indexBuffer;
-	VmaAllocation indexAllocation;
+	VkBuffer indexBuffer = VK_NULL_HANDLE;
+	VmaAllocation indexAllocation = VK_NULL_HANDLE;
 
 	std::string pipelineName;
 };
 
 struct TextureResource
 {
-	VmaAllocation allocation;
+	VmaAllocation allocation = VK_NULL_HANDLE;
 
-	VkImage image;
-	VkImageView imageView;
-	VkSampler sampler;
+	VkImage image = VK_NULL_HANDLE;
+	VkImageView imageView = VK_NULL_HANDLE;
+	VkSampler sampler = VK_NULL_HANDLE;
 
 	uint32_t width;
 	uint32_t height;
