@@ -156,13 +156,10 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     float shadow = 1.0;
     vec4 shadowCoords = fragPosLightSpace / fragPosLightSpace.w;
     float currentDepth = shadowCoords.z;
-    float bias = 0.005;
+    float bias = 0.0005;
     float shadowSample = texture(shadowMap, shadowCoords.xy).r;
 
-    if (shadowCoords.z > 1.0)
-        shadow = 0.0;
-    else
-        shadow = currentDepth - bias > shadowSample ? 1.0 : 0.0;
+    shadow = currentDepth - bias > shadowSample ? 1.0 : 0.0;
 
     // Apply PCF
 
