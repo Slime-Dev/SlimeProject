@@ -127,7 +127,7 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
                     failed_tests_summary += "Failed test did not return a message\n"
         failed_tests_summary += "```\n"
 
-    content = f"#Test Results#\n **Platform**: {os_name}-{compiler}\n**Tester:** {author}\n **Branch:** {branch}\n **Event:** {event}"
+    content = f"# Test Results\n **Platform**: {os_name}-{compiler}\n**Tester:** {author}\n **Branch:** {branch}\n **Event:** {event}"
     embeds = [
         {
             "title": "Test Summary",
