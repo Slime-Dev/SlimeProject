@@ -26,7 +26,7 @@ void BasicMaterial::ImGuiDebug()
 
 void Model::ImGuiDebug()
 {
-    ImGui::Text("Pipeline: %s", modelResource->pipeLineName.c_str());
+    ImGui::Text("Pipeline: %s", modelResource->pipelineName.c_str());
     ImGui::Text("Vertex Count: %d", modelResource->vertices.size());
     ImGui::Text("Index Count: %d", modelResource->indices.size());
 }

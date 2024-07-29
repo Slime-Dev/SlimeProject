@@ -4,7 +4,14 @@
 #include <ShaderManager.h>
 #include <VulkanContext.h>
 
-#include "PlatformerGame.h"
+#define DEBUG_SCENE
+
+
+#ifdef DEBUG_SCENE
+#	include "DebugScene.h"
+#else
+#	include "PlatformerGame.h"
+#endif
 
 class Application
 {
@@ -25,5 +32,10 @@ private:
 	ShaderManager m_shaderManager;
 	ModelManager m_modelManager;
 	DescriptorManager* m_descriptorManager = nullptr;
+
+#ifdef DEBUG_SCENE
+	DebugScene m_scene;
+#else
 	PlatformerGame m_scene;
+#endif
 };

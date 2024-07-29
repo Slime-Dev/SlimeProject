@@ -30,6 +30,7 @@ function(compile_shaders)
             "${shader_dir}/*.geom"
             "${shader_dir}/*.tesc"
             "${shader_dir}/*.tese"
+            "${shader_dir}/*.mesh"
     )
 
     # Create a list to hold compiled shader outputs
@@ -45,11 +46,13 @@ function(compile_shaders)
 
         # Add a command to compile shader
         add_custom_command(
-                OUTPUT ${shader_output}
-                COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${shader_output} ${shader_source}
-                DEPENDS ${shader_source}
-                COMMENT "Compiling ${shader_source} to SPIR-V"
-        )
+            OUTPUT ${shader_output}
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${shader_output} 
+                    --target-env=vulkan1.3
+                    ${shader_source}
+            DEPENDS ${shader_source}
+            COMMENT "Compiling ${shader_source} to SPIR-V"
+    )
 
         # Append compiled shader output to the list
         list(APPEND shader_outputs ${shader_output})

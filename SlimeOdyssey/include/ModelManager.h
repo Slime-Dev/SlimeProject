@@ -28,7 +28,9 @@ public:
 	ModelResource* CreateSphere(VmaAllocator allocator, float radius = 1.0f, int segments = 16, int rings = 16);
 	ModelResource* CreateCylinder(VmaAllocator allocator, float radius = 0.5f, float height = 2.0f, int segments = 16);
 
-	void CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
+	void CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager);
+	void CreatePipeline(
+	        const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::vector<std::pair<std::string, VkShaderStageFlagBits>>& shaderPaths, bool depthTestEnabled, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
 
 	TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
 	const TextureResource* GetTexture(const std::string& name) const;
@@ -39,12 +41,14 @@ public:
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
 	TextureResource* CopyTexture(const std::string& name, TextureResource* texture);
 
-	std::map<std::string, PipelineContainer>& GetPipelines();
+	std::map<std::string, PipelineConfig>& GetPipelines();
+
+	void CleanUpAllPipelines(vkb::DispatchTable& disp);
 
 private:
 	std::unordered_map<std::string, ModelResource> m_modelResources;
 	std::unordered_map<std::string, TextureResource> m_textures;
-	std::map<std::string, PipelineContainer> m_pipelines;
+	std::map<std::string, PipelineConfig> m_pipelines;
 
 	void CenterModel(std::vector<Vertex>& vector);
 	void CalculateTexCoords(std::vector<Vertex>& vector, const std::vector<unsigned int>& indices);

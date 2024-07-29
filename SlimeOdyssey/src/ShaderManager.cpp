@@ -293,10 +293,10 @@ std::vector<VkDescriptorSetLayout> ShaderManager::CreateDescriptorSetLayouts(vkb
 		m_descriptorSetLayouts[hash] = descriptorSetLayout;
 		descriptorSetLayouts.push_back(descriptorSetLayout);
 
-		spdlog::info("Created descriptor set layout for set {}", set);
+		spdlog::debug("Created descriptor set layout for set {}", set);
 		for (const auto& binding: bindings)
 		{
-			spdlog::info("  Binding {}: type {}, count {}, stage flags {}", binding.binding, static_cast<int>(binding.descriptorType), binding.descriptorCount, static_cast<int>(binding.stageFlags));
+			spdlog::debug("  Binding {}: type {}, count {}, stage flags {}", binding.binding, static_cast<int>(binding.descriptorType), binding.descriptorCount, static_cast<int>(binding.stageFlags));
 		}
 	}
 

@@ -336,10 +336,10 @@ ModelResource* ModelManager::LoadModel(const std::string& name, const std::strin
 
 	CalculateTangentsAndBitangents(model);
 
-	model.pipeLineName = pipelineName;
+	model.pipelineName = pipelineName;
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("Model '{}' loaded successfully", name);
+	spdlog::debug("Model '{}' loaded successfully", name);
 
 	return &m_modelResources[name];
 }
@@ -400,7 +400,7 @@ TextureResource* ModelManager::LoadTexture(vkb::DispatchTable& disp, VkQueue gra
 	vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
 	m_textures[name] = std::move(texture);
-	spdlog::info("Texture '{}' loaded successfully", name);
+	spdlog::debug("Texture '{}' loaded successfully", name);
 	return &m_textures[name];
 }
 
@@ -444,12 +444,22 @@ void ModelManager::UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator all
 	}
 	m_textures.clear();
 
-	spdlog::info("All resources unloaded");
+	spdlog::debug("All resources unloaded");
 }
 
-std::map<std::string, PipelineContainer>& ModelManager::GetPipelines()
+std::map<std::string, PipelineConfig>& ModelManager::GetPipelines()
 {
 	return m_pipelines;
+}
+
+void ModelManager::CleanUpAllPipelines(vkb::DispatchTable& disp)
+{
+	for (auto& [name, pipeline]: m_pipelines)
+	{
+		disp.destroyPipeline(pipeline.pipeline, nullptr);
+		disp.destroyPipelineLayout(pipeline.pipelineLayout, nullptr);
+	}
+	m_pipelines.clear();
 }
 
 VkImageView ModelManager::CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format)
@@ -613,9 +623,40 @@ void ModelManager::TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graph
 		sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+
 	else
 	{
-		throw std::invalid_argument("unsupported layout transition!");
+		spdlog::error("unsupported layout transition!");
 	}
 
 	disp.cmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
@@ -643,36 +684,216 @@ void ModelManager::CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQ
 	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
 }
 
-void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::string& vertShaderPath, const std::string& fragShaderPath, bool depthTestEnabled, VkCullModeFlags cullMode, VkPolygonMode polygonMode)
+void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+{
+	const std::string pipelineName = "ShadowMap";
+
+	if (m_pipelines.contains(pipelineName))
+	{
+		spdlog::error("Shadow map pipeline already exists.");
+		return;
+	}
+
+	std::vector<std::pair<std::string, VkShaderStageFlagBits>> shaderPaths = {
+		{ResourcePathManager::GetShaderPath("shadowmap.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
+        {ResourcePathManager::GetShaderPath("shadowmap.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+	};
+
+	// Load and parse shaders
+	std::vector<ShaderModule> shaderModules;
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	for (const auto& [shaderPath, shaderStage]: shaderPaths)
+	{
+		auto shaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), shaderPath, shaderStage);
+		shaderModules.push_back(shaderModule);
+		shaderStages.push_back({ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = shaderStage, .module = shaderModule.handle, .pName = "main" });
+	}
+	auto combinedResources = shaderManager.CombineResources(shaderModules);
+
+	PipelineGenerator pipelineGenerator(vulkanContext);
+
+	pipelineGenerator.SetName(pipelineName);
+
+	// Set up rendering info for dynamic rendering
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+	VkPipelineRenderingCreateInfo renderingInfo{};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	renderingInfo.depthAttachmentFormat = depthFormat;
+	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+	renderingInfo.colorAttachmentCount = 0;
+	renderingInfo.pColorAttachmentFormats = nullptr;
+	pipelineGenerator.SetRenderingInfo(renderingInfo);
+
+	pipelineGenerator.SetShaderStages(shaderStages);
+
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(combinedResources.bindingDescriptions.size());
+	vertexInputInfo.pVertexBindingDescriptions = combinedResources.bindingDescriptions.data();
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(combinedResources.attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions = combinedResources.attributeDescriptions.data();
+	pipelineGenerator.SetVertexInputState(vertexInputInfo);
+
+	pipelineGenerator.SetDefaultInputAssembly();
+	pipelineGenerator.SetDefaultViewportState();
+
+	VkPipelineRasterizationStateCreateInfo rasterizer{};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthBiasEnable = VK_FALSE;
+	rasterizer.lineWidth = 1.0f;
+	pipelineGenerator.SetRasterizationState(rasterizer);
+
+	// Set up multisample state
+	VkPipelineMultisampleStateCreateInfo multisampling{};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.minSampleShading = 1.0f;
+	multisampling.pSampleMask = nullptr;
+	multisampling.alphaToCoverageEnable = VK_FALSE;
+	multisampling.alphaToOneEnable = VK_FALSE;
+	pipelineGenerator.SetMultisampleState(multisampling);
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+	pipelineGenerator.SetDepthStencilState(depthStencil);
+
+	// For shadow mapping, we typically don't use color attachments
+	VkPipelineColorBlendStateCreateInfo colorBlending{};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.attachmentCount = 0;
+	colorBlending.pAttachments = nullptr;
+	pipelineGenerator.SetColorBlendState(colorBlending);
+
+	std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT, VK_DYNAMIC_STATE_LINE_WIDTH };
+	pipelineGenerator.SetDynamicState({ .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() });
+
+	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
+
+	PipelineConfig config = pipelineGenerator.Build();
+
+	// Store the pipeline
+	m_pipelines[pipelineName] = config;
+
+	spdlog::debug("Created the Shadow Map Pipeline");
+}
+
+void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::vector<std::pair<std::string, VkShaderStageFlagBits>>& shaderPaths, bool depthTestEnabled, VkCullModeFlags cullMode, VkPolygonMode polygonMode)
 {
 	if (m_pipelines.contains(pipelineName))
 	{
-		spdlog::error("Pipeline with that name already exists.");
+		spdlog::error("Pipeline with name '{}' already exists.", pipelineName);
 		return;
 	}
 
 	// Load and parse shaders
-	auto vertexShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), vertShaderPath, VK_SHADER_STAGE_VERTEX_BIT);
-	auto fragmentShaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), fragShaderPath, VK_SHADER_STAGE_FRAGMENT_BIT);
-	auto vertexResources = shaderManager.ParseShader(vertexShaderModule);
-	auto fragmentResources = shaderManager.ParseShader(fragmentShaderModule);
-	auto combinedResources = shaderManager.CombineResources({ vertexShaderModule, fragmentShaderModule });
+	std::vector<ShaderModule> shaderModules;
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	for (const auto& [shaderPath, shaderStage]: shaderPaths)
+	{
+		auto shaderModule = shaderManager.LoadShader(vulkanContext.GetDispatchTable(), shaderPath, shaderStage);
+		shaderModules.push_back(shaderModule);
+		shaderStages.push_back({ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = shaderStage, .module = shaderModule.handle, .pName = "main" });
+	}
+	auto combinedResources = shaderManager.CombineResources(shaderModules);
 
 	// Set up descriptor set layout
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = shaderManager.CreateDescriptorSetLayouts(vulkanContext.GetDispatchTable(), combinedResources);
 
+	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+
 	PipelineGenerator pipelineGenerator(vulkanContext);
+
 	pipelineGenerator.SetName(pipelineName);
-	pipelineGenerator.SetShaderModules(vertexShaderModule, fragmentShaderModule);
-	pipelineGenerator.SetVertexInputState(combinedResources.attributeDescriptions, combinedResources.bindingDescriptions);
+
+	VkPipelineRenderingCreateInfo renderingInfo{};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachmentFormats = &colorFormat;
+	renderingInfo.depthAttachmentFormat = depthFormat;
+	renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineGenerator.SetRenderingInfo(renderingInfo);
+
+	pipelineGenerator.SetShaderStages(shaderStages);
+
+	// Set vertex input state only if vertex shader is present
+	if (std::find_if(shaderPaths.begin(), shaderPaths.end(), [](const auto& pair) { return pair.second == VK_SHADER_STAGE_VERTEX_BIT; }) != shaderPaths.end())
+	{
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(combinedResources.bindingDescriptions.size());
+		vertexInputInfo.pVertexBindingDescriptions = combinedResources.bindingDescriptions.data();
+		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(combinedResources.attributeDescriptions.size());
+		vertexInputInfo.pVertexAttributeDescriptions = combinedResources.attributeDescriptions.data();
+		pipelineGenerator.SetVertexInputState(vertexInputInfo);
+	}
+
+	pipelineGenerator.SetDefaultInputAssembly();
+	pipelineGenerator.SetDefaultViewportState();
+
+	VkPipelineRasterizationStateCreateInfo rasterizer{};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = polygonMode;
+	rasterizer.cullMode = cullMode;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthBiasEnable = VK_FALSE;
+	rasterizer.lineWidth = 1.0f;
+	pipelineGenerator.SetRasterizationState(rasterizer);
+
+	pipelineGenerator.SetDefaultMultisampleState();
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = depthTestEnabled;
+	depthStencil.depthWriteEnable = depthTestEnabled;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL; // Assuming reverse-Z
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+	pipelineGenerator.SetDepthStencilState(depthStencil);
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+	colorBlendAttachment.blendEnable = VK_TRUE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colorBlending{};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &colorBlendAttachment;
+	pipelineGenerator.SetColorBlendState(colorBlending);
+
+	std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT, VK_DYNAMIC_STATE_LINE_WIDTH };
+	pipelineGenerator.SetDynamicState({ .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() });
+
 	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
-	pipelineGenerator.SetPolygonMode(polygonMode);
-	pipelineGenerator.SetDepthTestEnabled(depthTestEnabled);
-	pipelineGenerator.SetCullMode(cullMode);
-	pipelineGenerator.Generate();
 
-	m_pipelines[pipelineName] = pipelineGenerator.GetPipelineContainer();
+	PipelineConfig config = pipelineGenerator.Build();
+
+	// Store the pipeline
+	m_pipelines[pipelineName] = config;
+
+	spdlog::debug("Created pipeline: {}", pipelineName);
 }
 
 ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
@@ -684,7 +905,7 @@ ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 	}
 
 	ModelResource model;
-	model.pipeLineName = "debug_wire";
+	model.pipelineName = "debug_wire";
 
 	// Create vertices
 	Vertex vertex;
@@ -707,7 +928,7 @@ ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 	model.indices = { 0, 1, 1, 2, 2, 3, 3, 0 };
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 
 	return &m_modelResources[name];
 }
@@ -719,13 +940,10 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 	{
 		return &m_modelResources[name];
 	}
-
 	ModelResource model;
-	model.pipeLineName = "basic";
-
+	model.pipelineName = "pbr";
 	// Calculate the step size
 	float step = size / divisions;
-
 	// Create vertices
 	for (int i = 0; i <= divisions; ++i)
 	{
@@ -735,14 +953,13 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			float z = -size / 2 + j * step;
 			Vertex vertex;
 			vertex.pos = glm::vec3(x, 0.0f, z);
-			vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+			vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f); // Inverted normal
 			vertex.texCoord = glm::vec2(static_cast<float>(i) / divisions, static_cast<float>(j) / divisions);
 			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-			vertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
+			vertex.bitangent = glm::vec3(0.0f, 0.0f, -1.0f); // Inverted bitangent
 			model.vertices.push_back(vertex);
 		}
 	}
-
 	// Create indices for triangles
 	for (int i = 0; i < divisions; ++i)
 	{
@@ -752,34 +969,30 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			int topRight = topLeft + 1;
 			int bottomLeft = (i + 1) * (divisions + 1) + j;
 			int bottomRight = bottomLeft + 1;
-
-			// First triangle
+			// First triangle (changed winding order)
 			model.indices.push_back(topLeft);
-			model.indices.push_back(bottomLeft);
-			model.indices.push_back(topRight);
-
-			// Second triangle
 			model.indices.push_back(topRight);
 			model.indices.push_back(bottomLeft);
+			// Second triangle (changed winding order)
+			model.indices.push_back(topRight);
 			model.indices.push_back(bottomRight);
+			model.indices.push_back(bottomLeft);
 		}
 	}
-
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
-
+	spdlog::debug("{} generated.", name);
 	return &m_modelResources[name];
 }
 
 ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 {
-	std::string name = "debug_cube" + std::to_string(size);
+	std::string name = "cube_" + std::to_string(size);
 	if (m_modelResources.contains(name))
 	{
 		return &m_modelResources[name];
 	}
 	ModelResource model;
-	model.pipeLineName = "basic"; // Assume a default pipeline for basic shapes can be changed after
+	model.pipelineName = "pbr"; // Assume a default pipeline for basic shapes can be changed after
 	float halfSize = size / 2.0f;
 	// Define the 8 vertices of the cube
 	std::vector<glm::vec3> positions = {
@@ -801,14 +1014,21 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 		{ 0.0f,  1.0f,  0.0f}, // Top
 		{ 0.0f, -1.0f,  0.0f}  // Bottom
 	};
-	// Define the vertices for each face
+	// Define the vertices for each face (corrected winding order)
 	const int faceVertices[6][4] = {
-		{0, 1, 2, 3}, // Front face
-		{5, 4, 7, 6}, // Back face (reversed)
-		{1, 5, 6, 2}, // Right face
-		{4, 0, 3, 7}, // Left face (reversed)
-		{3, 2, 6, 7}, // Top face
-		{4, 5, 1, 0}  // Bottom face (reversed)
+		{0, 3, 2, 1}, // Front face
+		{5, 6, 7, 4}, // Back face
+		{1, 2, 6, 5}, // Right face
+		{4, 7, 3, 0}, // Left face
+		{3, 7, 6, 2}, // Top face
+		{4, 0, 1, 5}  // Bottom face
+	};
+	// Define UVs for each face
+	const glm::vec2 faceUVs[4] = {
+		{0.0f, 1.0f}, // bottom-left
+		{0.0f, 0.0f}, // top-left
+		{1.0f, 0.0f}, // top-right
+		{1.0f, 1.0f}  // bottom-right
 	};
 	// Create vertices and indices
 	std::vector<uint32_t> newIndices;
@@ -820,18 +1040,23 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 			Vertex vertex;
 			vertex.pos = positions[faceVertices[face][i]];
 			vertex.normal = normals[face];
-			vertex.texCoord = glm::vec2((i & 1) ? 1.0f : 0.0f, (i & 2) ? 1.0f : 0.0f);
-			// Improved tangent space calculation
+			vertex.texCoord = faceUVs[i];
+			// Tangent space calculation
 			glm::vec3 tangent, bitangent;
-			if (face % 2 == 0)
-			{ // even faces
-				tangent = glm::vec3(0.0f, 1.0f, 0.0f);
-				bitangent = glm::cross(normals[face], tangent);
-			}
-			else
-			{ // odd faces
+			if (face == 0 || face == 1) // Front and Back faces
+			{
 				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-				bitangent = glm::cross(normals[face], tangent);
+				bitangent = glm::vec3(0.0f, -1.0f, 0.0f);
+			}
+			else if (face == 2 || face == 3) // Right and Left faces
+			{
+				tangent = glm::vec3(0.0f, 0.0f, -1.0f);
+				bitangent = glm::vec3(0.0f, -1.0f, 0.0f);
+			}
+			else // Top and Bottom faces
+			{
+				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+				bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
 			}
 			vertex.tangent = tangent;
 			vertex.bitangent = bitangent;
@@ -849,9 +1074,10 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 	// Assign the new indices to the model
 	model.indices = newIndices;
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 	return &m_modelResources[name];
 }
+
 
 ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, int segments, int rings)
 {
@@ -862,7 +1088,7 @@ ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, 
 	}
 
 	ModelResource model;
-	model.pipeLineName = "basic";
+	model.pipelineName = "pbr";
 
 	for (int ring = 0; ring <= rings; ++ring)
 	{
@@ -909,7 +1135,7 @@ ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, 
 	}
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 
 	return &m_modelResources[name];
 }
@@ -923,7 +1149,7 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	}
 
 	ModelResource model;
-	model.pipeLineName = "basic";
+	model.pipelineName = "pbr";
 
 	float halfHeight = height / 2.0f;
 
@@ -1010,7 +1236,7 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	}
 
 	m_modelResources[name] = std::move(model);
-	spdlog::info("{} generated.", name);
+	spdlog::debug("{} generated.", name);
 
 	return &m_modelResources[name];
 }

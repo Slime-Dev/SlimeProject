@@ -13,18 +13,21 @@
 
 #include <vk_mem_alloc.h>
 
-#include "ModelManager.h"
 #include "DescriptorManager.h"
+#include "ModelManager.h"
 #include "PipelineGenerator.h"
 #include "Scene.h"
 #include "VulkanUtil.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
+#define SHADOW_MAP_WIDTH 1920
+#define SHADOW_MAP_HEIGHT 1920
 
 // IMGUI
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
+#include "ResourcePathManager.h"
 
 VulkanContext::~VulkanContext()
 {
@@ -54,7 +57,7 @@ int VulkanContext::CreateContext(SlimeWindow* window)
 
 int VulkanContext::DeviceInit(SlimeWindow* window)
 {
-	spdlog::info("Initializing Vulkan...");
+	spdlog::debug("Initializing Vulkan...");
 
 	// set up the debug messenger to use spdlog
 	auto debugCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) -> VkBool32
@@ -65,7 +68,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 				spdlog::debug("{}", pCallbackData->pMessage);
 				break;
 			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-				spdlog::info("{}", pCallbackData->pMessage);
+				spdlog::debug("{}", pCallbackData->pMessage);
 				break;
 			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
 				spdlog::warn("{}\n", pCallbackData->pMessage);
@@ -81,18 +84,26 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	};
 
 	// Create instance with VK_KHR_dynamic_rendering extension
-	spdlog::info("Creating Vulkan instance...");
-	const std::vector<const char*> deviceExtensions = { VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
+	spdlog::debug("Creating Vulkan instance...");
+	const std::vector<const char*> deviceExtensions = {
+		VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,       //
+		VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, //
+	};
 
-	vkb::InstanceBuilder instance_builder;
-	auto instance_ret = instance_builder.enable_extensions(deviceExtensions).request_validation_layers(true).set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT).set_debug_callback(debugCallback).require_api_version(1, 3, 0).build();
+	vkb::InstanceBuilder instanceBuilder;
+	instanceBuilder.enable_extensions(deviceExtensions);
+	instanceBuilder.request_validation_layers(true);
+	instanceBuilder.set_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
+	instanceBuilder.set_debug_callback(debugCallback);
+	instanceBuilder.require_api_version(1, 3, 0);
+	vkb::Result<vkb::Instance> instance_ret = instanceBuilder.build();
 
 	if (!instance_ret)
 	{
 		spdlog::error("Failed to create instance: {}", instance_ret.error().message());
 		return -1;
 	}
-	spdlog::info("Vulkan instance created.");
+	spdlog::debug("Vulkan instance created.");
 
 	m_instance = instance_ret.value();
 	m_instDisp = m_instance.make_table();
@@ -111,51 +122,100 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	}
 
 	// Select physical device //
-	spdlog::info("Selecting physical device...");
+	spdlog::debug("Selecting physical device...");
+
+	// Enable VK_EXT_extended_dynamic_state3 features
+	VkPhysicalDeviceExtendedDynamicState3FeaturesEXT extendedDynamicState3Features = {};
+	extendedDynamicState3Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
+	extendedDynamicState3Features.extendedDynamicState3ColorBlendEnable = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3ColorBlendEquation = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3ColorWriteMask = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3RasterizationSamples = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3SampleMask = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3AlphaToCoverageEnable = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3AlphaToOneEnable = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3LogicOpEnable = VK_TRUE;
+	extendedDynamicState3Features.extendedDynamicState3ColorBlendAdvanced = VK_TRUE;
+
+	VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extendedDynamicStateFeatures = {};
+	extendedDynamicStateFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
+	extendedDynamicStateFeatures.extendedDynamicState = VK_TRUE;
+	extendedDynamicStateFeatures.pNext = &extendedDynamicState3Features;
+
+		// Enable mesh shader features
+	VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures = {};
+	meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+	meshShaderFeatures.taskShader = VK_TRUE;
+	meshShaderFeatures.meshShader = VK_TRUE;
+	meshShaderFeatures.multiviewMeshShader = VK_TRUE;
+	meshShaderFeatures.primitiveFragmentShadingRateMeshShader = VK_TRUE;
+	meshShaderFeatures.meshShaderQueries = VK_TRUE;
+	meshShaderFeatures.pNext = &extendedDynamicState3Features;
+
+	// Enable Vulkan 1.3 features
 	VkPhysicalDeviceVulkan13Features features13 = {};
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	features13.dynamicRendering = VK_TRUE;
 	features13.synchronization2 = VK_TRUE;
+	features13.maintenance4 = VK_TRUE;
+	features13.pNext = &meshShaderFeatures;
 
+	// Enable Vulkan 1.2 features
 	VkPhysicalDeviceVulkan12Features features12 = {};
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.bufferDeviceAddress = VK_TRUE;
 	features12.descriptorIndexing = VK_TRUE;
+	features12.pNext = &features13;
 
+	// Enable Vulkan 1.1 features
 	VkPhysicalDeviceVulkan11Features features11 = {};
 	features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 	features11.multiview = VK_TRUE;
+	features11.pNext = &features12;
 
-	VkPhysicalDeviceFeatures features = {};
-	features.fillModeNonSolid = VK_TRUE;
-	features.wideLines = VK_TRUE;
+	// Set up basic device features
+	VkPhysicalDeviceFeatures2 features2 = {};
+	features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	features2.features.fillModeNonSolid = VK_TRUE;
+	features2.features.wideLines = VK_TRUE;
+	features2.features.geometryShader = VK_TRUE;
+	features2.pNext = &features11;
 
 	vkb::PhysicalDeviceSelector phys_device_selector(m_instance);
-
-	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3).set_required_features_11(features11).set_required_features_13(features13).set_required_features_12(features12).set_required_features(features).set_surface(m_surface).select();
-
+	auto phys_device_ret = phys_device_selector.set_minimum_version(1, 3)
+	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME)
+	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_2_EXTENSION_NAME)
+	                               .add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME)
+	                               .add_required_extension(VK_EXT_MESH_SHADER_EXTENSION_NAME)
+	                               .set_required_features_11(features11)
+	                               .set_required_features_12(features12)
+	                               .set_required_features_13(features13)
+	                               .set_required_features(features2.features)
+	                               .set_surface(m_surface)
+	                               .select();
 	if (!phys_device_ret)
 	{
 		spdlog::error("Failed to select physical device: {}", phys_device_ret.error().message());
 		return -1;
 	}
-	spdlog::info("Physical device selected.");
-	spdlog::info("Physical device: {}", phys_device_ret.value().properties.deviceName);
+	spdlog::debug("Physical device selected.");
+	spdlog::debug("Physical device: {}", phys_device_ret.value().properties.deviceName);
 
 	vkb::PhysicalDevice physical_device = phys_device_ret.value();
 
-	// Create device (extension is automatically enabled as it was required in PhysicalDeviceSelector)
-	spdlog::info("Creating logical device...");
-	vkb::DeviceBuilder device_builder{ physical_device };
-	auto device_ret = device_builder.build();
+    // Create device (extensions are automatically enabled as they were required in PhysicalDeviceSelector)
+    spdlog::debug("Creating logical device...");
+    vkb::DeviceBuilder device_builder{ physical_device };
+	device_builder.add_pNext(&extendedDynamicStateFeatures);
+    auto device_ret = device_builder.build();
 
-	if (!device_ret)
-	{
-		spdlog::error("Failed to create logical device: {}", device_ret.error().message());
-		return -1;
-	}
-	spdlog::info("Logical device created.");
-	m_device = device_ret.value();
+    if (!device_ret)
+    {
+        spdlog::error("Failed to create logical device: {}", device_ret.error().message());
+        return -1;
+    }
+    spdlog::debug("Logical device created.");
+    m_device = device_ret.value();
 
 	m_disp = m_device.make_table();
 
@@ -203,8 +263,10 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 int VulkanContext::CreateSwapchain(SlimeWindow* window)
 {
-	spdlog::info("Creating swapchain...");
+	spdlog::debug("Creating swapchain...");
 	m_disp.deviceWaitIdle();
+
+	bool recreate = m_swapchain.swapchain != VK_NULL_HANDLE;
 
 	vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
 
@@ -268,6 +330,7 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
 	VK_CHECK(vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
+	m_debugUtils.SetObjectName(m_depthImage, "DepthImage");
 
 	// Create the depth image view
 	VkImageViewCreateInfo depthImageViewInfo = {};
@@ -282,6 +345,54 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 	depthImageViewInfo.subresourceRange.layerCount = 1;
 
 	VK_CHECK(m_disp.createImageView(&depthImageViewInfo, nullptr, &m_depthImageView));
+	m_debugUtils.SetObjectName(m_depthImageView, "DepthImageView");
+
+	// If we are recreating the swapchain we dont need to recreate the shadow map
+	if (recreate)
+	{
+		return 0;
+	}
+
+	// Create Shadow map image
+	VkImageCreateInfo shadowMapImageInfo = {};
+	shadowMapImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	shadowMapImageInfo.imageType = VK_IMAGE_TYPE_2D;
+	shadowMapImageInfo.extent.width = SHADOW_MAP_WIDTH;
+	shadowMapImageInfo.extent.height = SHADOW_MAP_HEIGHT;
+	shadowMapImageInfo.extent.depth = 1;
+	shadowMapImageInfo.mipLevels = 1;
+	shadowMapImageInfo.arrayLayers = 1;
+	shadowMapImageInfo.format = VK_FORMAT_D32_SFLOAT;
+	shadowMapImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	shadowMapImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	shadowMapImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	shadowMapImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	shadowMapImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo shadowMapAllocInfo = {};
+	shadowMapAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	VK_CHECK(vmaCreateImage(m_allocator, &shadowMapImageInfo, &shadowMapAllocInfo, &m_shadowMap.image, &m_shadowMap.allocation, nullptr));
+	m_debugUtils.SetObjectName(m_shadowMap.image, "ShadowMapImage");
+
+	// Create the shadow map image view
+	VkImageViewCreateInfo shadowMapImageViewInfo = {};
+	shadowMapImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	shadowMapImageViewInfo.image = m_shadowMap.image;
+	shadowMapImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	shadowMapImageViewInfo.format = VK_FORMAT_D32_SFLOAT;
+	shadowMapImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	shadowMapImageViewInfo.subresourceRange.baseMipLevel = 0;
+	shadowMapImageViewInfo.subresourceRange.levelCount = 1;
+	shadowMapImageViewInfo.subresourceRange.baseArrayLayer = 0;
+	shadowMapImageViewInfo.subresourceRange.layerCount = 1;
+
+	VK_CHECK(m_disp.createImageView(&shadowMapImageViewInfo, nullptr, &m_shadowMap.imageView));
+	m_debugUtils.SetObjectName(m_shadowMap.imageView, "ShadowMapImageView");
+	
+	// Create the shadow map sampler
+	m_shadowMap.sampler = SlimeUtil::CreateSampler(m_disp);
+	m_debugUtils.SetObjectName(m_shadowMap.sampler, "ShadowMapSampler");
 
 	return 0;
 }
@@ -311,7 +422,7 @@ int VulkanContext::GetQueues()
 
 int VulkanContext::CreateCommandPool()
 {
-	spdlog::info("Creating command pool...");
+	spdlog::debug("Creating command pool...");
 	VkCommandPoolCreateInfo pool_info = {};
 	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_info.queueFamilyIndex = m_device.get_queue_index(vkb::QueueType::graphics).value();
@@ -325,7 +436,7 @@ int VulkanContext::CreateCommandPool()
 
 int VulkanContext::CreateRenderCommandBuffers()
 {
-	spdlog::info("Recording command buffers...");
+	spdlog::debug("Recording command buffers...");
 	m_renderCommandBuffers.resize(m_swapchain.image_count + 10);
 
 	VkCommandBufferAllocateInfo alloc_info = {};
@@ -347,7 +458,7 @@ int VulkanContext::CreateRenderCommandBuffers()
 
 int VulkanContext::InitSyncObjects()
 {
-	spdlog::info("Initializing synchronization objects...");
+	spdlog::debug("Initializing synchronization objects...");
 	// Create synchronization objects
 	m_availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 	m_finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
@@ -561,12 +672,265 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
+	m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 	return 0;
+}
+
+int VulkanContext::GenerateShadowMap(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
+{
+	m_debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
+	// Transition shadow map image to depth attachment optimal
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachmentInfo.imageView = m_shadowMap.imageView;
+	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentInfo.clearValue.depthStencil.depth = 1.0f;
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea = {
+		.offset = {               0,                 0},
+          .extent = {SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT}
+	};
+	renderingInfo.layerCount = 1;
+	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+
+	m_disp.cmdBeginRendering(cmd, &renderingInfo);
+
+	// Set viewport and scissor for shadow map
+	VkViewport viewport = { 0, 0, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 0.0f, 1.0f };
+	VkRect2D scissor = {
+		{		       0,		         0},
+        {SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT}
+	};
+	m_disp.cmdSetViewport(cmd, 0, 1, &viewport);
+	m_disp.cmdSetScissor(cmd, 0, 1, &scissor);
+
+	// Draw models for shadow map
+	m_renderer.DrawModelsForShadowMap(m_disp, m_debugUtils, cmd, modelManager, scene);
+
+	m_disp.cmdEndRendering(cmd);
+
+	// Transition shadow map image to shader read-only optimal
+	modelManager.TransitionImageLayout(m_disp, m_graphicsQueue, m_commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	
+	m_debugUtils.EndDebugMarker(cmd);
+
+	return 0;
+}
+
+void VulkanContext::CreateShadowMapStagingBuffer()
+{
+	m_shadowMapStagingBufferSize = sizeof(float);
+	SlimeUtil::CreateBuffer("ShadowMapPixelStagingBuffer", m_allocator, m_shadowMapStagingBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
+}
+
+void VulkanContext::DestroyShadowMapStagingBuffer()
+{
+	if (m_shadowMapStagingBuffer != VK_NULL_HANDLE)
+	{
+		vmaDestroyBuffer(m_allocator, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
+		m_shadowMapStagingBuffer = VK_NULL_HANDLE;
+		m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
+	}
+}
+
+float VulkanContext::GetShadowMapPixelValue(ModelManager& modelManager, int x, int y)
+{
+	// Ensure x and y are within bounds
+	x = std::clamp(x, 0, static_cast<int>(SHADOW_MAP_WIDTH) - 1);
+	y = std::clamp(y, 0, static_cast<int>(SHADOW_MAP_HEIGHT) - 1);
+
+	// Create the staging buffer if it doesn't exist
+	if (m_shadowMapStagingBuffer == VK_NULL_HANDLE)
+	{
+		CreateShadowMapStagingBuffer();
+	}
+
+	// Create command buffer for copy operation
+	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(m_disp, m_commandPool);
+
+	// Transition shadow map image layout for transfer
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = m_shadowMap.image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+	m_disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+	// Copy image to buffer
+	VkBufferImageCopy region{};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+	region.imageOffset = { x, y, 0 };
+	region.imageExtent = { 1, 1, 1 };
+
+	m_disp.cmdCopyImageToBuffer(commandBuffer, m_shadowMap.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_shadowMapStagingBuffer, 1, &region);
+
+	// Transition shadow map image layout back
+	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+	m_disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+	SlimeUtil::EndSingleTimeCommands(m_disp, m_graphicsQueue, m_commandPool, commandBuffer);
+
+	// Read data from staging buffer
+	float pixelValue;
+	void* data;
+	vmaMapMemory(m_allocator, m_shadowMapStagingBufferAllocation, &data);
+	memcpy(&pixelValue, data, sizeof(float));
+	vmaUnmapMemory(m_allocator, m_shadowMapStagingBufferAllocation);
+
+	return pixelValue;
+}
+
+// Shadow map debug
+void VulkanContext::RenderShadowMapInspector(ModelManager& modelManager)
+{
+	ImGui::Begin("Shadow Map Inspector");
+
+	// Window size and aspect ratio
+	ImVec2 windowSize = ImGui::GetContentRegionAvail();
+	float shadowmapAspectRatio = SHADOW_MAP_WIDTH / (float) SHADOW_MAP_HEIGHT;
+
+	// Zoom and pan controls
+	static float zoom = 1.0f;
+	static ImVec2 pan = ImVec2(0.0f, 0.0f);
+	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
+	ImGui::DragFloat2("Pan", &pan.x, 0.01f);
+
+	// Contrast control
+	static float contrast = 1.0f;
+	ImGui::SliderFloat("Contrast", &contrast, 0.1f, 5.0f);
+
+	// Display a depth scale
+	ImGui::Text("Depth Scale:");
+	ImVec2 scaleSize(200, 20);
+	ImVec2 scalePos = ImGui::GetCursorScreenPos();
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+	for (int i = 0; i < 100; i++)
+	{
+		float t = i / 99.0f;
+		float enhancedT = std::pow((t - 0.5f) * contrast + 0.5f, 2.2f);
+		enhancedT = std::clamp(enhancedT, 0.0f, 1.0f);
+		ImU32 color = ImGui::ColorConvertFloat4ToU32(ImVec4(enhancedT, enhancedT, enhancedT, 1.0f));
+		drawList->AddRectFilled(ImVec2(scalePos.x + t * scaleSize.x, scalePos.y), ImVec2(scalePos.x + (t + 0.01f) * scaleSize.x, scalePos.y + scaleSize.y), color);
+	}
+	drawList->AddRect(scalePos, ImVec2(scalePos.x + scaleSize.x, scalePos.y + scaleSize.y), IM_COL32_WHITE);
+
+	ImGui::Dummy(scaleSize);
+	ImGui::Text("0.0");
+	ImGui::SameLine(185);
+	ImGui::Text("1.0");
+
+	// Calculate image size
+	ImVec2 imageSize;
+	if (windowSize.x / windowSize.y > shadowmapAspectRatio)
+	{
+		imageSize = ImVec2(windowSize.y * shadowmapAspectRatio, windowSize.y);
+	}
+	else
+	{
+		imageSize = ImVec2(windowSize.x, windowSize.x / shadowmapAspectRatio);
+	}
+
+	// Apply zoom and pan
+	imageSize.x *= zoom;
+	imageSize.y *= zoom;
+
+	// Display shadow map
+	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
+	ImGui::SetCursorPos(ImVec2(pan.x, pan.y));
+	// Flip the image vertically
+	ImGui::Image((ImTextureID) m_shadowMapId, imageSize, ImVec2(0, 1), ImVec2(1, 0));
+
+	// Pixel info on hover
+	if (ImGui::IsItemHovered())
+	{
+		// Disable window manipulation while hovering
+		ImGui::SetWindowFocus();
+
+		ImVec2 mousePos = ImGui::GetMousePos();
+		ImVec2 imagePos = ImGui::GetItemRectMin();
+		ImVec2 relativePos = ImVec2(mousePos.x - imagePos.x, mousePos.y - imagePos.y);
+
+		int pixelX = (int) ((relativePos.x / imageSize.x) * SHADOW_MAP_WIDTH);
+		int pixelY = (int) ((relativePos.y / imageSize.y) * SHADOW_MAP_HEIGHT);
+
+		float pixelValue = GetShadowMapPixelValue(modelManager, pixelX, pixelY);
+
+		// Apply contrast enhancement
+		float enhancedValue = std::pow((pixelValue - 0.5f) * contrast + 0.5f, 2.2f);
+		enhancedValue = std::clamp(enhancedValue, 0.0f, 1.0f);
+
+		ImGui::BeginTooltip();
+		ImGui::Text("Pixel: (%d, %d)", pixelX, pixelY);
+		ImGui::Text("Depth: %.3f", pixelValue);
+		ImGui::Text("Enhanced: %.3f", enhancedValue);
+
+		// Display a color swatch representing the depth
+		ImVec4 depthColor(enhancedValue, enhancedValue, enhancedValue, 1.0f);
+		ImGui::ColorButton("Depth Color", depthColor, 0, ImVec2(40, 20));
+
+		ImGui::EndTooltip();
+
+		float wheel = ImGui::GetIO().MouseWheel;
+		if (ImGui::GetIO().KeyShift && wheel != 0)
+		{
+			const float zoomSpeed = 0.1f;
+			zoom *= (1.0f + wheel * zoomSpeed);
+			zoom = std::clamp(zoom, 0.1f, 10.0f);
+
+			// Adjust pan to zoom towards mouse position
+			ImVec2 mousePos = ImGui::GetMousePos();
+			ImVec2 center = ImGui::GetWindowPos() + windowSize * 0.5f;
+			pan += (mousePos - center) * (wheel * zoomSpeed);
+		}
+
+		// Left click and drag to pan
+		if (ImGui::IsMouseDragging(0))
+		{
+			ImVec2 delta = ImGui::GetIO().MouseDelta;
+			pan += delta;
+		}
+	}
+
+	ImGui::EndChild();
+
+	ImGui::End();
 }
 
 int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& modelManager, DescriptorManager& descriptorManager, Scene* scene)
 {
 	if (SlimeUtil::BeginCommandBuffer(m_disp, cmd) != 0)
+		return -1;
+
+	// Generate shadow map
+	if (GenerateShadowMap(cmd, modelManager, descriptorManager, scene) != 0)
 		return -1;
 
 	m_renderer.SetupViewportAndScissor(m_swapchain, m_disp, cmd);
@@ -617,9 +981,13 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 
 	if (scene)
 	{
+		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene, &m_shadowMap);
+	
+		m_debugUtils.BeginDebugMarker(cmd, "Draw ImGui", debugUtil_BindDescriptorSetColour);
 		scene->Render(*this, modelManager);
-		m_renderer.DrawModels(m_disp, m_debugUtils, m_allocator, cmd, modelManager, descriptorManager, scene);
 	}
+
+	RenderShadowMapInspector(modelManager);
 
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -629,6 +997,8 @@ int VulkanContext::Draw(VkCommandBuffer& cmd, int imageIndex, ModelManager& mode
 		// Record dear imgui primitives into command buffer
 		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
 	}
+
+	m_debugUtils.EndDebugMarker(cmd);
 
 	m_disp.cmdEndRendering(cmd);
 
@@ -745,7 +1115,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 
 int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
-	spdlog::info("Cleaning up...");
+	spdlog::debug("Cleaning up...");
 
 	m_disp.deviceWaitIdle();
 
@@ -779,6 +1149,13 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 	// Clean up old depth image and image view
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 	m_disp.destroyImageView(m_depthImageView, nullptr);
+
+	// Clean up shadow map image and image view
+	vmaDestroyImage(m_allocator, m_shadowMap.image, m_shadowMap.allocation);
+	m_disp.destroyImageView(m_shadowMap.imageView, nullptr);
+	m_disp.destroySampler(m_shadowMap.sampler, nullptr);
+
+	DestroyShadowMapStagingBuffer();
 
 	shaderManager.CleanupShaderModules(m_disp);
 

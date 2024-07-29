@@ -38,7 +38,7 @@ struct ModelResource
 	VkBuffer indexBuffer;
 	VmaAllocation indexAllocation;
 
-	std::string pipeLineName;
+	std::string pipelineName;
 };
 
 struct TextureResource
@@ -75,10 +75,11 @@ struct PBRMaterialResource : public MaterialResource
 {
 	struct Config
 	{
-		glm::vec4 albedo = glm::vec4(1.0f); // Colour
-		float metallic = 1.0f;              // Strength
-		float roughness = 1.0f;             // Strength
-		float ao = 1.0f;                    // Strength
+		glm::vec3 albedo = glm::vec3(1.0f); // Colour
+		float metallic = 0.5f;              // Strength
+		float roughness = 0.5f;             // Strength
+		float ao = 0.5f;                    // Strength
+		glm::vec2 padding;
 	};
 
 	TextureResource* albedoTex;
