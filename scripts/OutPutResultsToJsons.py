@@ -91,7 +91,7 @@ def xml_to_json(xml_file, tool_name):
 
     return json_structure
 
-def json_to_discord_json(json_data, os_name, compiler, event):
+def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
     summary = json_data["results"]["summary"]
     tests = json_data["results"]["tests"]
 
@@ -120,11 +120,14 @@ def json_to_discord_json(json_data, os_name, compiler, event):
         for test in tests:
             if test["status"] == "failed":
                 failed_tests_summary += f"{test['name']}\n"
-                if 'message' in test:
-                    failed_tests_summary += f"{test['message'].strip()}\n"
+                message = test.get('message', 'Failed test did not return a message')
+                if message is not None:
+                    failed_tests_summary += f"{message.strip()}\n"
+                else:
+                    failed_tests_summary += "Failed test did not return a message\n"
         failed_tests_summary += "```\n"
 
-    content = f"Test Results for **{os_name}-{compiler}** triggered by **{event}**"
+    content = f"# Test Results\n **Platform**: {os_name}-{compiler}\n**Tester:** {author}\n **Branch:** {branch}\n **Event:** {event}"
     embeds = [
         {
             "title": "Test Summary",
@@ -155,6 +158,8 @@ def json_to_discord_json(json_data, os_name, compiler, event):
 
     return discord_json
 
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
     parser.add_argument('xml_file', help='Path to the XML file.')
@@ -164,6 +169,8 @@ if __name__ == "__main__":
     parser.add_argument('--os', help="Runners operating system")
     parser.add_argument('--compiler', help="Runners compiler")
     parser.add_argument('--event', help="The event triggering the action")
+    parser.add_argument('--author', help="The user triggering the action")
+    parser.add_argument('--branch', help="The branch branch the action was triggered on")
 
     args = parser.parse_args()
 
@@ -185,7 +192,7 @@ if __name__ == "__main__":
         print(f"JSON output has been written to {json_output_file}")
 
         # Generate Discord JSON output
-        discord_json = json_to_discord_json(json_data, args.os, args.compiler, args.event)
+        discord_json = json_to_discord_json(json_data, args.os, args.compiler, args.event, args.author, args.branch)
 
         # Write Discord JSON output to file
         with open(discord_json_output_file, 'w') as discord_json_file:

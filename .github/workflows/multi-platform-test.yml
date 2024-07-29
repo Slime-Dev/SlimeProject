@@ -108,9 +108,10 @@ jobs:
 
       - name: Convert XML to CTRF
         if: success()
+        shell: bash
         run: |
           pip install defusedxml
-          python ${{ github.workspace }}/scripts/OutPutResultsToJsons.py ${{ github.workspace }}/scripts/junitout.xml "Real Test" --json_output ${{ github.workspace }}/scripts/finalresult.json --discord_json_output ${{ github.workspace }}/scripts/discordJson_output.json --os ${{ runner.os }} --compiler ${{ matrix.c_compiler }} --event ${{ github.event_name }}
+          python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}"
 
       - name: Post results
         if: success()
