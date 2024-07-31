@@ -51,6 +51,9 @@ public:
 
 	void ImGuiDebug();
 
+	glm::vec3 GetForward() const;
+	float GetFOV() const;
+	float GetAspectRatio() const;
 private:
 	// Helper method
 	void UpdateCameraVectors();

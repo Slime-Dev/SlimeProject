@@ -147,29 +147,35 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 
 void calculateDirectionalLightMatrix(DirectionalLight& dirLight, Camera& camera)
 {
-	// Near and far planes
-	float nearPlane = 50.0f;
-	float farPlane = 1000.0f;
+    // Near and far planes
+    float nearPlane = 1.0f;
+    float farPlane = 1000.0f;
 
-	// Calculate the scene center and radius
-	glm::vec3 sceneCenter = camera.GetPosition();
-	float sceneRadius = 10.0f;
+	//! TODO: the frustum rotation is wrong i think its because of vulkan's coordinate system
+	
+    // Calculate the frustum center and radius
+    float frustumDistance = (farPlane - nearPlane) * 0.05f;
+    glm::vec3 frustumCenter = camera.GetPosition() + camera.GetForward() * frustumDistance;
+    float frustumRadius = frustumDistance / cos(glm::radians(camera.GetFOV() * 0.5f));
 
-	// Calculate the light position
-	glm::vec3 lightPos = -dirLight.direction * sceneRadius * 2.0f;
+    // Calculate the light position
+    glm::vec3 lightDir = glm::normalize(-dirLight.direction);
+    glm::vec3 lightPos = frustumCenter - lightDir * frustumRadius;
 
-	// Create the view matrix
-	glm::mat4 lightView = glm::lookAt(lightPos, sceneCenter, glm::vec3(0.0f, 1.0f, 0.0f));
-	
-	// Calculate orthographic projection bounds
-	float aspect = 1;
-	float orthoSize = sceneRadius * 2.0f;
-	
-	// Create the orthographic projection matrix
-	glm::mat4 lightProjection = glm::ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, nearPlane, farPlane + sceneRadius);
-	
-	// Combine view and projection matrices
-	dirLight.lightSpaceMatrix = lightProjection * lightView;
+    // Create the view matrix
+    glm::mat4 lightView = glm::lookAt(lightPos, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+
+    // Calculate orthographic projection bounds
+    float aspect = camera.GetAspectRatio();
+    float tanHalfFOV = tan(glm::radians(camera.GetFOV() * 0.5f));
+    float orthoHeight = frustumRadius * tanHalfFOV;
+    float orthoWidth = orthoHeight * aspect;
+
+    // Create the orthographic projection matrix
+    glm::mat4 lightProjection = glm::ortho(-orthoWidth, orthoWidth, -orthoHeight, orthoHeight, 0.0f, frustumRadius * 2.0f);
+
+    // Combine view and projection matrices
+    dirLight.lightSpaceMatrix = lightProjection * lightView;
 }
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
@@ -744,8 +750,7 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 	// Display shadow map
 	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::SetCursorPos(ImVec2(pan.x, pan.y));
-	// Flip the image vertically
-	ImGui::Image((ImTextureID) m_shadowMapId, imageSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::Image((ImTextureID) m_shadowMapId, imageSize);
 
 	// Pixel info on hover
 	if (ImGui::IsItemHovered())

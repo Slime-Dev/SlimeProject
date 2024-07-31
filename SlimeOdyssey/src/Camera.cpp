@@ -126,6 +126,21 @@ void Camera::ImGuiDebug()
 	ImGui::DragFloat("Pitch", &m_pitch, 0.1f);
 }
 
+glm::vec3 Camera::GetForward() const
+{
+	return m_front;
+}
+
+float Camera::GetFOV() const
+{
+	return m_fov;
+}
+
+float Camera::GetAspectRatio() const 
+{
+	return m_aspect;
+}
+
 void Camera::UpdateCameraVectors()
 {
 	glm::vec3 front;
