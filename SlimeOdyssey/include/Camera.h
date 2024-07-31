@@ -75,4 +75,13 @@ private:
 	CameraUBO m_cameraUBO;
 	VkBuffer m_cameraUBOBBuffer = VK_NULL_HANDLE;
 	VmaAllocation m_cameraUBOAllocation = VK_NULL_HANDLE;
+
+public:
+	float GetNearZ() const;
+
+	float GetFarZ() const;
+
+	glm::vec3 GetUp() const;
+
+	glm::vec3 GetRight() const;
 };

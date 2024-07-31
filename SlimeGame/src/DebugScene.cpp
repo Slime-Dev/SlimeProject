@@ -14,7 +14,7 @@ DebugScene::DebugScene(SlimeWindow* window)
     : Scene(), m_window(window)
 {
     Entity mainCamera = Entity("MainCamera");
-    mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.001f, 1000.0f);
+    mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
     m_entityManager.AddEntity(mainCamera);
 }
 

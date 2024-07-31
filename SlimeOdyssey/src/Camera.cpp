@@ -149,3 +149,23 @@ void Camera::UpdateCameraVectors()
 	front.z = std::sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
 	m_front = glm::normalize(front);
 }
+
+float Camera::GetNearZ() const
+{
+	return m_nearZ;
+}
+
+float Camera::GetFarZ() const
+{
+	return m_farZ;
+}
+
+glm::vec3 Camera::GetUp() const
+{
+	return m_up;
+}
+
+glm::vec3 Camera::GetRight() const
+{
+	return glm::normalize(glm::cross(m_front, m_up));
+}

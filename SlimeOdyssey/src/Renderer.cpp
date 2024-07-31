@@ -145,37 +145,58 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-void calculateDirectionalLightMatrix(DirectionalLight& dirLight, Camera& camera)
+void calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera)
 {
-    // Near and far planes
-    float nearPlane = 1.0f;
-    float farPlane = 1000.0f;
+	float near = 0.1f;
+	float far = 60.0f;
+	float fov = camera.GetFOV();
+	float aspect = camera.GetAspectRatio();
 
-	//! TODO: the frustum rotation is wrong i think its because of vulkan's coordinate system
-	
-    // Calculate the frustum center and radius
-    float frustumDistance = (farPlane - nearPlane) * 0.05f;
-    glm::vec3 frustumCenter = camera.GetPosition() + camera.GetForward() * frustumDistance;
-    float frustumRadius = frustumDistance / cos(glm::radians(camera.GetFOV() * 0.5f));
+	// Calculate frustum corners in view space
+	float tanHalfFov = tan(glm::radians(fov * 0.5f));
+	float heightNear = 2 * tanHalfFov * near;
+	float widthNear = heightNear * aspect;
+	float heightFar = 2 * tanHalfFov * far;
+	float widthFar = heightFar * aspect;
 
-    // Calculate the light position
-    glm::vec3 lightDir = glm::normalize(-dirLight.direction);
-    glm::vec3 lightPos = frustumCenter - lightDir * frustumRadius;
+	glm::vec3 centerNear = camera.GetPosition() + camera.GetForward() * near;
+	glm::vec3 centerFar = camera.GetPosition() + camera.GetForward() * far;
 
-    // Create the view matrix
-    glm::mat4 lightView = glm::lookAt(lightPos, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+	std::vector<glm::vec3> frustumCorners = { centerNear + camera.GetUp() * (heightNear * 0.5f) - camera.GetRight() * (widthNear * 0.5f),
+		centerNear + camera.GetUp() * (heightNear * 0.5f) + camera.GetRight() * (widthNear * 0.5f),
+		centerNear - camera.GetUp() * (heightNear * 0.5f) - camera.GetRight() * (widthNear * 0.5f),
+		centerNear - camera.GetUp() * (heightNear * 0.5f) + camera.GetRight() * (widthNear * 0.5f),
+		centerFar + camera.GetUp() * (heightFar * 0.5f) - camera.GetRight() * (widthFar * 0.5f),
+		centerFar + camera.GetUp() * (heightFar * 0.5f) + camera.GetRight() * (widthFar * 0.5f),
+		centerFar - camera.GetUp() * (heightFar * 0.5f) - camera.GetRight() * (widthFar * 0.5f),
+		centerFar - camera.GetUp() * (heightFar * 0.5f) + camera.GetRight() * (widthFar * 0.5f) };
 
-    // Calculate orthographic projection bounds
-    float aspect = camera.GetAspectRatio();
-    float tanHalfFOV = tan(glm::radians(camera.GetFOV() * 0.5f));
-    float orthoHeight = frustumRadius * tanHalfFOV;
-    float orthoWidth = orthoHeight * aspect;
+	// Calculate light view matrix
+	glm::vec3 lightDir = glm::normalize(-dirLight.direction);
+	glm::vec3 lightPos = camera.GetPosition() - lightDir * ((far - near) * 0.5f);
+	glm::mat4 lightView = glm::lookAt(lightPos, camera.GetPosition(), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    // Create the orthographic projection matrix
-    glm::mat4 lightProjection = glm::ortho(-orthoWidth, orthoWidth, -orthoHeight, orthoHeight, 0.0f, frustumRadius * 2.0f);
+	// Find bounding box of frustum corners in light space
+	glm::vec3 minCorner(std::numeric_limits<float>::max());
+	glm::vec3 maxCorner(std::numeric_limits<float>::lowest());
 
-    // Combine view and projection matrices
-    dirLight.lightSpaceMatrix = lightProjection * lightView;
+	for (const auto& corner: frustumCorners)
+	{
+		glm::vec3 lightSpaceCorner = glm::vec3(lightView * glm::vec4(corner, 1.0f));
+		minCorner = glm::min(minCorner, lightSpaceCorner);
+		maxCorner = glm::max(maxCorner, lightSpaceCorner);
+	}
+
+	// Add padding
+	float padding = (maxCorner.z - minCorner.z) * 0.2f; // 20% padding
+	minCorner -= glm::vec3(padding);
+	maxCorner += glm::vec3(padding);
+
+	// Create the orthographic projection matrix
+	glm::mat4 lightProjection = glm::ortho(minCorner.x, maxCorner.x, minCorner.y, maxCorner.y, -maxCorner.z, -minCorner.z);
+
+	// Combine view and projection matrices
+	dirLight.lightSpaceMatrix = lightProjection * lightView;
 }
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
