@@ -161,18 +161,14 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
     return discord_json
 
 def remove_markdown(text):
-    # Remove bold (**) and italic (*) formatting
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-    text = re.sub(r'\*(.*?)\*', r'\1', text)
-
-    # Remove code blocks (```)
-    text = re.sub(r'```[\s\S]*?```', '', text)
-
-    # Remove inline code (`)
-    text = re.sub(r'`(.*?)`', r'\1', text)
-
-    # Remove emoji shortcuts
-    text = re.sub(r':([\w+-]+):', '', text)
+    # Remove markdown characters
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Bold
+    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italics
+    text = re.sub(r'```[\s\S]*?```', '', text)   # Code blocks
+    text = re.sub(r'`(.*?)`', r'\1', text)       # Inline code
+    text = re.sub(r':([\w+-]+):', '', text)      # Emoji shortcuts
+    text = re.sub(r'#', '', text)                # Remove hash symbols
+    text = re.sub(r'[\u2600-\u26FF\u2700-\u27BF]', '', text) # Remove ASCII emojis
 
     return text.strip()
 
@@ -180,6 +176,12 @@ def create_dark_theme_test_results_image(json_data):
     # Parse JSON data
     data = json.loads(json_data) if isinstance(json_data, str) else json_data
     content = remove_markdown(data['content'])
+
+    # Apply markdown removal to each embed description
+    for embed in data['embeds']:
+        embed['title'] = remove_markdown(embed['title'])
+        embed['description'] = remove_markdown(embed['description'])
+
     embeds = data['embeds']
 
     # Set up image
@@ -205,8 +207,8 @@ def create_dark_theme_test_results_image(json_data):
     green = (0, 255, 0)
     red = (255, 0, 0)
 
-    # Draw title
-    draw.text((20, 20), "Test Results", font=title_font, fill=white)
+    # # Draw title
+    # draw.text((20, 20), "Test Results", font=title_font, fill=white)
 
     # Draw content
     y = 60
@@ -216,13 +218,16 @@ def create_dark_theme_test_results_image(json_data):
             draw.text((20, y), key.strip() + ':', font=body_font, fill=white)
             draw.text((150, y), value.strip(), font=body_font, fill=light_gray)
         else:
-            draw.text((20, y), line, font=body_font, fill=white)
+            if 'Test Result' in line:
+                draw.text((20, 20), "Test Results", font=title_font, fill=white)
+            else:
+                draw.text((20, y), line, font=body_font, fill=white)
         y += 25
 
     # Draw embeds
     for embed in embeds:
         y += 10
-        draw.text((20, y), embed['title'], font=header_font, fill=white)
+        draw.text((20, y), remove_markdown(embed['title']), font=header_font, fill=white)
         y += 30
 
         if embed['title'] == 'Test Summary':
