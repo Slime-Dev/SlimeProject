@@ -160,32 +160,37 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
 
     return discord_json
 
-def remove_markdown(text):
-    # Remove markdown characters
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Bold
-    text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italics
-    #text = re.sub(r'```[\s\S]*?```', '', text)   # Code blocks
-    text = re.sub(r'`(.*?)`', r'\1', text)       # Inline code
-    text = re.sub(r':([\w+-]+):', '', text)      # Emoji shortcuts
-    text = re.sub(r'#', '', text)                # Remove hash symbols
-    text = re.sub(r'[\u2600-\u26FF\u2700-\u27BF]', '', text) # Remove ASCII emojis
+def parse_test_results_from_file(file_path):
+    # Read the XML data from the file
+    with open(file_path, 'r', encoding='utf-8') as file:
+        xml_data = file.read()
 
-    return text.strip()
+    # Parse the XML data
+    root = ET.fromstring(xml_data)
 
-def create_dark_theme_test_results_image(json_data):
-    # Parse JSON data
-    data = json.loads(json_data) if isinstance(json_data, str) else json_data
-    content = remove_markdown(data['content'])
+    # Extract test suite information
+    test_suite_name = root.attrib.get('name', 'Test Suite')
+    tests = root.attrib.get('tests', '0')
+    failures = root.attrib.get('failures', '0')
+    skipped = root.attrib.get('skipped', '0')
+    time = root.attrib.get('time', '0')
 
-    # Apply markdown removal to each embed description
-    for embed in data['embeds']:
-        embed['title'] = remove_markdown(embed['title'])
-        embed['description'] = remove_markdown(embed['description'])
+    # Extract test case information
+    test_cases = []
+    for testcase in root.findall('testcase'):
+        name = testcase.attrib.get('name')
+        time = testcase.attrib.get('time')
+        status = 'passed' if float(time) > 0 else 'failed'  # Simplified logic
+        test_cases.append((name, status, time))
 
-    embeds = data['embeds']
+    return test_suite_name, tests, failures, skipped, time, test_cases
+
+def create_dark_theme_test_results_image(file_path, os, compiler):
+    # Parse the XML data from the file
+    test_suite_name, tests, failures, skipped, time, test_cases = parse_test_results_from_file(file_path)
 
     # Set up image
-    width, height = 500, 650
+    width, height = 500, 300
     background_color = (45, 47, 49)  # Dark gray
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
@@ -207,53 +212,33 @@ def create_dark_theme_test_results_image(json_data):
     green = (0, 255, 0)
     red = (255, 0, 0)
 
-    # # Draw title
-    # draw.text((20, 20), "Test Results", font=title_font, fill=white)
+    # Draw title
+    draw.text((20, 20), "Test Results", font=title_font, fill=white)
 
-    # Draw content
+    # Set the test suite as the os and compiler
+    test_suite_name = f"{os}-{compiler}"
+    # Draw test suite information
     y = 60
-    for line in content.split('\n'):
-        if ':' in line:
-            key, value = line.split(':', 1)
-            draw.text((20, y), key.strip() + ':', font=body_font, fill=white)
-            draw.text((150, y), value.strip(), font=body_font, fill=light_gray)
-        else:
-            if 'Test Result' in line:
-                draw.text((20, 20), "Test Results", font=title_font, fill=white)
-            else:
-                draw.text((20, y), line, font=body_font, fill=white)
+    draw.text((20, y), f"Test Suite: {test_suite_name}", font=body_font, fill=white)
+    y += 25
+    draw.text((20, y), f"Total Tests: {tests}", font=body_font, fill=white)
+    y += 25
+    draw.text((20, y), f"Failures: {failures}", font=body_font, fill=red if int(failures) > 0 else green)
+    y += 25
+    draw.text((20, y), f"Skipped: {skipped}", font=body_font, fill=light_gray)
+    y += 25
+    draw.text((20, y), f"Duration: {time}", font=body_font, fill=light_gray)
+    y += 40
+
+    # Draw test cases
+    draw.text((20, y), "Detailed Test Results", font=header_font, fill=white)
+    y += 30
+    for name, status, duration in test_cases:
+        draw.text((20, y), name, font=body_font, fill=white)
+        status_color = green if status == 'passed' else red
+        draw.text((200, y), status, font=body_font, fill=status_color)
+        draw.text((280, y), duration, font=body_font, fill=light_gray)
         y += 25
-
-    # Draw embeds
-    for embed in embeds:
-        y += 10
-        draw.text((20, y), remove_markdown(embed['title']), font=header_font, fill=white)
-        y += 30
-
-        if embed['title'] == 'Test Summary':
-            for line in embed['description'].split('\n'):
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    draw.text((20, y), key.strip() + ':', font=body_font, fill=white)
-                    color = green if 'Passed' in key else red if 'Failed' in key else light_gray
-                    draw.text((150, y), value.strip(), font=body_font, fill=color)
-                else:
-                    draw.text((20, y), line, font=body_font, fill=light_gray)
-                y += 25
-        elif embed['title'] == 'Detailed Test Results':
-            lines = embed['description'].strip('```').split('\n')[1:]  # Skip the first line
-            for line in lines:
-                parts = line.split()
-                if len(parts) >= 3:
-                    draw.text((20, y), parts[0], font=body_font, fill=white)
-                    status_color = green if parts[1] == 'passed' else red
-                    draw.text((200, y), parts[1], font=body_font, fill=status_color)
-                    draw.text((280, y), parts[2], font=body_font, fill=light_gray)
-                y += 25
-        else:
-            for line in embed['description'].split('\n'):
-                draw.text((20, y), line, font=body_font, fill=light_gray)
-                y += 25
 
     return image
 
@@ -299,7 +284,7 @@ if __name__ == "__main__":
         print(f"Discord JSON output has been written to {discord_json_output_file}")
 
         # Generate data
-        image = create_dark_theme_test_results_image(discord_json)
+        image = create_dark_theme_test_results_image(args.xml_file, args.os, args.compiler)
 
         # Create the image
         os.makedirs(os.path.dirname(args.image_out), exist_ok=True)
