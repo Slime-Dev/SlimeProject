@@ -953,8 +953,8 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			float z = -size / 2 + j * step;
 			Vertex vertex;
 			vertex.pos = glm::vec3(x, 0.0f, z);
-			vertex.normal = glm::vec3(0.0f, -1.0f, 0.0f); // Inverted normal
-			vertex.texCoord = glm::vec2(static_cast<float>(i) / divisions, static_cast<float>(j) / divisions);
+			vertex.normal = glm::vec3(0.0f, 1.0f, -1.0f);
+			vertex.texCoord = glm::vec2(static_cast<float>(i % 2), static_cast<float>(j % 2));
 			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
 			vertex.bitangent = glm::vec3(0.0f, 0.0f, -1.0f); // Inverted bitangent
 			model.vertices.push_back(vertex);

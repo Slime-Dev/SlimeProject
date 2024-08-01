@@ -27,7 +27,7 @@ struct PointLightObject : public Component
 struct DirectionalLight
 {
 	glm::vec3 direction = glm::vec3(-20.0f, 15.0f, 20.0f);
-	float ambientStrength = 0.01f;
+	float ambientStrength = 0.05f;
 	glm::vec3 color = glm::vec3(1.0f);
 	float padding;
 	glm::mat4 lightSpaceMatrix = glm::mat4();

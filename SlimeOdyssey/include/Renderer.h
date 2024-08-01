@@ -96,7 +96,7 @@ public:
 	void DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene);
 	void DrawModels(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene);
 
-	void DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager);
+	void DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
 
 	void CreateDepthImage(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils);
 
@@ -109,6 +109,7 @@ private:
 		glm::mat3 normalMatrix;
 	} m_mvp;
 
+	bool m_forceInvalidateDecriptorSets = false;
 
 	void UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene);
 	void UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allocator);
@@ -143,7 +144,7 @@ private:
 	void CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
 	void CleanUpShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator);
 	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, int x, int y);
-	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager);
+	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
 	
 	TextureResource m_shadowMap;
 	ImTextureID m_shadowMapId;
@@ -153,6 +154,8 @@ private:
 	VkDeviceSize m_shadowMapStagingBufferSize = 0;
 	unsigned int m_shadowMapWidth = 1080;
 	unsigned int m_shadowMapHeight = 1080;
+	unsigned int m_newShadowMapWidth = m_shadowMapWidth;
+	unsigned int m_newShadowMapHeight = m_shadowMapHeight;
 
 	//
 	/// DEPTH TESTING ///////////////////////////////////

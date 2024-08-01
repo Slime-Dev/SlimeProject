@@ -40,6 +40,18 @@ int Renderer::Draw(vkb::DispatchTable& disp,
         uint32_t imageIndex,
         Scene* scene)
 {
+	// Before we begin we want to see if we have changed the shadow map size
+	if ((m_newShadowMapWidth > 0 && m_shadowMapHeight > 0) && (m_shadowMapWidth != m_newShadowMapWidth || m_shadowMapHeight != m_newShadowMapHeight))
+	{
+		disp.deviceWaitIdle();
+		m_shadowMapWidth = m_newShadowMapWidth;
+		m_shadowMapHeight = m_newShadowMapHeight;
+		CreateShadowMap(disp, allocator, debugUtils);
+		ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)m_shadowMapId);
+		m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+
+
 	if (SlimeUtil::BeginCommandBuffer(disp, cmd) != 0)
 		return -1;
 
@@ -100,7 +112,7 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 		scene->Render();
 	}
 
-	DrawImguiDebugger(disp, allocator, commandPool, graphicsQueue, modelManager);
+	DrawImguiDebugger(disp, allocator, commandPool, graphicsQueue, modelManager, debugUtils);
 
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -188,12 +200,15 @@ void calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& c
 	}
 
 	// Add padding
-	float padding = (maxCorner.z - minCorner.z) * 0.2f; // 20% padding
-	minCorner -= glm::vec3(padding);
-	maxCorner += glm::vec3(padding);
+	// float padding = (maxCorner.z - minCorner.z) * 0.2f; // 20% padding
+	// minCorner -= glm::vec3(padding);
+	// maxCorner += glm::vec3(padding);
 
 	// Create the orthographic projection matrix
 	glm::mat4 lightProjection = glm::ortho(minCorner.x, maxCorner.x, minCorner.y, maxCorner.y, -maxCorner.z, -minCorner.z);
+
+	// Adjust for vulkan coordinate system
+	lightProjection[1][1] *= -1;
 
 	// Combine view and projection matrices
 	dirLight.lightSpaceMatrix = lightProjection * lightView;
@@ -348,9 +363,9 @@ void Renderer::DrawModels(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelM
 	debugUtils.EndDebugMarker(cmd);
 }
 
-void Renderer::DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager)
+void Renderer::DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
 {
-	RenderShadowMapInspector(disp, allocator, commandPool, graphicsQueue, modelManager);
+	RenderShadowMapInspector(disp, allocator, commandPool, graphicsQueue, modelManager, debugUtils);
 }
 
 void Renderer::UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene)
@@ -450,6 +465,19 @@ VkDescriptorSet Renderer::GetOrUpdateDescriptorSet(EntityManager& entityManager,
 {
 	size_t descriptorHash = GenerateDescriptorHash(entity, setIndex);
 
+	if (m_forceInvalidateDecriptorSets)
+	{
+		m_forceInvalidateDecriptorSets = false;
+
+		for (auto& entry: m_materialDescriptorCache)
+		{
+			descriptorManager.FreeDescriptorSet(entry.second->descriptorSet);
+		}
+
+		m_materialDescriptorCache.clear();
+		m_lruList.clear();
+	}
+
 	auto it = m_materialDescriptorCache.find(descriptorHash);
 	if (it != m_materialDescriptorCache.end())
 	{
@@ -540,12 +568,15 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 //
 void Renderer::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils)
 {
+	m_forceInvalidateDecriptorSets = true;
+
 	spdlog::debug("Creating shadow maps");
 	if (m_shadowMap.image != VK_NULL_HANDLE)
 	{
 		vmaDestroyImage(allocator, m_shadowMap.image, m_shadowMap.allocation);
 		disp.destroyImageView(m_shadowMap.imageView, nullptr);
 		disp.destroySampler(m_shadowMap.sampler, nullptr);
+		vmaDestroyBuffer(allocator, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
 	}
 
 	// Create Shadow map image
@@ -619,7 +650,7 @@ void Renderer::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd,
 	disp.cmdBeginRendering(cmd, &renderingInfo);
 
 	// Set viewport and scissor for shadow map
-	VkViewport viewport = { 0, 0, m_shadowMapWidth, m_shadowMapHeight, 0.0f, 1.0f };
+	VkViewport viewport = { 0, 0, (float)m_shadowMapWidth, (float)m_shadowMapHeight, 0.0f, 1.0f };
 	VkRect2D scissor = {
 		{		       0,		         0},
         {m_shadowMapWidth, m_shadowMapHeight}
@@ -714,7 +745,7 @@ float Renderer::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator al
 	return pixelValue;
 }
 
-void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager)
+void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
 {
 	ImGui::Begin("Shadow Map Inspector");
 
@@ -727,6 +758,17 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 	static ImVec2 pan = ImVec2(0.0f, 0.0f);
 	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
 	ImGui::DragFloat2("Pan", &pan.x, 0.01f);
+
+	// Change the shadow map size
+	ImGui::Text("Shadow Map Size:");
+	ImGui::SameLine();
+	ImGui::PushItemWidth(100);
+	ImGui::DragScalar("Width", ImGuiDataType_U32, &m_newShadowMapWidth);
+	ImGui::SameLine();
+	ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight);
+	ImGui::PopItemWidth();
+	
+
 
 	// Contrast control
 	static float contrast = 1.0f;

@@ -73,6 +73,17 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
 	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
 
+	auto groundPlane = modelManager.CreatePlane(allocator, 300.0f, 100);
+	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
+
+	// Create the groundPlane
+	Entity ground = Entity("Ground");
+	ground.AddComponent<Model>(groundPlane);
+	ground.AddComponent<PBRMaterial>(m_pbrMaterials[1]);
+	auto& groundTransform = ground.AddComponent<Transform>();
+	groundTransform.position = glm::vec3(0.0f, 0.2f, 0.0f); // Slightly above the grid
+	m_entityManager.AddEntity(ground);
+
 	// Create a bunny
 	Entity bunny = Entity("Bunny");
 	bunny.AddComponent<Model>(bunnyMesh);
