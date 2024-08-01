@@ -88,6 +88,9 @@ void main()
     vec3 numerator = NDF * G * F;
     float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
     vec3 specular = numerator / denominator;
+    specular *= vec3(1.0 - ao);
+    specular *= vec3(1.0 - metallic);
+    specular *= light.color;
 
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;

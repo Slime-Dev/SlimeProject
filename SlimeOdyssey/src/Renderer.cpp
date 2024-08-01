@@ -157,61 +157,94 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
-void calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera)
+std::vector<glm::vec3> calculateFrustumCorners(float fov, float aspect, float near, float far, const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up, const glm::vec3& right)
 {
-	float near = 0.1f;
-	float far = 60.0f;
+	float tanHalfFov = tan(glm::radians(fov * 0.5f));
+	glm::vec3 nearCenter = position + forward * near;
+	glm::vec3 farCenter = position + forward * far;
+
+	float nearHeight = 2.0f * tanHalfFov * near;
+	float nearWidth = nearHeight * aspect;
+	float farHeight = 2.0f * tanHalfFov * far;
+	float farWidth = farHeight * aspect;
+
+	std::vector<glm::vec3> corners(8);
+	corners[0] = nearCenter + up * (nearHeight * 0.5f) - right * (nearWidth * 0.5f);
+	corners[1] = nearCenter + up * (nearHeight * 0.5f) + right * (nearWidth * 0.5f);
+	corners[2] = nearCenter - up * (nearHeight * 0.5f) - right * (nearWidth * 0.5f);
+	corners[3] = nearCenter - up * (nearHeight * 0.5f) + right * (nearWidth * 0.5f);
+	corners[4] = farCenter + up * (farHeight * 0.5f) - right * (farWidth * 0.5f);
+	corners[5] = farCenter + up * (farHeight * 0.5f) + right * (farWidth * 0.5f);
+	corners[6] = farCenter - up * (farHeight * 0.5f) - right * (farWidth * 0.5f);
+	corners[7] = farCenter - up * (farHeight * 0.5f) + right * (farWidth * 0.5f);
+
+	return corners;
+}
+
+
+void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera)
+{
 	float fov = camera.GetFOV();
 	float aspect = camera.GetAspectRatio();
-
-	// Calculate frustum corners in view space
-	float tanHalfFov = tan(glm::radians(fov * 0.5f));
-	float heightNear = 2 * tanHalfFov * near;
-	float widthNear = heightNear * aspect;
-	float heightFar = 2 * tanHalfFov * far;
-	float widthFar = heightFar * aspect;
-
-	glm::vec3 centerNear = camera.GetPosition() + camera.GetForward() * near;
-	glm::vec3 centerFar = camera.GetPosition() + camera.GetForward() * far;
-
-	std::vector<glm::vec3> frustumCorners = { centerNear + camera.GetUp() * (heightNear * 0.5f) - camera.GetRight() * (widthNear * 0.5f),
-		centerNear + camera.GetUp() * (heightNear * 0.5f) + camera.GetRight() * (widthNear * 0.5f),
-		centerNear - camera.GetUp() * (heightNear * 0.5f) - camera.GetRight() * (widthNear * 0.5f),
-		centerNear - camera.GetUp() * (heightNear * 0.5f) + camera.GetRight() * (widthNear * 0.5f),
-		centerFar + camera.GetUp() * (heightFar * 0.5f) - camera.GetRight() * (widthFar * 0.5f),
-		centerFar + camera.GetUp() * (heightFar * 0.5f) + camera.GetRight() * (widthFar * 0.5f),
-		centerFar - camera.GetUp() * (heightFar * 0.5f) - camera.GetRight() * (widthFar * 0.5f),
-		centerFar - camera.GetUp() * (heightFar * 0.5f) + camera.GetRight() * (widthFar * 0.5f) };
-
-	// Calculate light view matrix
+	float near = m_shadowNear;
+	float far = m_shadowFar;
 	glm::vec3 lightDir = glm::normalize(-dirLight.direction);
-	glm::vec3 lightPos = camera.GetPosition() - lightDir * ((far - near) * 0.5f);
-	glm::mat4 lightView = glm::lookAt(lightPos, camera.GetPosition(), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::vec3 cameraPos = camera.GetPosition();
 
-	// Find bounding box of frustum corners in light space
-	glm::vec3 minCorner(std::numeric_limits<float>::max());
-	glm::vec3 maxCorner(std::numeric_limits<float>::lowest());
+	// Calculate the corners of the view frustum in world space
+	std::vector<glm::vec3> frustumCorners = calculateFrustumCorners(fov, aspect, near, far, cameraPos, camera.GetForward(), camera.GetUp(), camera.GetRight());
 
+	// Find the center of the frustum corners
+	glm::vec3 center = glm::vec3(0.0f);
+	for (const auto& corner: frustumCorners)
+	{
+		center += corner;
+	}
+	center /= frustumCorners.size();
+
+	// Find the radius of a sphere encompassing all frustum corners
+	float radius = 0.0f;
+	for (const auto& corner: frustumCorners)
+	{
+		float distance = glm::length(corner - center);
+		radius = glm::max(radius, distance);
+	}
+
+	// Calculate the light's position
+	glm::vec3 dirLightPosition = center - lightDir * radius;
+
+	// Create the light's view matrix
+	glm::mat4 lightView = glm::lookAt(dirLightPosition, center, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	// Calculate the bounding box of the frustum in light space
+	glm::vec3 minBounds(std::numeric_limits<float>::max());
+	glm::vec3 maxBounds(std::numeric_limits<float>::lowest());
 	for (const auto& corner: frustumCorners)
 	{
 		glm::vec3 lightSpaceCorner = glm::vec3(lightView * glm::vec4(corner, 1.0f));
-		minCorner = glm::min(minCorner, lightSpaceCorner);
-		maxCorner = glm::max(maxCorner, lightSpaceCorner);
+		minBounds = glm::min(minBounds, lightSpaceCorner);
+		maxBounds = glm::max(maxBounds, lightSpaceCorner);
 	}
 
-	// Add padding
-	// float padding = (maxCorner.z - minCorner.z) * 0.2f; // 20% padding
-	// minCorner -= glm::vec3(padding);
-	// maxCorner += glm::vec3(padding);
+	// Add some padding to the bounding box
+	float padding = 50.0f;
+	minBounds -= glm::vec3(padding);
+	maxBounds += glm::vec3(padding);
 
-	// Create the orthographic projection matrix
-	glm::mat4 lightProjection = glm::ortho(minCorner.x, maxCorner.x, minCorner.y, maxCorner.y, -maxCorner.z, -minCorner.z);
+	// Adjust the Z range for Vulkan's depth range [0, 1]
+	float zNear = -maxBounds.z;
+	float zFar = -minBounds.z;
 
-	// Adjust for vulkan coordinate system
-	lightProjection[1][1] *= -1;
+    // Create the light's orthographic projection matrix
+	glm::mat4 lightProjection = glm::ortho(minBounds.x, maxBounds.x, minBounds.y, maxBounds.y, zNear, zFar);
+
+	glm::mat4 vulkanNdcAdjustment = glm::mat4(1.0f);
+	vulkanNdcAdjustment[1][1] = -1.0f;
+	vulkanNdcAdjustment[2][2] = 0.5f;
+	vulkanNdcAdjustment[3][2] = 0.5f;
 
 	// Combine view and projection matrices
-	dirLight.lightSpaceMatrix = lightProjection * lightView;
+	dirLight.lightSpaceMatrix = vulkanNdcAdjustment * lightProjection * lightView;
 }
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
@@ -768,7 +801,14 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 	ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight);
 	ImGui::PopItemWidth();
 	
-
+	// Shadow near and far
+	ImGui::Text("Shadow Near:");
+	ImGui::SameLine();
+	ImGui::PushItemWidth(100);
+	ImGui::DragFloat("Near", &m_shadowNear, 0.1f);
+	ImGui::SameLine();
+	ImGui::DragFloat("Far", &m_shadowFar, 0.1f);
+	ImGui::PopItemWidth();
 
 	// Contrast control
 	static float contrast = 1.0f;

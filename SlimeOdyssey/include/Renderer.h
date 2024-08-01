@@ -146,14 +146,18 @@ private:
 	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, int x, int y);
 	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
 	
+	void calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera);
+
 	TextureResource m_shadowMap;
 	ImTextureID m_shadowMapId;
 	float m_shadowMapZoom = 1.0f;
 	VkBuffer m_shadowMapStagingBuffer = VK_NULL_HANDLE;
 	VmaAllocation m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
 	VkDeviceSize m_shadowMapStagingBufferSize = 0;
-	unsigned int m_shadowMapWidth = 1080;
-	unsigned int m_shadowMapHeight = 1080;
+	float m_shadowNear = 0.1f;
+	float m_shadowFar = 120.0f;
+	unsigned int m_shadowMapWidth = 4096;
+	unsigned int m_shadowMapHeight = 4096;
 	unsigned int m_newShadowMapWidth = m_shadowMapWidth;
 	unsigned int m_newShadowMapHeight = m_shadowMapHeight;
 

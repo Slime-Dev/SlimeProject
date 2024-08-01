@@ -73,7 +73,7 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
 	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
 
-	auto groundPlane = modelManager.CreatePlane(allocator, 300.0f, 100);
+	auto groundPlane = modelManager.CreatePlane(allocator, 300.0f, 10);
 	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
 
 	// Create the groundPlane

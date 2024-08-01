@@ -128,9 +128,7 @@ void Camera::ImGuiDebug()
 
 glm::vec3 Camera::GetForward() const
 {
-	glm::vec3 forward = m_front;
-	forward.y = 0.0f;
-	return glm::normalize(forward);
+	return m_front;
 }
 
 float Camera::GetFOV() const
