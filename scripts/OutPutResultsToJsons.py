@@ -190,18 +190,19 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
     test_suite_name, tests, failures, skipped, time, test_cases = parse_test_results_from_file(file_path)
 
     # Set up image
-    width, height = 500, 300
+    width, height = 500, 350
     background_color = (45, 47, 49)  # Dark gray
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
 
-    # Load fonts (ensure you have these fonts or replace with available ones)
+    # Load fonts
     try:
-        title_font = ImageFont.truetype("arial.ttf", 24)
-        header_font = ImageFont.truetype("arial.ttf", 18)
-        body_font = ImageFont.truetype("arial.ttf", 14)
+        # Use DejaVuSans as it is commonly available across platforms
+        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)
+        header_font = ImageFont.truetype("DejaVuSans.ttf", 18)
+        body_font = ImageFont.truetype("DejaVuSans.ttf", 14)
     except IOError:
-        # Fallback to default font if Arial is not available
+        # Fallback to default font if not available
         title_font = ImageFont.load_default()
         header_font = ImageFont.load_default()
         body_font = ImageFont.load_default()
@@ -215,8 +216,9 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
     # Draw title
     draw.text((20, 20), "Test Results", font=title_font, fill=white)
 
-    # Set the test suite as the os and compiler
+    # Hard set the suite name
     test_suite_name = f"{os}-{compiler}"
+
     # Draw test suite information
     y = 60
     draw.text((20, y), f"Test Suite: {test_suite_name}", font=body_font, fill=white)
