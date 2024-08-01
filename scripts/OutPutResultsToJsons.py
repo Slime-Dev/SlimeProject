@@ -197,10 +197,15 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
 
     # Load fonts
     try:
-        # Use DejaVuSans as it is commonly available across platforms
-        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)
-        header_font = ImageFont.truetype("DejaVuSans.ttf", 18)
-        body_font = ImageFont.truetype("DejaVuSans.ttf", 14)
+        if os == "Windows":
+            title_font = ImageFont.truetype("arial.ttf", 24)
+            header_font = ImageFont.truetype("arial.ttf", 18)
+            body_font = ImageFont.truetype("arial.ttf", 14)
+        else:
+            # Use DejaVuSans as it is commonly available across platforms
+            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)
+            header_font = ImageFont.truetype("DejaVuSans.ttf", 18)
+            body_font = ImageFont.truetype("DejaVuSans.ttf", 14)
     except IOError:
         # Fallback to default font if not available
         title_font = ImageFont.load_default()
