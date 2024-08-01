@@ -173,21 +173,27 @@ def parse_test_results_from_file(file_path):
     tests = root.attrib.get('tests', '0')
     failures = root.attrib.get('failures', '0')
     skipped = root.attrib.get('skipped', '0')
-    time = root.attrib.get('time', '0')
+
+    # Initialize the total time
+    total_time = 0.0
 
     # Extract test case information
     test_cases = []
     for testcase in root.findall('testcase'):
         name = testcase.attrib.get('name')
-        time = testcase.attrib.get('time')
-        status = 'passed' if float(time) > 0 else 'failed'  # Simplified logic
+        time = float(testcase.attrib.get('time', '0'))
+        status = 'passed' if testcase.find('failure') is None else 'failed'
         test_cases.append((name, status, time))
 
-    return test_suite_name, tests, failures, skipped, time, test_cases
+        # Accumulate total time
+        total_time += time
+
+    return test_suite_name, tests, failures, skipped, total_time, test_cases
+
 
 def create_dark_theme_test_results_image(file_path, os, compiler):
     # Parse the XML data from the file
-    test_suite_name, tests, failures, skipped, time, test_cases = parse_test_results_from_file(file_path)
+    test_suite_name, tests, failures, skipped, total_time, test_cases = parse_test_results_from_file(file_path)
 
     # Set up image
     width, height = 500, 350
@@ -234,7 +240,7 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
     y += 25
     draw.text((20, y), f"Skipped: {skipped}", font=body_font, fill=light_gray)
     y += 25
-    draw.text((20, y), f"Duration: {time}", font=body_font, fill=light_gray)
+    draw.text((20, y), f"Duration: {total_time:.6f}", font=body_font, fill=light_gray)
     y += 40
 
     # Draw test cases
@@ -244,11 +250,10 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
         draw.text((20, y), name, font=body_font, fill=white)
         status_color = green if status == 'passed' else red
         draw.text((200, y), status, font=body_font, fill=status_color)
-        draw.text((280, y), duration, font=body_font, fill=light_gray)
+        draw.text((280, y), f"{duration:.6f}", font=body_font, fill=light_gray)  # Corrected here
         y += 25
 
     return image
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
