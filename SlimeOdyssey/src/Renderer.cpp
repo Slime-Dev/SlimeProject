@@ -182,6 +182,23 @@ std::vector<glm::vec3> calculateFrustumCorners(float fov, float aspect, float ne
 }
 
 
+void Renderer::calculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius)
+{
+	center = glm::vec3(0.0f);
+	for (const auto& corner: frustumCorners)
+	{
+		center += corner;
+	}
+	center /= frustumCorners.size();
+
+	radius = 0.0f;
+	for (const auto& corner: frustumCorners)
+	{
+		float distance = glm::length(corner - center);
+		radius = glm::max(radius, distance);
+	}
+}
+
 void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera)
 {
 	float fov = camera.GetFOV();
@@ -194,31 +211,49 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 	// Calculate the corners of the view frustum in world space
 	std::vector<glm::vec3> frustumCorners = calculateFrustumCorners(fov, aspect, near, far, cameraPos, camera.GetForward(), camera.GetUp(), camera.GetRight());
 
-	// Find the center of the frustum corners
-	glm::vec3 center = glm::vec3(0.0f);
-	for (const auto& corner: frustumCorners)
-	{
-		center += corner;
-	}
-	center /= frustumCorners.size();
+	// Calculate the bounding sphere of the frustum
+	glm::vec3 frustumCenter;
+	float frustumRadius;
+	calculateFrustumSphere(frustumCorners, frustumCenter, frustumRadius);
 
-	// Find the radius of a sphere encompassing all frustum corners
-	float radius = 0.0f;
-	for (const auto& corner: frustumCorners)
+	// Check if recalculation is necessary
+	bool needsRecalculation = m_firstCalculation;
+	if (!m_firstCalculation)
 	{
-		float distance = glm::length(corner - center);
-		radius = glm::max(radius, distance);
+		float distanceMove = glm::length(frustumCenter - m_lastFrustumCenter);
+		float radiusChange = std::abs(frustumRadius - m_lastFrustumRadius);
+
+		// Recalculate if the frustum has moved more than 20% of its radius
+		// or if the radius has changed by more than 10%
+		needsRecalculation = (distanceMove > 0.2f * m_lastFrustumRadius) || (radiusChange > 0.1f * m_lastFrustumRadius);
+
+		// If the light has changed dir also recalculate
+		needsRecalculation |= m_lastLightDir != lightDir;
 	}
+
+	if (!needsRecalculation)
+	{
+		// If recalculation is not needed, use the last calculated matrix
+		dirLight.lightSpaceMatrix = m_lastLightSpaceMatrix;
+		return;
+	}
+
+	// Update last frustum data
+	m_lastFrustumCenter = frustumCenter;
+	m_lastFrustumRadius = frustumRadius;
+	m_firstCalculation = false;
 
 	// Calculate the light's position
-	glm::vec3 dirLightPosition = center - lightDir * radius;
+	m_lastLightDir = lightDir;
+	glm::vec3 dirLightPosition = frustumCenter - lightDir * frustumRadius;
 
 	// Create the light's view matrix
-	glm::mat4 lightView = glm::lookAt(dirLightPosition, center, glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 lightView = glm::lookAt(dirLightPosition, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
 
 	// Calculate the bounding box of the frustum in light space
 	glm::vec3 minBounds(std::numeric_limits<float>::max());
 	glm::vec3 maxBounds(std::numeric_limits<float>::lowest());
+
 	for (const auto& corner: frustumCorners)
 	{
 		glm::vec3 lightSpaceCorner = glm::vec3(lightView * glm::vec4(corner, 1.0f));
@@ -227,7 +262,7 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 	}
 
 	// Add some padding to the bounding box
-	float padding = 50.0f;
+	float padding = frustumRadius * 0.1f; // 10% of the frustum radius as padding
 	minBounds -= glm::vec3(padding);
 	maxBounds += glm::vec3(padding);
 
@@ -235,7 +270,7 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 	float zNear = -maxBounds.z;
 	float zFar = -minBounds.z;
 
-    // Create the light's orthographic projection matrix
+	// Create the light's orthographic projection matrix
 	glm::mat4 lightProjection = glm::ortho(minBounds.x, maxBounds.x, minBounds.y, maxBounds.y, zNear, zFar);
 
 	glm::mat4 vulkanNdcAdjustment = glm::mat4(1.0f);
@@ -244,7 +279,8 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 	vulkanNdcAdjustment[3][2] = 0.5f;
 
 	// Combine view and projection matrices
-	dirLight.lightSpaceMatrix = vulkanNdcAdjustment * lightProjection * lightView;
+	m_lastLightSpaceMatrix = vulkanNdcAdjustment * lightProjection * lightView;
+	dirLight.lightSpaceMatrix = m_lastLightSpaceMatrix;
 }
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)

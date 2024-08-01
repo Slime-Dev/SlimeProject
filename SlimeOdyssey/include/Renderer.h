@@ -147,6 +147,13 @@ private:
 	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
 	
 	void calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera);
+	void calculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius);
+
+	glm::vec3 m_lastFrustumCenter;
+	float m_lastFrustumRadius;
+	glm::mat4 m_lastLightSpaceMatrix;
+	bool m_firstCalculation = true;
+	glm::vec3 m_lastLightDir;
 
 	TextureResource m_shadowMap;
 	ImTextureID m_shadowMapId;
