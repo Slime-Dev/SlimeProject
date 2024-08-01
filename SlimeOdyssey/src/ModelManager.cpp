@@ -954,9 +954,10 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			Vertex vertex;
 			vertex.pos = glm::vec3(x, 0.0f, z);
 			vertex.normal = glm::vec3(0.0f, 1.0f, -1.0f);
-			vertex.texCoord = glm::vec2(static_cast<float>(i % 2), static_cast<float>(j % 2));
+			// Calculate UV coordinates to be 0-1 for each quad, but uniform direction
+			vertex.texCoord = glm::vec2(static_cast<float>(i % 2), static_cast<float>(1 - (j % 2)));
 			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-			vertex.bitangent = glm::vec3(0.0f, 0.0f, -1.0f); // Inverted bitangent
+			vertex.bitangent = glm::vec3(0.0f, 0.0f, -1.0f);
 			model.vertices.push_back(vertex);
 		}
 	}
@@ -969,11 +970,11 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			int topRight = topLeft + 1;
 			int bottomLeft = (i + 1) * (divisions + 1) + j;
 			int bottomRight = bottomLeft + 1;
-			// First triangle (changed winding order)
+			// First triangle
 			model.indices.push_back(topLeft);
 			model.indices.push_back(topRight);
 			model.indices.push_back(bottomLeft);
-			// Second triangle (changed winding order)
+			// Second triangle
 			model.indices.push_back(topRight);
 			model.indices.push_back(bottomRight);
 			model.indices.push_back(bottomLeft);
@@ -1077,7 +1078,6 @@ ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 	spdlog::debug("{} generated.", name);
 	return &m_modelResources[name];
 }
-
 
 ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, int segments, int rings)
 {

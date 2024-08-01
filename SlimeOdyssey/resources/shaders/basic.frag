@@ -71,6 +71,10 @@ void main()
     vec3 normalMap = texture(normalMap, TexCoords).rgb * 2.0 - 1.0;
     vec3 N = normalize(TBN * normalMap);
 
+    // Debug normals
+    // FragColor = vec4(N * 0.5 + 0.5, 1.0);
+    // return;
+
     // Correct view and light vectors
     vec3 V = normalize(camera.viewPos - FragPos);
     vec3 L = normalize(-light.direction);
@@ -88,9 +92,6 @@ void main()
     vec3 numerator = NDF * G * F;
     float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
     vec3 specular = numerator / denominator;
-    specular *= vec3(1.0 - ao);
-    specular *= vec3(1.0 - metallic);
-    specular *= light.color;
 
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
@@ -102,7 +103,7 @@ void main()
     float shadow = ShadowCalculation(FragPosLightSpace);
 
     // Combine lighting
-    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (1 - shadow);
+    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (1.0 - shadow) * ao;
     vec3 ambient = light.ambientStrength * albedo * ao;
 
     vec3 color = ambient + Lo;
@@ -149,9 +150,8 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
-{
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
 float ShadowCalculation(vec4 fragPosLightSpace)

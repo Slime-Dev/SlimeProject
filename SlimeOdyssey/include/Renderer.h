@@ -110,6 +110,7 @@ private:
 	} m_mvp;
 
 	bool m_forceInvalidateDecriptorSets = false;
+	glm::vec4 m_clearColour = glm::vec4(0.98f, 0.506f, 0.365f, 1.0f);
 
 	void UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene);
 	void UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allocator);

@@ -1,5 +1,7 @@
 #include "Renderer.h"
 
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
 #include <Camera.h>
 #include <Light.h>
 
@@ -10,8 +12,6 @@
 #include "vk_mem_alloc.h"
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
-#include <backends/imgui_impl_vulkan.h>
-#include <backends/imgui_impl_glfw.h>
 
 void Renderer::SetUp(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
 {
@@ -47,10 +47,9 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 		m_shadowMapWidth = m_newShadowMapWidth;
 		m_shadowMapHeight = m_newShadowMapHeight;
 		CreateShadowMap(disp, allocator, debugUtils);
-		ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)m_shadowMapId);
+		ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet) m_shadowMapId);
 		m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
-
 
 	if (SlimeUtil::BeginCommandBuffer(disp, cmd) != 0)
 		return -1;
@@ -72,7 +71,9 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentInfo.clearValue = { .color = { { 0.05f, 0.05f, 0.05f, 0.0f } } };
+	colorAttachmentInfo.clearValue = {
+		.color = {m_clearColour.r, m_clearColour.g, m_clearColour.b, m_clearColour.a}
+	};
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -149,7 +150,7 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	VkViewport viewport = { .x = 0.0f, .y = 0.0f, .width = static_cast<float>(swapchain.extent.width), .height = static_cast<float>(swapchain.extent.height), .minDepth = 0.0f, .maxDepth = 1.0f };
 
 	VkRect2D scissor = {
-		.offset = { 0, 0 },
+		.offset = {0, 0},
           .extent = swapchain.extent
 	};
 
@@ -180,7 +181,6 @@ std::vector<glm::vec3> calculateFrustumCorners(float fov, float aspect, float ne
 
 	return corners;
 }
-
 
 void Renderer::calculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius)
 {
@@ -435,6 +435,14 @@ void Renderer::DrawModels(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelM
 void Renderer::DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
 {
 	RenderShadowMapInspector(disp, allocator, commandPool, graphicsQueue, modelManager, debugUtils);
+
+	// Render the ImGui debugger
+	ImGui::Begin("Renderer Debugger");
+
+	// clear colour
+	ImGui::ColorEdit4("Clear Colour", &m_clearColour.r);
+
+	ImGui::End();
 }
 
 void Renderer::UpdateCommonBuffers(VulkanDebugUtils& debugUtils, VmaAllocator allocator, VkCommandBuffer& cmd, Scene* scene)
@@ -719,7 +727,7 @@ void Renderer::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd,
 	disp.cmdBeginRendering(cmd, &renderingInfo);
 
 	// Set viewport and scissor for shadow map
-	VkViewport viewport = { 0, 0, (float)m_shadowMapWidth, (float)m_shadowMapHeight, 0.0f, 1.0f };
+	VkViewport viewport = { 0, 0, (float) m_shadowMapWidth, (float) m_shadowMapHeight, 0.0f, 1.0f };
 	VkRect2D scissor = {
 		{		       0,		         0},
         {m_shadowMapWidth, m_shadowMapHeight}
@@ -836,7 +844,7 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 	ImGui::SameLine();
 	ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight);
 	ImGui::PopItemWidth();
-	
+
 	// Shadow near and far
 	ImGui::Text("Shadow Near:");
 	ImGui::SameLine();

@@ -28,6 +28,9 @@ int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, 
 	pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Planet Material", "planet_surface/albedo.png", "planet_surface/normal.png", "planet_surface/metallic.png", "planet_surface/roughness.png", "planet_surface/ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
 
+	pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "Grass Material", "grass/albedo.png", "grass/normal.png", "planet_surface/metallic.png", "grass/roughness.png", "grass/ao.png");
+	m_pbrMaterials.push_back(pbrMaterialResource);
+
     InitializeDebugObjects(vulkanContext, modelManager);
     
 	return 0;
@@ -63,6 +66,7 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	// Light
 	auto lightEntity = std::make_shared<Entity>("Light");
 	DirectionalLight& light = lightEntity->AddComponent<DirectionalLightObject>().light;
+	light.color = glm::vec4(0.98f, 0.506f, 0.365f, 1.0f);
 	m_entityManager.AddEntity(lightEntity);
 
     VmaAllocator allocator = vulkanContext.GetAllocator();
@@ -73,13 +77,13 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
 	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
 
-	auto groundPlane = modelManager.CreatePlane(allocator, 300.0f, 10);
+	auto groundPlane = modelManager.CreatePlane(allocator, 50.0f, 25);
 	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
 
 	// Create the groundPlane
 	Entity ground = Entity("Ground");
 	ground.AddComponent<Model>(groundPlane);
-	ground.AddComponent<PBRMaterial>(m_pbrMaterials[1]);
+	ground.AddComponent<PBRMaterial>(m_pbrMaterials[2]);
 	auto& groundTransform = ground.AddComponent<Transform>();
 	groundTransform.position = glm::vec3(0.0f, 0.2f, 0.0f); // Slightly above the grid
 	m_entityManager.AddEntity(ground);
