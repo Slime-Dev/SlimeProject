@@ -3,7 +3,9 @@ import json
 import time
 import argparse
 import os
+from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timezone
+import re
 
 def xml_to_json(xml_file, tool_name):
     # Check if the file exists
@@ -158,6 +160,97 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
 
     return discord_json
 
+def remove_markdown(text):
+    # Remove bold (**) and italic (*) formatting
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+
+    # Remove code blocks (```)
+    text = re.sub(r'```[\s\S]*?```', '', text)
+
+    # Remove inline code (`)
+    text = re.sub(r'`(.*?)`', r'\1', text)
+
+    # Remove emoji shortcuts
+    text = re.sub(r':([\w+-]+):', '', text)
+
+    return text.strip()
+
+def create_dark_theme_test_results_image(json_data):
+    # Parse JSON data
+    data = json.loads(json_data) if isinstance(json_data, str) else json_data
+    content = remove_markdown(data['content'])
+    embeds = data['embeds']
+
+    # Set up image
+    width, height = 500, 600
+    background_color = (45, 47, 49)  # Dark gray
+    image = Image.new('RGB', (width, height), color=background_color)
+    draw = ImageDraw.Draw(image)
+
+    # Load fonts (ensure you have these fonts or replace with available ones)
+    try:
+        title_font = ImageFont.truetype("arial.ttf", 24)
+        header_font = ImageFont.truetype("arial.ttf", 18)
+        body_font = ImageFont.truetype("arial.ttf", 14)
+    except IOError:
+        # Fallback to default font if Arial is not available
+        title_font = ImageFont.load_default()
+        header_font = ImageFont.load_default()
+        body_font = ImageFont.load_default()
+
+    # Colors
+    white = (255, 255, 255)
+    light_gray = (200, 200, 200)
+    green = (0, 255, 0)
+    red = (255, 0, 0)
+
+    # Draw title
+    draw.text((20, 20), "Test Results", font=title_font, fill=white)
+
+    # Draw content
+    y = 60
+    for line in content.split('\n'):
+        if ':' in line:
+            key, value = line.split(':', 1)
+            draw.text((20, y), key.strip() + ':', font=body_font, fill=white)
+            draw.text((150, y), value.strip(), font=body_font, fill=light_gray)
+        else:
+            draw.text((20, y), line, font=body_font, fill=white)
+        y += 25
+
+    # Draw embeds
+    for embed in embeds:
+        y += 10
+        draw.text((20, y), embed['title'], font=header_font, fill=white)
+        y += 30
+
+        if embed['title'] == 'Test Summary':
+            for line in embed['description'].split('\n'):
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    draw.text((20, y), key.strip() + ':', font=body_font, fill=white)
+                    color = green if 'Passed' in key else red if 'Failed' in key else light_gray
+                    draw.text((150, y), value.strip(), font=body_font, fill=color)
+                else:
+                    draw.text((20, y), line, font=body_font, fill=light_gray)
+                y += 25
+        elif embed['title'] == 'Detailed Test Results':
+            lines = embed['description'].strip('```').split('\n')[1:]  # Skip the first line
+            for line in lines:
+                parts = line.split()
+                if len(parts) >= 3:
+                    draw.text((20, y), parts[0], font=body_font, fill=white)
+                    status_color = green if parts[1] == 'passed' else red
+                    draw.text((200, y), parts[1], font=body_font, fill=status_color)
+                    draw.text((280, y), parts[2], font=body_font, fill=light_gray)
+                y += 25
+        else:
+            for line in embed['description'].split('\n'):
+                draw.text((20, y), line, font=body_font, fill=light_gray)
+                y += 25
+
+    return image
 
 
 if __name__ == "__main__":
@@ -166,6 +259,7 @@ if __name__ == "__main__":
     parser.add_argument('tool_name', help='Name of the testing tool.')
     parser.add_argument('--json_output', help='Path to the output JSON file.')
     parser.add_argument('--discord_json_output', help='Path to the output Discord JSON file.')
+    parser.add_argument('--image_out', help="Image to post to discord")
     parser.add_argument('--os', help="Runners operating system")
     parser.add_argument('--compiler', help="Runners compiler")
     parser.add_argument('--event', help="The event triggering the action")
@@ -198,6 +292,13 @@ if __name__ == "__main__":
         with open(discord_json_output_file, 'w') as discord_json_file:
             json.dump(discord_json, discord_json_file, indent=2)
         print(f"Discord JSON output has been written to {discord_json_output_file}")
+
+        # Generate data
+        image = create_dark_theme_test_results_image(discord_json)
+
+        # Create the image
+        os.makedirs(os.path.dirname(args.image_out), exist_ok=True)
+        image.save(args.image_out)
 
     except FileNotFoundError as e:
         print(e)
