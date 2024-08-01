@@ -164,7 +164,7 @@ def remove_markdown(text):
     # Remove markdown characters
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Bold
     text = re.sub(r'\*(.*?)\*', r'\1', text)      # Italics
-    text = re.sub(r'```[\s\S]*?```', '', text)   # Code blocks
+    #text = re.sub(r'```[\s\S]*?```', '', text)   # Code blocks
     text = re.sub(r'`(.*?)`', r'\1', text)       # Inline code
     text = re.sub(r':([\w+-]+):', '', text)      # Emoji shortcuts
     text = re.sub(r'#', '', text)                # Remove hash symbols
@@ -185,7 +185,7 @@ def create_dark_theme_test_results_image(json_data):
     embeds = data['embeds']
 
     # Set up image
-    width, height = 500, 600
+    width, height = 500, 650
     background_color = (45, 47, 49)  # Dark gray
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
