@@ -1,44 +1,131 @@
 #pragma once
-#include <glm/fwd.hpp>
-#include "Component.h"
-#include <vk_mem_alloc.h>
 
-struct PointLight
+#include <glm/glm.hpp>
+#include <vk_mem_alloc.h>
+#include <vulkan/vulkan.h>
+
+#include "Component.h"
+
+constexpr float PADDING = 420.0f;
+
+enum class LightType
 {
-	glm::vec3 pos = glm::vec3(-6.0f, 6.0f, 6.0f);
+	Undefined,
+	Directional,
+	Point
+};
+
+// Base Light struct
+struct LightData
+{
+	// Split by 16 byte chunks
+	glm::vec3 color = glm::vec3(1.0f);
+	float padding1 = PADDING;
+
 	float ambientStrength = 0.0f;
-	glm::vec3 colour = glm::vec3(1.0f, 0.8f, 0.95f);
 	float specularStrength = 0.0f;
-	glm::vec3 direction = glm::vec3(0.0f);
-	float shininess = 0.0f;
+	float padding2[2] = { PADDING, PADDING };
+	
 	glm::mat4 lightSpaceMatrix = glm::mat4(1.0f);
 };
 
-struct PointLightObject : public Component
+// Base Light class
+class Light : public Component
 {
-	PointLight light;
+public:
+	virtual ~Light() = default;
+
+	LightType GetType() const
+	{
+		return m_lightType;
+	}
+
+	void SetLightSpaceMatrix(glm::mat4 lightSpaceMatric)
+	{
+		m_data.lightSpaceMatrix = lightSpaceMatric;
+	}
+
+	glm::mat4 GetLightSpaceMatrix() const
+	{
+		return m_data.lightSpaceMatrix;
+	}
+
+	glm::vec3 GetColor() const
+	{
+		return m_data.color;
+	}
+
+	void SetColor(glm::vec3 color)
+	{
+		m_data.color = color;
+	}
+
+	virtual void ImGuiDebug() = 0;
 
 	VkBuffer buffer = VK_NULL_HANDLE;
 	VmaAllocation allocation = VK_NULL_HANDLE;
 
-	void ImGuiDebug();
+protected:
+	LightType m_lightType = LightType::Undefined;
+	LightData m_data;
 };
 
-struct DirectionalLight
+// Directional Light
+class DirectionalLight : public Light
 {
-	glm::vec3 direction = glm::vec3(-20.0f, 15.0f, 20.0f);
-	float ambientStrength = 0.075f;
-	glm::vec3 color = glm::vec3(1.0f);
-	float padding;
-	glm::mat4 lightSpaceMatrix = glm::mat4();
+public:
+	DirectionalLight();
+
+	glm::vec3 GetDirection() const;
+	void SetDirection(const glm::vec3& direction);
+
+	const LightData& GetData() const;
+	void SetData(const LightData& data);
+
+	// Get the binding data
+	struct BindingData
+	{
+		LightData data;
+		glm::vec3 direction;
+		float padding1 = PADDING;
+	};
+	BindingData GetBindingData();
+	size_t GetBindingDataSize() const;
+
+	void ImGuiDebug() override;
+
+private:
+	glm::vec3 m_direction = glm::normalize(glm::vec3(-20.0f, 15.0f, 20.0f));
+	float m_padding3 = PADDING;
 };
 
-struct DirectionalLightObject : public Component
+// Point Light
+class PointLight : public Light
 {
-	DirectionalLight light;
+public:
+	PointLight();
 
-	VkBuffer buffer = VK_NULL_HANDLE;
-	VmaAllocation allocation = VK_NULL_HANDLE;
+	glm::vec3 GetPosition() const;
+	void SetPosition(const glm::vec3& position);
 
-	void ImGuiDebug();
+	float GetRadius() const;
+	void SetRadius(float radius);
+
+	const LightData& GetData() const;
+	void SetData(const LightData& data);
+
+	// Get the binding data
+	struct BindingData
+	{
+		LightData data;
+		glm::vec3 position;
+		float radius;
+	};
+	BindingData GetBindingData();
+	size_t GetBindingDataSize() const;
+
+	void ImGuiDebug() override;
+private:
+	glm::vec3 m_position = glm::vec3(-6.0f, 6.0f, 6.0f);
+	float m_radius = 50.0f; // Light's influence radius
 };

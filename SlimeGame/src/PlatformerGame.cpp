@@ -44,7 +44,7 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 
 	// Light
 	auto lightEntity = std::make_shared<Entity>("Light");
-	DirectionalLight& light = lightEntity->AddComponent<DirectionalLightObject>().light;
+	DirectionalLight& light = lightEntity->AddComponent<DirectionalLight>();
 	m_entityManager.AddEntity(lightEntity);
 }
 
@@ -158,10 +158,10 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), material->configBuffer, material->configAllocation);
 	}
 
-	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLightObject>();
+	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLight>();
 	for (const auto& entity: lightEntities)
 	{
-		DirectionalLightObject& light = entity->GetComponent<DirectionalLightObject>();
+		DirectionalLight& light = entity->GetComponent<DirectionalLight>();
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 

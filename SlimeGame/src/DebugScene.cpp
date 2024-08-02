@@ -65,8 +65,8 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 {
 	// Light
 	auto lightEntity = std::make_shared<Entity>("Light");
-	DirectionalLight& light = lightEntity->AddComponent<DirectionalLightObject>().light;
-	light.color = glm::vec4(0.98f, 0.506f, 0.365f, 1.0f);
+	DirectionalLight& light = lightEntity->AddComponent<DirectionalLight>();
+	light.SetColor(glm::vec3(0.98f, 0.506f, 0.365f));
 	m_entityManager.AddEntity(lightEntity);
 
     VmaAllocator allocator = vulkanContext.GetAllocator();
@@ -179,17 +179,17 @@ void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 	}
 
 	// Clean up lights
-	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLightObject>();
+	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLight>();
 	for (const auto& entity: lightEntities)
 	{
-		PointLightObject& light = entity->GetComponent<PointLightObject>();
+		PointLight& light = entity->GetComponent<PointLight>();
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 
-	lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLightObject>();
+	lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLight>();
 	for (const auto& entity: lightEntities)
 	{
-		DirectionalLightObject& light = entity->GetComponent<DirectionalLightObject>();
+		DirectionalLight& light = entity->GetComponent<DirectionalLight>();
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 

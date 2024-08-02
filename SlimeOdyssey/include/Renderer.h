@@ -61,9 +61,9 @@ namespace std
 	{
 		size_t operator()(const DirectionalLight& light) const
 		{
-			size_t h1 = hash<glm::vec3>()(light.direction);
-			size_t h2 = hash<glm::vec3>()(light.color);
-			size_t h3 = hash<float>()(light.ambientStrength);
+			size_t h1 = hash<glm::vec3>()(light.GetDirection());
+			size_t h2 = hash<glm::vec3>()(light.GetData().color);
+			size_t h3 = hash<float>()(light.GetData().ambientStrength);
 			return h1 ^ (h2 << 1) ^ (h3 << 2);
 		}
 	};

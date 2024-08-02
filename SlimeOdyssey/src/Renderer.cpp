@@ -72,7 +72,7 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachmentInfo.clearValue = {
-		.color = {m_clearColour.r, m_clearColour.g, m_clearColour.b, m_clearColour.a}
+		.color = { m_clearColour.r, m_clearColour.g, m_clearColour.b, m_clearColour.a }
 	};
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
@@ -86,7 +86,7 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.renderArea = {
-		.offset = {0, 0},
+		.offset = { 0, 0 },
           .extent = swapchain.extent
 	};
 	renderingInfo.layerCount = 1;
@@ -150,7 +150,7 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	VkViewport viewport = { .x = 0.0f, .y = 0.0f, .width = static_cast<float>(swapchain.extent.width), .height = static_cast<float>(swapchain.extent.height), .minDepth = 0.0f, .maxDepth = 1.0f };
 
 	VkRect2D scissor = {
-		.offset = {0, 0},
+		.offset = { 0, 0 },
           .extent = swapchain.extent
 	};
 
@@ -205,7 +205,7 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 	float aspect = camera.GetAspectRatio();
 	float near = m_shadowNear;
 	float far = m_shadowFar;
-	glm::vec3 lightDir = glm::normalize(-dirLight.direction);
+	glm::vec3 lightDir = glm::normalize(-dirLight.GetDirection());
 	glm::vec3 cameraPos = camera.GetPosition();
 
 	// Calculate the corners of the view frustum in world space
@@ -234,7 +234,7 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 	if (!needsRecalculation)
 	{
 		// If recalculation is not needed, use the last calculated matrix
-		dirLight.lightSpaceMatrix = m_lastLightSpaceMatrix;
+		dirLight.SetLightSpaceMatrix(m_lastLightSpaceMatrix);
 		return;
 	}
 
@@ -280,7 +280,7 @@ void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const
 
 	// Combine view and projection matrices
 	m_lastLightSpaceMatrix = vulkanNdcAdjustment * lightProjection * lightView;
-	dirLight.lightSpaceMatrix = m_lastLightSpaceMatrix;
+	dirLight.SetLightSpaceMatrix(m_lastLightSpaceMatrix);
 }
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
@@ -297,7 +297,7 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 		return;
 	}
 
-	DirectionalLight& light = lightEntity->GetComponent<DirectionalLightObject>().light;
+	DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
 	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
 	calculateDirectionalLightMatrix(light, camera);
 
@@ -332,7 +332,7 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 			glm::mat4 modelMatrix;
 		} pushConstants;
 
-		pushConstants.lightSpaceMatrix = light.lightSpaceMatrix;
+		pushConstants.lightSpaceMatrix = light.GetLightSpaceMatrix();
 		pushConstants.modelMatrix = transform.GetModelMatrix();
 
 		disp.cmdPushConstants(cmd, shadowMapPipeline->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowMapPushConstants), &pushConstants);
@@ -469,12 +469,14 @@ void Renderer::UpdateLightBuffer(EntityManager& entityManager, VmaAllocator allo
 		return;
 	}
 
-	DirectionalLightObject& light = lightEntity->GetComponent<DirectionalLightObject>();
+	DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
 	if (light.buffer == VK_NULL_HANDLE)
 	{
-		SlimeUtil::CreateBuffer("Light Buffer", allocator, sizeof(light.light), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
+		SlimeUtil::CreateBuffer("Light Buffer", allocator, light.GetBindingDataSize(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
 	}
-	SlimeUtil::CopyStructToBuffer(light.light, allocator, light.allocation);
+
+	auto bindingData = light.GetBindingData();
+	SlimeUtil::CopyStructToBuffer(bindingData, allocator, light.allocation);
 }
 
 void Renderer::UpdateCameraBuffer(EntityManager& entityManager, VmaAllocator allocator)
@@ -614,8 +616,8 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 			return;
 		}
 
-		DirectionalLightObject& light = lightEntity->GetComponent<DirectionalLightObject>();
-		descriptorManager.BindBuffer(descSet, 0, light.buffer, 0, sizeof(light.light));
+		DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
+		descriptorManager.BindBuffer(descSet, 0, light.buffer, 0, light.GetBindingDataSize());
 	}
 	else if (setIndex == 2) // Material
 	{
@@ -718,8 +720,8 @@ void Renderer::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd,
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.renderArea = {
-		.offset = {               0,                 0},
-          .extent = {m_shadowMapWidth, m_shadowMapHeight}
+		.offset = {                0,                 0 },
+          .extent = { m_shadowMapWidth, m_shadowMapHeight }
 	};
 	renderingInfo.layerCount = 1;
 	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
@@ -729,8 +731,8 @@ void Renderer::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd,
 	// Set viewport and scissor for shadow map
 	VkViewport viewport = { 0, 0, (float) m_shadowMapWidth, (float) m_shadowMapHeight, 0.0f, 1.0f };
 	VkRect2D scissor = {
-		{		       0,		         0},
-        {m_shadowMapWidth, m_shadowMapHeight}
+		{		        0,		         0 },
+        { m_shadowMapWidth, m_shadowMapHeight }
 	};
 	disp.cmdSetViewport(cmd, 0, 1, &viewport);
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
@@ -828,30 +830,28 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 
 	// Window size and aspect ratio
 	ImVec2 windowSize = ImGui::GetContentRegionAvail();
-	float shadowmapAspectRatio = m_shadowMapWidth / (float) m_shadowMapHeight;
+	float shadowmapAspectRatio = static_cast<float>(m_shadowMapWidth) / m_shadowMapHeight;
 
-	// Zoom and pan controls
+	// Zoom control
 	static float zoom = 1.0f;
-	static ImVec2 pan = ImVec2(0.0f, 0.0f);
 	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
-	ImGui::DragFloat2("Pan", &pan.x, 0.01f);
 
-	// Change the shadow map size
+	// Shadow map size controls
 	ImGui::Text("Shadow Map Size:");
 	ImGui::SameLine();
 	ImGui::PushItemWidth(100);
-	ImGui::DragScalar("Width", ImGuiDataType_U32, &m_newShadowMapWidth);
+	ImGui::DragScalar("Width", ImGuiDataType_U32, &m_newShadowMapWidth, 1.0f, nullptr, nullptr, "%u");
 	ImGui::SameLine();
-	ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight);
+	ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight, 1.0f, nullptr, nullptr, "%u");
 	ImGui::PopItemWidth();
 
-	// Shadow near and far
-	ImGui::Text("Shadow Near:");
+	// Shadow near and far plane controls
+	ImGui::Text("Shadow Planes:");
 	ImGui::SameLine();
 	ImGui::PushItemWidth(100);
-	ImGui::DragFloat("Near", &m_shadowNear, 0.1f);
+	ImGui::DragFloat("Near", &m_shadowNear, 0.1f, 0.1f, m_shadowFar - 0.1f, "%.2f");
 	ImGui::SameLine();
-	ImGui::DragFloat("Far", &m_shadowFar, 0.1f);
+	ImGui::DragFloat("Far", &m_shadowFar, 0.1f, m_shadowNear + 0.1f, 1000.0f, "%.2f");
 	ImGui::PopItemWidth();
 
 	// Contrast control
@@ -889,28 +889,22 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 	{
 		imageSize = ImVec2(windowSize.x, windowSize.x / shadowmapAspectRatio);
 	}
-
-	// Apply zoom and pan
 	imageSize.x *= zoom;
 	imageSize.y *= zoom;
 
 	// Display shadow map
 	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
-	ImGui::SetCursorPos(ImVec2(pan.x, pan.y));
-	ImGui::Image((ImTextureID) m_shadowMapId, imageSize);
+	ImGui::Image(reinterpret_cast<ImTextureID>(m_shadowMapId), imageSize);
 
 	// Pixel info on hover
 	if (ImGui::IsItemHovered())
 	{
-		// Disable window manipulation while hovering
-		ImGui::SetWindowFocus();
-
 		ImVec2 mousePos = ImGui::GetMousePos();
 		ImVec2 imagePos = ImGui::GetItemRectMin();
 		ImVec2 relativePos = ImVec2(mousePos.x - imagePos.x, mousePos.y - imagePos.y);
 
-		int pixelX = (int) ((relativePos.x / imageSize.x) * m_shadowMapWidth);
-		int pixelY = (int) ((relativePos.y / imageSize.y) * m_shadowMapHeight);
+		int pixelX = static_cast<int>((relativePos.x / imageSize.x) * m_shadowMapWidth);
+		int pixelY = static_cast<int>((relativePos.y / imageSize.y) * m_shadowMapHeight);
 
 		float pixelValue = GetShadowMapPixelValue(disp, allocator, commandPool, graphicsQueue, modelManager, pixelX, pixelY);
 
@@ -928,30 +922,9 @@ void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator a
 		ImGui::ColorButton("Depth Color", depthColor, 0, ImVec2(40, 20));
 
 		ImGui::EndTooltip();
-
-		float wheel = ImGui::GetIO().MouseWheel;
-		if (ImGui::GetIO().KeyShift && wheel != 0)
-		{
-			const float zoomSpeed = 0.1f;
-			zoom *= (1.0f + wheel * zoomSpeed);
-			zoom = std::clamp(zoom, 0.1f, 10.0f);
-
-			// Adjust pan to zoom towards mouse position
-			ImVec2 mousePos = ImGui::GetMousePos();
-			ImVec2 center = ImGui::GetWindowPos() + windowSize * 0.5f;
-			pan += (mousePos - center) * (wheel * zoomSpeed);
-		}
-
-		// Left click and drag to pan
-		if (ImGui::IsMouseDragging(0))
-		{
-			ImVec2 delta = ImGui::GetIO().MouseDelta;
-			pan += delta;
-		}
 	}
 
 	ImGui::EndChild();
-
 	ImGui::End();
 }
 
