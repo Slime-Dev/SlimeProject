@@ -3,7 +3,9 @@ import json
 import time
 import argparse
 import os
+from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timezone
+import re
 
 def xml_to_json(xml_file, tool_name):
     # Check if the file exists
@@ -158,7 +160,100 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
 
     return discord_json
 
+def parse_test_results_from_file(file_path):
+    # Read the XML data from the file
+    with open(file_path, 'r', encoding='utf-8') as file:
+        xml_data = file.read()
 
+    # Parse the XML data
+    root = ET.fromstring(xml_data)
+
+    # Extract test suite information
+    test_suite_name = root.attrib.get('name', 'Test Suite')
+    tests = root.attrib.get('tests', '0')
+    failures = root.attrib.get('failures', '0')
+    skipped = root.attrib.get('skipped', '0')
+
+    # Initialize the total time
+    total_time = 0.0
+
+    # Extract test case information
+    test_cases = []
+    for testcase in root.findall('testcase'):
+        name = testcase.attrib.get('name')
+        time = float(testcase.attrib.get('time', '0'))
+        status = 'passed' if testcase.find('failure') is None else 'failed'
+        test_cases.append((name, status, time))
+
+        # Accumulate total time
+        total_time += time
+
+    return test_suite_name, tests, failures, skipped, total_time, test_cases
+
+
+def create_dark_theme_test_results_image(file_path, os, compiler):
+    # Parse the XML data from the file
+    test_suite_name, tests, failures, skipped, total_time, test_cases = parse_test_results_from_file(file_path)
+
+    # Set up image
+    width, height = 500, 350
+    background_color = (45, 47, 49)  # Dark gray
+    image = Image.new('RGB', (width, height), color=background_color)
+    draw = ImageDraw.Draw(image)
+
+    # Load fonts
+    try:
+        if os == "Windows":
+            title_font = ImageFont.truetype("arial.ttf", 24)
+            header_font = ImageFont.truetype("arial.ttf", 18)
+            body_font = ImageFont.truetype("arial.ttf", 14)
+        else:
+            # Use DejaVuSans as it is commonly available across platforms
+            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)
+            header_font = ImageFont.truetype("DejaVuSans.ttf", 18)
+            body_font = ImageFont.truetype("DejaVuSans.ttf", 14)
+    except IOError:
+        # Fallback to default font if not available
+        title_font = ImageFont.load_default()
+        header_font = ImageFont.load_default()
+        body_font = ImageFont.load_default()
+
+    # Colors
+    white = (255, 255, 255)
+    light_gray = (200, 200, 200)
+    green = (0, 255, 0)
+    red = (255, 0, 0)
+
+    # Draw title
+    draw.text((20, 20), "Test Results", font=title_font, fill=white)
+
+    # Hard set the suite name
+    test_suite_name = f"{os}-{compiler}"
+
+    # Draw test suite information
+    y = 60
+    draw.text((20, y), f"Test Suite: {test_suite_name}", font=body_font, fill=white)
+    y += 25
+    draw.text((20, y), f"Total Tests: {tests}", font=body_font, fill=white)
+    y += 25
+    draw.text((20, y), f"Failures: {failures}", font=body_font, fill=red if int(failures) > 0 else green)
+    y += 25
+    draw.text((20, y), f"Skipped: {skipped}", font=body_font, fill=light_gray)
+    y += 25
+    draw.text((20, y), f"Duration: {total_time:.6f}", font=body_font, fill=light_gray)
+    y += 40
+
+    # Draw test cases
+    draw.text((20, y), "Detailed Test Results", font=header_font, fill=white)
+    y += 30
+    for name, status, duration in test_cases:
+        draw.text((20, y), name, font=body_font, fill=white)
+        status_color = green if status == 'passed' else red
+        draw.text((200, y), status, font=body_font, fill=status_color)
+        draw.text((280, y), f"{duration:.6f}", font=body_font, fill=light_gray)  # Corrected here
+        y += 25
+
+    return image
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
@@ -166,6 +261,7 @@ if __name__ == "__main__":
     parser.add_argument('tool_name', help='Name of the testing tool.')
     parser.add_argument('--json_output', help='Path to the output JSON file.')
     parser.add_argument('--discord_json_output', help='Path to the output Discord JSON file.')
+    parser.add_argument('--image_out', help="Image to post to discord")
     parser.add_argument('--os', help="Runners operating system")
     parser.add_argument('--compiler', help="Runners compiler")
     parser.add_argument('--event', help="The event triggering the action")
@@ -198,6 +294,13 @@ if __name__ == "__main__":
         with open(discord_json_output_file, 'w') as discord_json_file:
             json.dump(discord_json, discord_json_file, indent=2)
         print(f"Discord JSON output has been written to {discord_json_output_file}")
+
+        # Generate data
+        image = create_dark_theme_test_results_image(args.xml_file, args.os, args.compiler)
+
+        # Create the image
+        os.makedirs(os.path.dirname(args.image_out), exist_ok=True)
+        image.save(args.image_out)
 
     except FileNotFoundError as e:
         print(e)

@@ -85,3 +85,12 @@ bin/
 obj/
 *.spv
 _deps/
+scripts/ctestOutput.xml
+
+scripts/discord.json
+
+scripts/output.json
+
+scripts/testimage.png
+
+Testing/Temporary/
