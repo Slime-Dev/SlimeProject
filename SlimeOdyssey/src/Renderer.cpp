@@ -3,6 +3,7 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 #include <Camera.h>
+#include <functional>
 #include <Light.h>
 
 #include "DescriptorManager.h"
@@ -16,13 +17,11 @@
 void Renderer::SetUp(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
 {
 	CreateDepthImage(disp, allocator, swapchain, debugUtils);
-	CreateShadowMap(disp, allocator, debugUtils);
-	m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void Renderer::CleanUp(vkb::DispatchTable& disp, VmaAllocator allocator)
 {
-	CleanUpShadowMap(disp, allocator);
+	m_shadowSystem.Cleanup(disp, allocator);
 	CleanupDepthImage(disp, allocator);
 }
 
@@ -40,22 +39,34 @@ int Renderer::Draw(vkb::DispatchTable& disp,
         uint32_t imageIndex,
         Scene* scene)
 {
-	// Before we begin we want to see if we have changed the shadow map size
-	if ((m_newShadowMapWidth > 0 && m_shadowMapHeight > 0) && (m_shadowMapWidth != m_newShadowMapWidth || m_shadowMapHeight != m_newShadowMapHeight))
-	{
-		disp.deviceWaitIdle();
-		m_shadowMapWidth = m_newShadowMapWidth;
-		m_shadowMapHeight = m_newShadowMapHeight;
-		CreateShadowMap(disp, allocator, debugUtils);
-		ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet) m_shadowMapId);
-		m_shadowMapId = ImGui_ImplVulkan_AddTexture(m_shadowMap.sampler, m_shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	}
-
 	if (SlimeUtil::BeginCommandBuffer(disp, cmd) != 0)
 		return -1;
 
 	// Generate shadow map
-	GenerateShadowMap(disp, cmd, modelManager, descriptorManager, allocator, commandPool, graphicsQueue, debugUtils, scene);
+	std::vector<std::shared_ptr<Light>> lights;
+	scene->m_entityManager.ForEachEntityWith<DirectionalLight>(
+	        [&lights](Entity& entity)
+	        {
+		        if (auto light = entity.GetComponentShrPtr<DirectionalLight>())
+		        {
+			        lights.push_back(std::move(light));
+		        }
+	        });
+
+	scene->m_entityManager.ForEachEntityWith<PointLight>(
+	        [&lights](Entity& entity)
+	        {
+		        if (auto light = entity.GetComponentShrPtr<PointLight>())
+		        {
+			        lights.push_back(std::move(light));
+		        }
+	        });
+
+	std::shared_ptr<Camera> camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponentShrPtr<Camera>();
+
+	std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> DrawModelsForShadowMap = std::bind(&Renderer::DrawModelsForShadowMap, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, scene);
+
+	m_shadowSystem.UpdateShadowMaps(disp, cmd, modelManager, allocator, commandPool, graphicsQueue, debugUtils, scene, DrawModelsForShadowMap, lights, camera);
 
 	SetupViewportAndScissor(swapchain, disp, cmd);
 	SlimeUtil::SetupDepthTestingAndLineWidth(disp, cmd);
@@ -72,7 +83,7 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachmentInfo.clearValue = {
-		.color = { m_clearColour.r, m_clearColour.g, m_clearColour.b, m_clearColour.a }
+		.color = {m_clearColour.r, m_clearColour.g, m_clearColour.b, m_clearColour.a}
 	};
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
@@ -86,7 +97,7 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.renderArea = {
-		.offset = { 0, 0 },
+		.offset = {0, 0},
           .extent = swapchain.extent
 	};
 	renderingInfo.layerCount = 1;
@@ -150,137 +161,12 @@ void Renderer::SetupViewportAndScissor(vkb::Swapchain swapchain, vkb::DispatchTa
 	VkViewport viewport = { .x = 0.0f, .y = 0.0f, .width = static_cast<float>(swapchain.extent.width), .height = static_cast<float>(swapchain.extent.height), .minDepth = 0.0f, .maxDepth = 1.0f };
 
 	VkRect2D scissor = {
-		.offset = { 0, 0 },
+		.offset = {0, 0},
           .extent = swapchain.extent
 	};
 
 	disp.cmdSetViewport(cmd, 0, 1, &viewport);
 	disp.cmdSetScissor(cmd, 0, 1, &scissor);
-}
-
-std::vector<glm::vec3> calculateFrustumCorners(float fov, float aspect, float near, float far, const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up, const glm::vec3& right)
-{
-	float tanHalfFov = tan(glm::radians(fov * 0.5f));
-	glm::vec3 nearCenter = position + forward * near;
-	glm::vec3 farCenter = position + forward * far;
-
-	float nearHeight = 2.0f * tanHalfFov * near;
-	float nearWidth = nearHeight * aspect;
-	float farHeight = 2.0f * tanHalfFov * far;
-	float farWidth = farHeight * aspect;
-
-	std::vector<glm::vec3> corners(8);
-	corners[0] = nearCenter + up * (nearHeight * 0.5f) - right * (nearWidth * 0.5f);
-	corners[1] = nearCenter + up * (nearHeight * 0.5f) + right * (nearWidth * 0.5f);
-	corners[2] = nearCenter - up * (nearHeight * 0.5f) - right * (nearWidth * 0.5f);
-	corners[3] = nearCenter - up * (nearHeight * 0.5f) + right * (nearWidth * 0.5f);
-	corners[4] = farCenter + up * (farHeight * 0.5f) - right * (farWidth * 0.5f);
-	corners[5] = farCenter + up * (farHeight * 0.5f) + right * (farWidth * 0.5f);
-	corners[6] = farCenter - up * (farHeight * 0.5f) - right * (farWidth * 0.5f);
-	corners[7] = farCenter - up * (farHeight * 0.5f) + right * (farWidth * 0.5f);
-
-	return corners;
-}
-
-void Renderer::calculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius)
-{
-	center = glm::vec3(0.0f);
-	for (const auto& corner: frustumCorners)
-	{
-		center += corner;
-	}
-	center /= frustumCorners.size();
-
-	radius = 0.0f;
-	for (const auto& corner: frustumCorners)
-	{
-		float distance = glm::length(corner - center);
-		radius = glm::max(radius, distance);
-	}
-}
-
-void Renderer::calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera)
-{
-	float fov = camera.GetFOV();
-	float aspect = camera.GetAspectRatio();
-	float near = m_shadowNear;
-	float far = m_shadowFar;
-	glm::vec3 lightDir = glm::normalize(-dirLight.GetDirection());
-	glm::vec3 cameraPos = camera.GetPosition();
-
-	// Calculate the corners of the view frustum in world space
-	std::vector<glm::vec3> frustumCorners = calculateFrustumCorners(fov, aspect, near, far, cameraPos, camera.GetForward(), camera.GetUp(), camera.GetRight());
-
-	// Calculate the bounding sphere of the frustum
-	glm::vec3 frustumCenter;
-	float frustumRadius;
-	calculateFrustumSphere(frustumCorners, frustumCenter, frustumRadius);
-
-	// Check if recalculation is necessary
-	bool needsRecalculation = m_firstCalculation;
-	if (!m_firstCalculation)
-	{
-		float distanceMove = glm::length(frustumCenter - m_lastFrustumCenter);
-		float radiusChange = std::abs(frustumRadius - m_lastFrustumRadius);
-
-		// Recalculate if the frustum has moved more than 20% of its radius
-		// or if the radius has changed by more than 10%
-		needsRecalculation = (distanceMove > 0.2f * m_lastFrustumRadius) || (radiusChange > 0.1f * m_lastFrustumRadius);
-
-		// If the light has changed dir also recalculate
-		needsRecalculation |= m_lastLightDir != lightDir;
-	}
-
-	if (!needsRecalculation)
-	{
-		// If recalculation is not needed, use the last calculated matrix
-		dirLight.SetLightSpaceMatrix(m_lastLightSpaceMatrix);
-		return;
-	}
-
-	// Update last frustum data
-	m_lastFrustumCenter = frustumCenter;
-	m_lastFrustumRadius = frustumRadius;
-	m_firstCalculation = false;
-
-	// Calculate the light's position
-	m_lastLightDir = lightDir;
-	glm::vec3 dirLightPosition = frustumCenter - lightDir * frustumRadius;
-
-	// Create the light's view matrix
-	glm::mat4 lightView = glm::lookAt(dirLightPosition, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
-
-	// Calculate the bounding box of the frustum in light space
-	glm::vec3 minBounds(std::numeric_limits<float>::max());
-	glm::vec3 maxBounds(std::numeric_limits<float>::lowest());
-
-	for (const auto& corner: frustumCorners)
-	{
-		glm::vec3 lightSpaceCorner = glm::vec3(lightView * glm::vec4(corner, 1.0f));
-		minBounds = glm::min(minBounds, lightSpaceCorner);
-		maxBounds = glm::max(maxBounds, lightSpaceCorner);
-	}
-
-	// Add some padding to the bounding box
-	float padding = frustumRadius * 0.1f; // 10% of the frustum radius as padding
-	minBounds -= glm::vec3(padding);
-	maxBounds += glm::vec3(padding);
-
-	// Adjust the Z range for Vulkan's depth range [0, 1]
-	float zNear = -maxBounds.z;
-	float zFar = -minBounds.z;
-
-	// Create the light's orthographic projection matrix
-	glm::mat4 lightProjection = glm::ortho(minBounds.x, maxBounds.x, minBounds.y, maxBounds.y, zNear, zFar);
-
-	glm::mat4 vulkanNdcAdjustment = glm::mat4(1.0f);
-	vulkanNdcAdjustment[1][1] = -1.0f;
-	vulkanNdcAdjustment[2][2] = 0.5f;
-	vulkanNdcAdjustment[3][2] = 0.5f;
-
-	// Combine view and projection matrices
-	m_lastLightSpaceMatrix = vulkanNdcAdjustment * lightProjection * lightView;
-	dirLight.SetLightSpaceMatrix(m_lastLightSpaceMatrix);
 }
 
 void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
@@ -299,7 +185,6 @@ void Renderer::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils&
 
 	DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
 	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
-	calculateDirectionalLightMatrix(light, camera);
 
 	// Bind the shadow map pipeline
 	PipelineConfig* shadowMapPipeline = BindPipeline(disp, cmd, modelManager, "ShadowMap", debugUtils);
@@ -434,7 +319,7 @@ void Renderer::DrawModels(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelM
 
 void Renderer::DrawImguiDebugger(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
 {
-	RenderShadowMapInspector(disp, allocator, commandPool, graphicsQueue, modelManager, debugUtils);
+	m_shadowSystem.RenderShadowMapInspector(disp, allocator, commandPool, graphicsQueue, modelManager, debugUtils);
 
 	// Render the ImGui debugger
 	ImGui::Begin("Renderer Debugger");
@@ -607,17 +492,17 @@ void Renderer::UpdateBasicMaterialDescriptors(EntityManager& entityManager, Desc
 
 void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, DescriptorManager& descriptorManager, VkDescriptorSet descSet, Entity* entity, VmaAllocator allocator, int setIndex)
 {
+	auto lightEntity = entityManager.GetEntityByName("Light");
+	if (!lightEntity)
+	{
+		spdlog::critical("Light entity not found in UpdatePBRMaterialDescriptors.");
+		return;
+	}
+
+	auto light = lightEntity->GetComponentShrPtr<DirectionalLight>();
 	if (setIndex == 1) // Light
 	{
-		auto lightEntity = entityManager.GetEntityByName("Light");
-		if (!lightEntity)
-		{
-			spdlog::critical("Light entity not found in UpdatePBRMaterialDescriptors.");
-			return;
-		}
-
-		DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
-		descriptorManager.BindBuffer(descSet, 0, light.buffer, 0, light.GetBindingDataSize());
+		descriptorManager.BindBuffer(descSet, 0, light->buffer, 0, light->GetBindingDataSize());
 	}
 	else if (setIndex == 2) // Material
 	{
@@ -627,7 +512,10 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 		SlimeUtil::CopyStructToBuffer(materialResource.config, allocator, materialResource.configAllocation);
 		descriptorManager.BindBuffer(descSet, 0, materialResource.configBuffer, 0, sizeof(PBRMaterialResource::Config));
 
-		descriptorManager.BindImage(descSet, 1, m_shadowMap.imageView, m_shadowMap.sampler);
+		// TODO add support for multiple shadow maps
+		auto shadowMap = m_shadowSystem.GetShadowMap(light);
+
+		descriptorManager.BindImage(descSet, 1, shadowMap.imageView, shadowMap.sampler);
 
 		if (materialResource.albedoTex)
 			descriptorManager.BindImage(descSet, 2, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
@@ -640,292 +528,6 @@ void Renderer::UpdatePBRMaterialDescriptors(EntityManager& entityManager, Descri
 		if (materialResource.aoTex)
 			descriptorManager.BindImage(descSet, 6, materialResource.aoTex->imageView, materialResource.aoTex->sampler);
 	}
-}
-
-//
-/// SHADOWS ///////////////////////////////////
-//
-void Renderer::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils)
-{
-	m_forceInvalidateDecriptorSets = true;
-
-	spdlog::debug("Creating shadow maps");
-	if (m_shadowMap.image != VK_NULL_HANDLE)
-	{
-		vmaDestroyImage(allocator, m_shadowMap.image, m_shadowMap.allocation);
-		disp.destroyImageView(m_shadowMap.imageView, nullptr);
-		disp.destroySampler(m_shadowMap.sampler, nullptr);
-		vmaDestroyBuffer(allocator, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
-	}
-
-	// Create Shadow map image
-	VkImageCreateInfo shadowMapImageInfo = {};
-	shadowMapImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	shadowMapImageInfo.imageType = VK_IMAGE_TYPE_2D;
-	shadowMapImageInfo.extent.width = m_shadowMapWidth;
-	shadowMapImageInfo.extent.height = m_shadowMapHeight;
-	shadowMapImageInfo.extent.depth = 1;
-	shadowMapImageInfo.mipLevels = 1;
-	shadowMapImageInfo.arrayLayers = 1;
-	shadowMapImageInfo.format = VK_FORMAT_D32_SFLOAT;
-	shadowMapImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	shadowMapImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	shadowMapImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	shadowMapImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	shadowMapImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo shadowMapAllocInfo = {};
-	shadowMapAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-	VK_CHECK(vmaCreateImage(allocator, &shadowMapImageInfo, &shadowMapAllocInfo, &m_shadowMap.image, &m_shadowMap.allocation, nullptr));
-	debugUtils.SetObjectName(m_shadowMap.image, "ShadowMapImage");
-
-	// Create the shadow map image view
-	VkImageViewCreateInfo shadowMapImageViewInfo = {};
-	shadowMapImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	shadowMapImageViewInfo.image = m_shadowMap.image;
-	shadowMapImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	shadowMapImageViewInfo.format = VK_FORMAT_D32_SFLOAT;
-	shadowMapImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	shadowMapImageViewInfo.subresourceRange.baseMipLevel = 0;
-	shadowMapImageViewInfo.subresourceRange.levelCount = 1;
-	shadowMapImageViewInfo.subresourceRange.baseArrayLayer = 0;
-	shadowMapImageViewInfo.subresourceRange.layerCount = 1;
-
-	VK_CHECK(disp.createImageView(&shadowMapImageViewInfo, nullptr, &m_shadowMap.imageView));
-	debugUtils.SetObjectName(m_shadowMap.imageView, "ShadowMapImageView");
-
-	// Create the shadow map sampler
-	m_shadowMap.sampler = SlimeUtil::CreateSampler(disp);
-	debugUtils.SetObjectName(m_shadowMap.sampler, "ShadowMapSampler");
-
-	m_shadowMapStagingBufferSize = sizeof(float);
-	SlimeUtil::CreateBuffer("ShadowMapPixelStagingBuffer", allocator, m_shadowMapStagingBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
-}
-
-void Renderer::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene)
-{
-	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
-	// Transition shadow map image to depth attachment optimal
-	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-
-	VkRenderingAttachmentInfo depthAttachmentInfo = {};
-	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachmentInfo.imageView = m_shadowMap.imageView;
-	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue.depthStencil.depth = 1.0f;
-
-	VkRenderingInfo renderingInfo = {};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderingInfo.renderArea = {
-		.offset = {                0,                 0 },
-          .extent = { m_shadowMapWidth, m_shadowMapHeight }
-	};
-	renderingInfo.layerCount = 1;
-	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
-
-	disp.cmdBeginRendering(cmd, &renderingInfo);
-
-	// Set viewport and scissor for shadow map
-	VkViewport viewport = { 0, 0, (float) m_shadowMapWidth, (float) m_shadowMapHeight, 0.0f, 1.0f };
-	VkRect2D scissor = {
-		{		        0,		         0 },
-        { m_shadowMapWidth, m_shadowMapHeight }
-	};
-	disp.cmdSetViewport(cmd, 0, 1, &viewport);
-	disp.cmdSetScissor(cmd, 0, 1, &scissor);
-
-	// Draw models for shadow map
-	DrawModelsForShadowMap(disp, debugUtils, cmd, modelManager, scene);
-
-	disp.cmdEndRendering(cmd);
-
-	// Transition shadow map image to shader read-only optimal
-	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, m_shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	debugUtils.EndDebugMarker(cmd);
-}
-
-void Renderer::CleanUpShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator)
-{
-	// Clean up shadow map image and image view
-	vmaDestroyImage(allocator, m_shadowMap.image, m_shadowMap.allocation);
-	disp.destroyImageView(m_shadowMap.imageView, nullptr);
-	disp.destroySampler(m_shadowMap.sampler, nullptr);
-
-	if (m_shadowMapStagingBuffer != VK_NULL_HANDLE)
-	{
-		vmaDestroyBuffer(allocator, m_shadowMapStagingBuffer, m_shadowMapStagingBufferAllocation);
-		m_shadowMapStagingBuffer = VK_NULL_HANDLE;
-		m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
-	}
-}
-
-float Renderer::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, int x, int y)
-{
-	// Ensure x and y are within bounds
-	x = std::clamp(x, 0, static_cast<int>(m_shadowMapWidth) - 1);
-	y = std::clamp(y, 0, static_cast<int>(m_shadowMapHeight) - 1);
-
-	// Create command buffer for copy operation
-	VkCommandBuffer commandBuffer = SlimeUtil::BeginSingleTimeCommands(disp, commandPool);
-
-	// Transition shadow map image layout for transfer
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = m_shadowMap.image;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-	disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-	// Copy image to buffer
-	VkBufferImageCopy region{};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-	region.imageOffset = { x, y, 0 };
-	region.imageExtent = { 1, 1, 1 };
-
-	disp.cmdCopyImageToBuffer(commandBuffer, m_shadowMap.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_shadowMapStagingBuffer, 1, &region);
-
-	// Transition shadow map image layout back
-	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	disp.cmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-	SlimeUtil::EndSingleTimeCommands(disp, graphicsQueue, commandPool, commandBuffer);
-
-	// Read data from staging buffer
-	float pixelValue;
-	void* data;
-	vmaMapMemory(allocator, m_shadowMapStagingBufferAllocation, &data);
-	memcpy(&pixelValue, data, sizeof(float));
-	vmaUnmapMemory(allocator, m_shadowMapStagingBufferAllocation);
-
-	return pixelValue;
-}
-
-void Renderer::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
-{
-	ImGui::Begin("Shadow Map Inspector");
-
-	// Window size and aspect ratio
-	ImVec2 windowSize = ImGui::GetContentRegionAvail();
-	float shadowmapAspectRatio = static_cast<float>(m_shadowMapWidth) / m_shadowMapHeight;
-
-	// Zoom control
-	static float zoom = 1.0f;
-	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
-
-	// Shadow map size controls
-	ImGui::Text("Shadow Map Size:");
-	ImGui::SameLine();
-	ImGui::PushItemWidth(100);
-	ImGui::DragScalar("Width", ImGuiDataType_U32, &m_newShadowMapWidth, 1.0f, nullptr, nullptr, "%u");
-	ImGui::SameLine();
-	ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight, 1.0f, nullptr, nullptr, "%u");
-	ImGui::PopItemWidth();
-
-	// Shadow near and far plane controls
-	ImGui::Text("Shadow Planes:");
-	ImGui::SameLine();
-	ImGui::PushItemWidth(100);
-	ImGui::DragFloat("Near", &m_shadowNear, 0.1f, 0.1f, m_shadowFar - 0.1f, "%.2f");
-	ImGui::SameLine();
-	ImGui::DragFloat("Far", &m_shadowFar, 0.1f, m_shadowNear + 0.1f, 1000.0f, "%.2f");
-	ImGui::PopItemWidth();
-
-	// Contrast control
-	static float contrast = 1.0f;
-	ImGui::SliderFloat("Contrast", &contrast, 0.1f, 5.0f);
-
-	// Display a depth scale
-	ImGui::Text("Depth Scale:");
-	ImVec2 scaleSize(200, 20);
-	ImVec2 scalePos = ImGui::GetCursorScreenPos();
-	ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-	for (int i = 0; i < 100; i++)
-	{
-		float t = i / 99.0f;
-		float enhancedT = std::pow((t - 0.5f) * contrast + 0.5f, 2.2f);
-		enhancedT = std::clamp(enhancedT, 0.0f, 1.0f);
-		ImU32 color = ImGui::ColorConvertFloat4ToU32(ImVec4(enhancedT, enhancedT, enhancedT, 1.0f));
-		drawList->AddRectFilled(ImVec2(scalePos.x + t * scaleSize.x, scalePos.y), ImVec2(scalePos.x + (t + 0.01f) * scaleSize.x, scalePos.y + scaleSize.y), color);
-	}
-	drawList->AddRect(scalePos, ImVec2(scalePos.x + scaleSize.x, scalePos.y + scaleSize.y), IM_COL32_WHITE);
-
-	ImGui::Dummy(scaleSize);
-	ImGui::Text("0.0");
-	ImGui::SameLine(185);
-	ImGui::Text("1.0");
-
-	// Calculate image size
-	ImVec2 imageSize;
-	if (windowSize.x / windowSize.y > shadowmapAspectRatio)
-	{
-		imageSize = ImVec2(windowSize.y * shadowmapAspectRatio, windowSize.y);
-	}
-	else
-	{
-		imageSize = ImVec2(windowSize.x, windowSize.x / shadowmapAspectRatio);
-	}
-	imageSize.x *= zoom;
-	imageSize.y *= zoom;
-
-	// Display shadow map
-	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
-	ImGui::Image(reinterpret_cast<ImTextureID>(m_shadowMapId), imageSize);
-
-	// Pixel info on hover
-	if (ImGui::IsItemHovered())
-	{
-		ImVec2 mousePos = ImGui::GetMousePos();
-		ImVec2 imagePos = ImGui::GetItemRectMin();
-		ImVec2 relativePos = ImVec2(mousePos.x - imagePos.x, mousePos.y - imagePos.y);
-
-		int pixelX = static_cast<int>((relativePos.x / imageSize.x) * m_shadowMapWidth);
-		int pixelY = static_cast<int>((relativePos.y / imageSize.y) * m_shadowMapHeight);
-
-		float pixelValue = GetShadowMapPixelValue(disp, allocator, commandPool, graphicsQueue, modelManager, pixelX, pixelY);
-
-		// Apply contrast enhancement
-		float enhancedValue = std::pow((pixelValue - 0.5f) * contrast + 0.5f, 2.2f);
-		enhancedValue = std::clamp(enhancedValue, 0.0f, 1.0f);
-
-		ImGui::BeginTooltip();
-		ImGui::Text("Pixel: (%d, %d)", pixelX, pixelY);
-		ImGui::Text("Depth: %.3f", pixelValue);
-		ImGui::Text("Enhanced: %.3f", enhancedValue);
-
-		// Display a color swatch representing the depth
-		ImVec4 depthColor(enhancedValue, enhancedValue, enhancedValue, 1.0f);
-		ImGui::ColorButton("Depth Color", depthColor, 0, ImVec2(40, 20));
-
-		ImGui::EndTooltip();
-	}
-
-	ImGui::EndChild();
-	ImGui::End();
 }
 
 //

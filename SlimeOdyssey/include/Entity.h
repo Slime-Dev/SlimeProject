@@ -76,6 +76,17 @@ public:
 		return nullptr;
 	}
 
+	template<typename T>
+	std::shared_ptr<T> GetComponentShrPtr() const
+	{
+		auto it = m_components.find(std::type_index(typeid(T)));
+		if (it != m_components.end())
+		{
+			return std::static_pointer_cast<T>(it->second);
+		}
+		return nullptr;
+	}
+
 	template<typename... Ts>
 	bool HasComponents() const
 	{

@@ -1,6 +1,10 @@
 #include "ShadowSystem.h"
 
+#include <backends/imgui_impl_vulkan.h>
+#include <Scene.h>
+
 #include "ModelManager.h"
+#include "ShadowSystem.h"
 #include "VulkanDebugUtils.h"
 #include "VulkanUtil.h"
 
@@ -18,20 +22,30 @@ void ShadowSystem::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 	m_shadowData.clear();
 }
 
-void ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, const std::vector<Light*>& lights, const Camera& camera)
+void ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp,
+        VkCommandBuffer& cmd,
+        ModelManager& modelManager,
+        VmaAllocator allocator,
+        VkCommandPool commandPool,
+        VkQueue graphicsQueue,
+        VulkanDebugUtils& debugUtils,
+        Scene* scene,
+        std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
+        const std::vector<std::shared_ptr<Light>>& lights,
+        std::shared_ptr<Camera> camera)
 {
-	for (const auto& light: lights)
+	for (const auto light: lights)
 	{
 		if (m_shadowData.find(light) == m_shadowData.end())
 		{
 			CreateShadowMap(disp, allocator, debugUtils, light);
 		}
 		CalculateLightSpaceMatrix(light, camera);
-		GenerateShadowMap(disp, cmd, modelManager, light, camera);
+		GenerateShadowMap(disp, cmd, modelManager, allocator, commandPool, graphicsQueue, debugUtils, scene, drawModels, light, camera);
 	}
 }
 
-TextureResource ShadowSystem::GetShadowMap(const Light* light) const
+TextureResource ShadowSystem::GetShadowMap(const std::shared_ptr<Light> light) const
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
@@ -41,7 +55,7 @@ TextureResource ShadowSystem::GetShadowMap(const Light* light) const
 	return TextureResource(); // Return an empty TextureResource if not found
 }
 
-glm::mat4 ShadowSystem::GetLightSpaceMatrix(const Light* light) const
+glm::mat4 ShadowSystem::GetLightSpaceMatrix(const std::shared_ptr<Light> light) const
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
@@ -67,7 +81,7 @@ void ShadowSystem::SetShadowFarPlane(float far)
 	m_shadowFar = far;
 }
 
-float ShadowSystem::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, const Light* light, int x, int y) const
+float ShadowSystem::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, const std::shared_ptr<Light> light, int x, int y) const
 {
 	auto it = m_shadowData.find(light);
 	if (it == m_shadowData.end())
@@ -136,7 +150,119 @@ float ShadowSystem::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocato
 	return pixelValue;
 }
 
-void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, const Light* light)
+void ShadowSystem::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
+{
+	ImGui::Begin("Shadow Map Inspector");
+
+	// Window size and aspect ratio
+	ImVec2 windowSize = ImGui::GetContentRegionAvail();
+	float shadowmapAspectRatio = static_cast<float>(m_shadowMapWidth) / m_shadowMapHeight;
+
+	// Zoom control
+	static float zoom = 1.0f;
+	ImGui::SliderFloat("Zoom", &zoom, 0.1f, 10.0f);
+
+	// Shadow map size controls
+	//ImGui::Text("Shadow Map Size:");
+	//ImGui::SameLine();
+	//ImGui::PushItemWidth(100);
+	//ImGui::DragScalar("Width", ImGuiDataType_U32, &m_newShadowMapWidth, 1.0f, nullptr, nullptr, "%u");
+	//ImGui::SameLine();
+	//ImGui::DragScalar("Height", ImGuiDataType_U32, &m_newShadowMapHeight, 1.0f, nullptr, nullptr, "%u");
+	//ImGui::PopItemWidth();
+
+	// Shadow near and far plane controls
+	ImGui::Text("Shadow Planes:");
+	ImGui::SameLine();
+	ImGui::PushItemWidth(100);
+	ImGui::DragFloat("Near", &m_shadowNear, 0.1f, 0.1f, m_shadowFar - 0.1f, "%.2f");
+	ImGui::SameLine();
+	ImGui::DragFloat("Far", &m_shadowFar, 0.1f, m_shadowNear + 0.1f, 1000.0f, "%.2f");
+	ImGui::PopItemWidth();
+
+	// Contrast control
+	static float contrast = 1.0f;
+	ImGui::SliderFloat("Contrast", &contrast, 0.1f, 5.0f);
+
+	// Display a depth scale
+	ImGui::Text("Depth Scale:");
+	ImVec2 scaleSize(200, 20);
+	ImVec2 scalePos = ImGui::GetCursorScreenPos();
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+	for (int i = 0; i < 100; i++)
+	{
+		float t = i / 99.0f;
+		float enhancedT = std::pow((t - 0.5f) * contrast + 0.5f, 2.2f);
+		enhancedT = std::clamp(enhancedT, 0.0f, 1.0f);
+		ImU32 color = ImGui::ColorConvertFloat4ToU32(ImVec4(enhancedT, enhancedT, enhancedT, 1.0f));
+		drawList->AddRectFilled(ImVec2(scalePos.x + t * scaleSize.x, scalePos.y), ImVec2(scalePos.x + (t + 0.01f) * scaleSize.x, scalePos.y + scaleSize.y), color);
+	}
+	drawList->AddRect(scalePos, ImVec2(scalePos.x + scaleSize.x, scalePos.y + scaleSize.y), IM_COL32_WHITE);
+
+	ImGui::Dummy(scaleSize);
+	ImGui::Text("0.0");
+	ImGui::SameLine(185);
+	ImGui::Text("1.0");
+
+	// Calculate image size
+	ImVec2 imageSize;
+	if (windowSize.x / windowSize.y > shadowmapAspectRatio)
+	{
+		imageSize = ImVec2(windowSize.y * shadowmapAspectRatio, windowSize.y);
+	}
+	else
+	{
+		imageSize = ImVec2(windowSize.x, windowSize.x / shadowmapAspectRatio);
+	}
+	imageSize.x *= zoom;
+	imageSize.y *= zoom;
+
+	// TODO: add like a drop down list or something not just the first shadow map
+	auto light = m_shadowData.begin()->first;
+	auto& lightData = m_shadowData.begin()->second;
+
+	// Display shadow map
+	ImGui::BeginChild("ShadowMapRegion", windowSize, true, ImGuiWindowFlags_HorizontalScrollbar);
+	if (lightData.textureId == 0)
+	{
+		lightData.textureId = ImGui_ImplVulkan_AddTexture(lightData.shadowMap.sampler, lightData.shadowMap.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+	ImGui::Image(lightData.textureId, imageSize);
+
+	// Pixel info on hover
+	if (ImGui::IsItemHovered())
+	{
+		ImVec2 mousePos = ImGui::GetMousePos();
+		ImVec2 imagePos = ImGui::GetItemRectMin();
+		ImVec2 relativePos = ImVec2(mousePos.x - imagePos.x, mousePos.y - imagePos.y);
+
+		int pixelX = static_cast<int>((relativePos.x / imageSize.x) * m_shadowMapWidth);
+		int pixelY = static_cast<int>((relativePos.y / imageSize.y) * m_shadowMapHeight);
+
+		float pixelValue = GetShadowMapPixelValue(disp, allocator, commandPool, graphicsQueue, light, pixelX, pixelY);
+
+		// Apply contrast enhancement
+		float enhancedValue = std::pow((pixelValue - 0.5f) * contrast + 0.5f, 2.2f);
+		enhancedValue = std::clamp(enhancedValue, 0.0f, 1.0f);
+
+		ImGui::BeginTooltip();
+		ImGui::Text("Pixel: (%d, %d)", pixelX, pixelY);
+		ImGui::Text("Depth: %.3f", pixelValue);
+		ImGui::Text("Enhanced: %.3f", enhancedValue);
+
+		// Display a color swatch representing the depth
+		ImVec4 depthColor(enhancedValue, enhancedValue, enhancedValue, 1.0f);
+		ImGui::ColorButton("Depth Color", depthColor, 0, ImVec2(40, 20));
+
+		ImGui::EndTooltip();
+	}
+
+	ImGui::EndChild();
+	ImGui::End();
+}
+
+void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, const std::shared_ptr<Light> light)
 {
 	ShadowData& shadowData = m_shadowData[light];
 
@@ -185,7 +311,7 @@ void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator alloca
 	SlimeUtil::CreateBuffer("ShadowMapPixelStagingBuffer", allocator, shadowData.stagingBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, shadowData.stagingBuffer, shadowData.stagingBufferAllocation);
 }
 
-void ShadowSystem::CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, const Light* light)
+void ShadowSystem::CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, const std::shared_ptr<Light> light)
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
@@ -198,12 +324,65 @@ void ShadowSystem::CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator alloc
 	}
 }
 
-void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, const Light* light, const Camera& camera)
+void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
+        VkCommandBuffer& cmd,
+        ModelManager& modelManager,
+        VmaAllocator allocator,
+        VkCommandPool commandPool,
+        VkQueue graphicsQueue,
+        VulkanDebugUtils& debugUtils,
+        Scene* scene,
+        std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
+        const std::shared_ptr<Light> light,
+        const std::shared_ptr<Camera> camera)
 {
-	// TODO: Implement me
+	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
+
+	auto shadowMap = GetShadowMap(light);
+
+	// Transition shadow map image to depth attachment optimal
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachmentInfo.imageView = shadowMap.imageView;
+	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentInfo.clearValue.depthStencil.depth = 1.0f;
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea = {
+		.offset = {               0,                 0},
+          .extent = {m_shadowMapWidth, m_shadowMapHeight}
+	};
+	renderingInfo.layerCount = 1;
+	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+
+	disp.cmdBeginRendering(cmd, &renderingInfo);
+
+	// Set viewport and scissor for shadow map
+	VkViewport viewport = { 0, 0, (float) m_shadowMapWidth, (float) m_shadowMapHeight, 0.0f, 1.0f };
+	VkRect2D scissor = {
+		{		       0,		         0},
+        {m_shadowMapWidth, m_shadowMapHeight}
+	};
+	disp.cmdSetViewport(cmd, 0, 1, &viewport);
+	disp.cmdSetScissor(cmd, 0, 1, &scissor);
+
+	// Draw models for shadow map
+	drawModels(disp, debugUtils, cmd, modelManager, scene);
+
+	disp.cmdEndRendering(cmd);
+
+	// Transition shadow map image to shader read-only optimal
+	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	debugUtils.EndDebugMarker(cmd);
 }
 
-void ShadowSystem::CalculateLightSpaceMatrix(const Light* light, const Camera& camera)
+void ShadowSystem::CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const std::shared_ptr<Camera> camera)
 {
 	auto it = m_shadowData.find(light);
 	if (it == m_shadowData.end())
@@ -211,24 +390,24 @@ void ShadowSystem::CalculateLightSpaceMatrix(const Light* light, const Camera& c
 
 	ShadowData& shadowData = it->second;
 
-	float fov = camera.GetFOV();
-	float aspect = camera.GetAspectRatio();
+	float fov = camera->GetFOV();
+	float aspect = camera->GetAspectRatio();
 	glm::vec3 lightDir;
 	glm::vec3 lightPos;
 
 	if (light->GetType() == LightType::Directional)
 	{
-		const DirectionalLight* dirLight = static_cast<const DirectionalLight*>(light);
+		const DirectionalLight* dirLight = static_cast<const DirectionalLight*>(light.get());
 		lightDir = glm::normalize(-dirLight->GetDirection());
 		// For directional light, we'll use the camera's position as a reference
-		lightPos = camera.GetPosition() - lightDir * (m_shadowFar - m_shadowNear) * 0.5f;
+		lightPos = camera->GetPosition() - lightDir * (m_shadowFar - m_shadowNear) * 0.5f;
 	}
 	else if (light->GetType() == LightType::Point)
 	{
-		const PointLight* pointLight = static_cast<const PointLight*>(light);
+		const PointLight* pointLight = static_cast<const PointLight*>(light.get());
 		lightPos = pointLight->GetPosition();
 		// For point light, we'll use a direction towards the camera
-		lightDir = glm::normalize(camera.GetPosition() - lightPos);
+		lightDir = glm::normalize(camera->GetPosition() - lightPos);
 	}
 	else
 	{
@@ -237,7 +416,7 @@ void ShadowSystem::CalculateLightSpaceMatrix(const Light* light, const Camera& c
 	}
 
 	// Calculate the corners of the view frustum in world space
-	std::vector<glm::vec3> frustumCorners = CalculateFrustumCorners(fov, aspect, m_shadowNear, m_shadowFar, camera.GetPosition(), camera.GetForward(), camera.GetUp(), camera.GetRight());
+	std::vector<glm::vec3> frustumCorners = CalculateFrustumCorners(fov, aspect, m_shadowNear, m_shadowFar, camera->GetPosition(), camera->GetForward(), camera->GetUp(), camera->GetRight());
 
 	// Calculate the bounding sphere of the frustum
 	glm::vec3 frustumCenter;
@@ -277,6 +456,7 @@ void ShadowSystem::CalculateLightSpaceMatrix(const Light* light, const Camera& c
 
 	// Combine view and projection matrices
 	shadowData.lightSpaceMatrix = vulkanNdcAdjustment * lightProjection * lightView;
+	light->SetLightSpaceMatrix(shadowData.lightSpaceMatrix);
 }
 
 std::vector<glm::vec3> ShadowSystem::CalculateFrustumCorners(float fov, float aspect, float near, float far, const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up, const glm::vec3& right) const

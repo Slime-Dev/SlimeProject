@@ -1,18 +1,19 @@
 #pragma once
 
-#include <string>
-#include <unordered_map>
-#include <list>
-#include <vulkan/vulkan_core.h>
-#include "Model.h"
-#include "PipelineGenerator.h"
-#include <Light.h>
-#include <type_traits>
 #include <glm/fwd.hpp>
 #include <glm/gtx/hash.hpp>
 #include <imgui.h>
+#include <Light.h>
+#include <list>
+#include <string>
+#include <type_traits>
+#include <unordered_map>
 #include <vk_mem_alloc.h>
-#include "ModelManager.h"
+#include <vulkan/vulkan_core.h>
+
+#include "Model.h"
+#include "PipelineGenerator.h"
+#include "ShadowSystem.h"
 
 // Forward declarations
 class Camera;
@@ -101,7 +102,6 @@ public:
 	void CreateDepthImage(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils);
 
 private:
-
 	// Push Constant
 	struct MVP
 	{
@@ -120,7 +120,7 @@ private:
 	void DrawInfiniteGrid(vkb::DispatchTable& disp, VkCommandBuffer commandBuffer, const Camera& camera, VkPipeline gridPipeline, VkPipelineLayout gridPipelineLayout);
 
 	void UpdateSharedDescriptors(DescriptorManager& descriptorManager, VkDescriptorSet sharedSet, VkDescriptorSetLayout setLayout, EntityManager& entityManager, VmaAllocator allocator);
-	
+
 	//
 	/// MATERIALS ///////////////////////////////////
 	//
@@ -141,33 +141,7 @@ private:
 	//
 	/// SHADOWS ///////////////////////////////////
 	//
-	void GenerateShadowMap(vkb::DispatchTable& disp, VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, VulkanDebugUtils& debugUtils, Scene* scene);
-	void CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
-	void CleanUpShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator);
-	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, int x, int y);
-	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
-	
-	void calculateDirectionalLightMatrix(DirectionalLight& dirLight, const Camera& camera);
-	void calculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius);
-
-	glm::vec3 m_lastFrustumCenter;
-	float m_lastFrustumRadius;
-	glm::mat4 m_lastLightSpaceMatrix;
-	bool m_firstCalculation = true;
-	glm::vec3 m_lastLightDir;
-
-	TextureResource m_shadowMap;
-	ImTextureID m_shadowMapId;
-	float m_shadowMapZoom = 1.0f;
-	VkBuffer m_shadowMapStagingBuffer = VK_NULL_HANDLE;
-	VmaAllocation m_shadowMapStagingBufferAllocation = VK_NULL_HANDLE;
-	VkDeviceSize m_shadowMapStagingBufferSize = 0;
-	float m_shadowNear = 0.1f;
-	float m_shadowFar = 120.0f;
-	unsigned int m_shadowMapWidth = 4096;
-	unsigned int m_shadowMapHeight = 4096;
-	unsigned int m_newShadowMapWidth = m_shadowMapWidth;
-	unsigned int m_newShadowMapHeight = m_shadowMapHeight;
+	ShadowSystem m_shadowSystem;
 
 	//
 	/// DEPTH TESTING ///////////////////////////////////
