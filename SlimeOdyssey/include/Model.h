@@ -7,7 +7,6 @@
 #include "Component.h"
 #include "vk_mem_alloc.h"
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 

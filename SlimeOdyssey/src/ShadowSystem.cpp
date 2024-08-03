@@ -4,7 +4,6 @@
 #include <Scene.h>
 
 #include "ModelManager.h"
-#include "ShadowSystem.h"
 #include "VulkanDebugUtils.h"
 #include "VulkanUtil.h"
 
