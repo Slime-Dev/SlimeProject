@@ -1,19 +1,18 @@
 #include "EntityManager.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <functional>
+#include <glm/common.hpp>
+#include <iterator>
 #include <memory>
+#include <string>
+#include <type_traits>
+#include <typeindex>
 #include <vector>
 
 #include "Entity.h"
-#include <cstdint>
-#include <iterator>
-#include <string>
-#include <typeindex>
-#include <type_traits>
-#include <algorithm>
-
 #include "imgui.h"
-#include <glm/common.hpp>
 
 // Update entity's component mask
 void EntityManager::UpdateEntityMask(const Entity& entity)
@@ -111,45 +110,45 @@ void EntityManager::OnEntityComponentChanged(const Entity& entity)
 // Shows a window of all entities and their components
 void EntityManager::ImGuiDebug()
 {
-    ImGui::SetNextWindowSizeConstraints(ImVec2(300, 300), ImVec2(FLT_MAX, FLT_MAX));
-    ImGui::Begin("Entity Manager", nullptr, ImGuiWindowFlags_NoScrollbar);
+	ImGui::SetNextWindowSizeConstraints(ImVec2(300, 300), ImVec2(FLT_MAX, FLT_MAX));
+	ImGui::Begin("Entity Manager", nullptr, ImGuiWindowFlags_NoScrollbar);
 
-    // Search bar and controls
-    static char searchBuffer[256] = "";
-    ImGui::InputText("Search Entities", searchBuffer, IM_ARRAYSIZE(searchBuffer));
-    std::string searchStr = searchBuffer;
-    ImGui::Text("Total Entities: %zu", m_entities.size());
-    ImGui::Separator();
+	// Search bar and controls
+	static char searchBuffer[256] = "";
+	ImGui::InputText("Search Entities", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+	std::string searchStr = searchBuffer;
+	ImGui::Text("Total Entities: %zu", m_entities.size());
+	ImGui::Separator();
 
-    // Calculate available height for split view
-    float availableHeight = ImGui::GetContentRegionAvail().y;
+	// Calculate available height for split view
+	float availableHeight = ImGui::GetContentRegionAvail().y;
 
-    // Splitter
-    static float splitHeight = availableHeight * 0.5f; // Initial split at 50%
-    
-    ImGui::BeginChild("TopRegion", ImVec2(0, splitHeight), true);
-    RenderEntityTree(searchStr);
-    ImGui::EndChild();
+	// Splitter
+	static float splitHeight = availableHeight * 0.5f; // Initial split at 50%
 
-    // Splitter bar
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+	ImGui::BeginChild("TopRegion", ImVec2(0, splitHeight), true);
+	RenderEntityTree(searchStr);
+	ImGui::EndChild();
 
-    ImGui::Button("##splitter", ImVec2(-1, 5));
-    if (ImGui::IsItemActive())
-    {
-        splitHeight += ImGui::GetIO().MouseDelta.y;
-        splitHeight = glm::clamp(splitHeight, availableHeight * 0.1f, availableHeight * 0.9f);
-    }
+	// Splitter bar
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
 
-    ImGui::PopStyleColor(3);
+	ImGui::Button("##splitter", ImVec2(-1, 5));
+	if (ImGui::IsItemActive())
+	{
+		splitHeight += ImGui::GetIO().MouseDelta.y;
+		splitHeight = glm::clamp(splitHeight, availableHeight * 0.1f, availableHeight * 0.9f);
+	}
 
-    ImGui::BeginChild("BottomRegion", ImVec2(0, 0), true);
-    RenderComponentDetails();
-    ImGui::EndChild();
+	ImGui::PopStyleColor(3);
 
-    ImGui::End();
+	ImGui::BeginChild("BottomRegion", ImVec2(0, 0), true);
+	RenderComponentDetails();
+	ImGui::EndChild();
+
+	ImGui::End();
 }
 
 void EntityManager::RenderEntityTree(const std::string& searchStr)
@@ -195,25 +194,25 @@ void EntityManager::RenderEntityTree(const std::string& searchStr)
 
 void EntityManager::RenderComponentDetails()
 {
-    if (m_selectedEntity)
-    {
-        // Component Count
-        ImGui::Text("Component Count: %zu", m_selectedEntity->GetComponentCount());
-        ImGui::Separator();
-        for (const auto& [type, component] : m_selectedEntity->GetComponents())
-        {
-            ImGui::PushID(type.name());
-            if (ImGui::CollapsingHeader(type.name(), ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                ImGui::Indent();
-                component->ImGuiDebug();
-                ImGui::Unindent();
-            }
-            ImGui::PopID();
-        }
-    }
-    else
-    {
-        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Select an entity to view its components");
-    }
+	if (m_selectedEntity)
+	{
+		// Component Count
+		ImGui::Text("Component Count: %zu", m_selectedEntity->GetComponentCount());
+		ImGui::Separator();
+		for (const auto& [type, component]: m_selectedEntity->GetComponents())
+		{
+			ImGui::PushID(type.name());
+			if (ImGui::CollapsingHeader(type.name(), ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::Indent();
+				component->ImGuiDebug();
+				ImGui::Unindent();
+			}
+			ImGui::PopID();
+		}
+	}
+	else
+	{
+		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Select an entity to view its components");
+	}
 }

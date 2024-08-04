@@ -1,12 +1,12 @@
 #pragma once
 
 #include <bitset>
-#include <typeindex>
-#include <unordered_map>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
+#include <typeindex>
+#include <unordered_map>
 #include <vector>
 
 class Entity;
@@ -44,8 +44,8 @@ public:
 	// Get entity by name
 	std::shared_ptr<Entity> GetEntityByName(const std::string& name) const;
 
-    // Get entities with specific components
-    template<typename... Ts>
+	// Get entities with specific components
+	template<typename... Ts>
 	std::vector<std::shared_ptr<Entity>> GetEntitiesWithComponents()
 	{
 		ComponentMask mask = GetComponentMask<Ts...>();
@@ -60,7 +60,7 @@ public:
 		return result;
 	}
 
-    // Get entity count with specific components
+	// Get entity count with specific components
 	template<typename... Ts>
 	size_t GetEntityCountWithComponents() const
 	{
@@ -76,7 +76,7 @@ public:
 		return count;
 	}
 
-    // Execute a function for each entity with specific components
+	// Execute a function for each entity with specific components
 	template<typename... Ts, typename Func>
 	void ForEachEntityWith(Func func)
 	{
@@ -93,8 +93,8 @@ public:
 	// Update component masks when an entity's components change
 	void OnEntityComponentChanged(const Entity& entity);
 
-    // Shows a window of all entities and their components
-    void ImGuiDebug();
+	// Shows a window of all entities and their components
+	void ImGuiDebug();
 
 private:
 	// Helper function to get or create component type index
@@ -123,13 +123,13 @@ private:
 	// Get entity index
 	size_t GetEntityIndex(const Entity& entity) const;
 
-    // Imgui debug
-    Entity* m_selectedEntity = nullptr;
-    float m_splitRatio = 0.5f;
-    void RenderComponentDetails();
-    void RenderEntityTree(const std::string& searchStr);
-	
-    std::vector<std::shared_ptr<Entity>> m_entities;
+	// Imgui debug
+	Entity* m_selectedEntity = nullptr;
+	float m_splitRatio = 0.5f;
+	void RenderComponentDetails();
+	void RenderEntityTree(const std::string& searchStr);
+
+	std::vector<std::shared_ptr<Entity>> m_entities;
 	std::vector<ComponentMask> m_entityMasks;
 
 	mutable std::unordered_map<std::type_index, std::uint64_t> m_componentTypeIndices;

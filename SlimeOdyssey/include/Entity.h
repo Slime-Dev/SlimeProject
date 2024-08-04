@@ -1,13 +1,13 @@
 #pragma once
 #include <memory>
 #include <ostream>
+#include <spdlog/spdlog.h>
 #include <typeindex>
 #include <unordered_map>
 #include <unordered_set>
-#include "Component.h"
 
+#include "Component.h"
 #include "EntityManager.h"
-#include <spdlog/spdlog.h>
 
 class Entity
 {
@@ -24,7 +24,7 @@ public:
 
 	void SetActive(bool isActive);
 
-    template<typename T, typename... Args>
+	template<typename T, typename... Args>
 	T& AddComponent(Args&&... args)
 	{
 		static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");

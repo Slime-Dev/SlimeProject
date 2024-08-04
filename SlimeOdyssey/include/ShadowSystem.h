@@ -34,7 +34,7 @@ public:
 	void Initialize(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
 	void Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator);
 
-	void UpdateShadowMaps(vkb::DispatchTable& disp,
+	bool UpdateShadowMaps(vkb::DispatchTable& disp,
 	        VkCommandBuffer& cmd,
 	        ModelManager& modelManager,
 	        VmaAllocator allocator,
@@ -49,9 +49,14 @@ public:
 	TextureResource GetShadowMap(const std::shared_ptr<Light> light) const;
 	glm::mat4 GetLightSpaceMatrix(const std::shared_ptr<Light> light) const;
 
-	void SetShadowMapResolution(uint32_t width, uint32_t height);
+	void SetShadowMapResolution(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, uint32_t width, uint32_t height, bool reconstructImmediately = false);
+	void ReconstructShadowMaps(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
+
 	void SetShadowNearPlane(float near);
 	void SetShadowFarPlane(float far);
+
+	void SetDirectionalLightDistance(float distance);
+	float GetDirectionalLightDistance() const;
 
 	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, const std::shared_ptr<Light> light, int x, int y) const;
 
@@ -60,15 +65,25 @@ public:
 private:
 	struct ShadowData
 	{
-		ImTextureID textureId;
+		ImTextureID textureId = 0;
 		TextureResource shadowMap;
 		glm::mat4 lightSpaceMatrix;
 		VkBuffer stagingBuffer = VK_NULL_HANDLE;
 		VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
 		VkDeviceSize stagingBufferSize = 0;
+
+		// For optimizing the recalculations
+		glm::vec3 lastCameraPosition;
+		float frustumRadius;
 	};
 
 	std::unordered_map<std::shared_ptr<Light>, ShadowData> m_shadowData;
+
+	float m_directionalLightDistance = 100.0f;
+
+	uint32_t m_pendingShadowMapWidth = 0;
+	uint32_t m_pendingShadowMapHeight = 0;
+	bool m_shadowMapNeedsReconstruction = false;
 
 	uint32_t m_shadowMapWidth = 4096;
 	uint32_t m_shadowMapHeight = 4096;

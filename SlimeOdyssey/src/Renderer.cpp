@@ -66,7 +66,10 @@ int Renderer::Draw(vkb::DispatchTable& disp,
 
 	std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> DrawModelsForShadowMap = std::bind(&Renderer::DrawModelsForShadowMap, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, scene);
 
-	m_shadowSystem.UpdateShadowMaps(disp, cmd, modelManager, allocator, commandPool, graphicsQueue, debugUtils, scene, DrawModelsForShadowMap, lights, camera);
+	if (m_shadowSystem.UpdateShadowMaps(disp, cmd, modelManager, allocator, commandPool, graphicsQueue, debugUtils, scene, DrawModelsForShadowMap, lights, camera))
+	{
+		m_forceInvalidateDecriptorSets = true;
+	}
 
 	SetupViewportAndScissor(swapchain, disp, cmd);
 	SlimeUtil::SetupDepthTestingAndLineWidth(disp, cmd);
