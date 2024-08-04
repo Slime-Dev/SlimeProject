@@ -67,6 +67,11 @@ void EntityManager::RemoveEntity(const Entity& entity)
 	}
 }
 
+void EntityManager::RemoveEntity(std::shared_ptr<Entity> entity)
+{
+	RemoveEntity(*entity);
+}
+
 // Get all entities
 const std::vector<std::shared_ptr<Entity>>& EntityManager::GetEntities() const
 {

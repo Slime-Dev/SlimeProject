@@ -28,6 +28,7 @@ public:
 
 	// Remove an entity from the manager
 	void RemoveEntity(const Entity& entity);
+	void RemoveEntity(std::shared_ptr<Entity> entity);
 
 	// Get all entities
 	const std::vector<std::shared_ptr<Entity>>& GetEntities() const;

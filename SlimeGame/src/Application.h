@@ -4,7 +4,7 @@
 #include <ShaderManager.h>
 #include <VulkanContext.h>
 
-#define DEBUG_SCENE
+// #define DEBUG_SCENE
 
 
 #ifdef DEBUG_SCENE

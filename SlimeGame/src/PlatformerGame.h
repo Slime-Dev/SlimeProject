@@ -73,4 +73,18 @@ private:
 	GameParameters m_gameParams;
 
 	SlimeWindow* m_window;
+
+	std::vector<std::shared_ptr<Entity>> m_collectibles;
+	std::vector<std::shared_ptr<Entity>> m_movingPlatforms;
+	int m_score = 0;
+	float m_powerUpTimer = 0.0f;
+	bool m_hasPowerUp = false;
+
+	// New methods
+	void SpawnCollectibles(VulkanContext& vulkanContext, ModelManager& modelManager);
+	void UpdateCollectibles(float dt);
+	void SpawnMovingPlatforms(VulkanContext& vulkanContext, ModelManager& modelManager);
+	void UpdateMovingPlatforms(float dt);
+	void CheckCollectibleCollisions();
+	void UpdatePowerUp(float dt);
 };

@@ -8,6 +8,7 @@
 #include <SlimeWindow.h>
 #include <spdlog/spdlog.h>
 #include <VulkanContext.h>
+#include "glm/gtc/random.hpp"
 
 struct Velocity : public Component
 {
@@ -52,7 +53,6 @@ int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManag
 {
 	SetupShaders(vulkanContext, modelManager, shaderManager, descriptorManager);
 
-
 	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
 
@@ -68,7 +68,7 @@ void PlatformerGame::SetupShaders(VulkanContext& vulkanContext, ModelManager& mo
 
 	// Set up a basic pipeline
 	std::vector<std::pair<std::string, VkShaderStageFlagBits>> pbrShaderPaths = {
-		{ResourcePathManager::GetShaderPath("basic.vert.spv"), VK_SHADER_STAGE_VERTEX_BIT},
+		{ResourcePathManager::GetShaderPath("basic.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
         {ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
 	};
 	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, pbrShaderPaths, true);
@@ -118,6 +118,9 @@ void PlatformerGame::InitializeGameObjects(VulkanContext& vulkanContext, ModelMa
 	m_entityManager.AddEntity(m_player);
 	m_entityManager.AddEntity(m_obstacle);
 	m_entityManager.AddEntity(m_lightCube);
+
+	SpawnCollectibles(vulkanContext, modelManager);
+	SpawnMovingPlatforms(vulkanContext, modelManager);
 }
 
 void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager)
@@ -143,11 +146,24 @@ void PlatformerGame::Update(float dt, VulkanContext& vulkanContext, const InputM
 	{
 		m_window->Close();
 	}
+
+	UpdateCollectibles(dt);
+	UpdateMovingPlatforms(dt);
+	CheckCollectibleCollisions();
+	UpdatePowerUp(dt);
 }
 
 void PlatformerGame::Render()
 {
-	// m_entityManager.ImGuiDebug();
+	m_entityManager.ImGuiDebug();
+
+	ImGui::Begin("Game Info");
+	ImGui::Text("Score: %d", m_score);
+	if (m_hasPowerUp)
+	{
+		ImGui::Text("Power-up active: %.1f seconds remaining", m_powerUpTimer);
+	}
+	ImGui::End();
 }
 
 void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -172,7 +188,7 @@ void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManag
 		Camera& camera = entity->GetComponent<Camera>();
 		camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator());
 	}
-	
+
 	modelManager.CleanUpAllPipelines(vulkanContext.GetDispatchTable());
 }
 
@@ -282,6 +298,18 @@ void PlatformerGame::UpdatePlayer(float dt, const InputManager* inputManager)
 
 	// Update camera target
 	camera.SetTarget(playerTransform.position + glm::vec3(0.0f, 1.0f, 0.0f));
+
+	// Apply power-up effect
+	if (m_hasPowerUp)
+	{
+		m_gameParams.moveSpeed = 4.0f; // Increased speed
+		m_gameParams.jumpForce = 7.5f; // Higher jump
+	}
+	else
+	{
+		m_gameParams.moveSpeed = 2.0f; // Normal speed
+		m_gameParams.jumpForce = 5.0f; // Normal jump
+	}
 }
 
 void PlatformerGame::UpdateCamera(float dt, const InputManager* inputManager)
@@ -357,6 +385,102 @@ void PlatformerGame::CheckCollisions()
 		// Apply friction
 		playerVelocity.x *= m_gameParams.frictionCoefficient;
 		playerVelocity.z *= m_gameParams.frictionCoefficient;
+	}
+}
+
+void PlatformerGame::SpawnCollectibles(VulkanContext& vulkanContext, ModelManager& modelManager)
+{
+	// Create a simple collectible model (e.g., a sphere)
+	auto collectibleMesh = modelManager.CreateSphere(vulkanContext.GetAllocator(), 0.5f);
+	modelManager.CreateBuffersForMesh(vulkanContext.GetAllocator(), *collectibleMesh);
+
+	// Spawn collectibles at random positions
+	for (int i = 0; i < 10; ++i)
+	{
+		auto collectible = std::make_shared<Entity>("Collectible" + std::to_string(i));
+		collectible->AddComponent<Model>(collectibleMesh);
+		collectible->AddComponent<PBRMaterial>(m_pbrMaterials[0]);
+		auto& transform = collectible->AddComponent<Transform>();
+		transform.position = glm::vec3(glm::linearRand(-10.0f, 10.0f), glm::linearRand(1.0f, 5.0f), glm::linearRand(-10.0f, 10.0f));
+		transform.scale = glm::vec3(0.5f);
+		m_collectibles.push_back(collectible);
+		m_entityManager.AddEntity(collectible);
+	}
+}
+
+void PlatformerGame::UpdateCollectibles(float dt)
+{
+	for (auto& collectible: m_collectibles)
+	{
+		auto& transform = collectible->GetComponent<Transform>();
+		transform.rotation.y += dt * 2.0f;                              // Rotate collectibles
+		transform.position.y += std::sin(glfwGetTime() * 2.0f) * 0.01f; // Make collectibles float up and down
+	}
+}
+
+void PlatformerGame::SpawnMovingPlatforms(VulkanContext& vulkanContext, ModelManager& modelManager)
+{
+	auto platformMesh = modelManager.CreateCube(vulkanContext.GetAllocator(), 2.0f);
+	modelManager.CreateBuffersForMesh(vulkanContext.GetAllocator(), *platformMesh);
+
+	for (int i = 0; i < 3; ++i)
+	{
+		auto platform = std::make_shared<Entity>("MovingPlatform" + std::to_string(i));
+		platform->AddComponent<Model>(platformMesh);
+		platform->AddComponent<PBRMaterial>(m_pbrMaterials[0]);
+		auto& transform = platform->AddComponent<Transform>();
+		transform.position = glm::vec3(glm::linearRand(-8.0f, 8.0f), glm::linearRand(2.0f, 6.0f), glm::linearRand(-8.0f, 8.0f));
+		transform.scale = glm::vec3(2.0f, 0.5f, 2.0f);
+		m_movingPlatforms.push_back(platform);
+		m_entityManager.AddEntity(platform);
+	}
+}
+
+void PlatformerGame::UpdateMovingPlatforms(float dt)
+{
+	for (size_t i = 0; i < m_movingPlatforms.size(); ++i)
+	{
+		auto& transform = m_movingPlatforms[i]->GetComponent<Transform>();
+		float t = glfwGetTime() * 0.5f + i * 2.0f * glm::pi<float>() / m_movingPlatforms.size();
+		transform.position.x += std::sin(t) * dt * 2.0f;
+		transform.position.z += std::cos(t) * dt * 2.0f;
+	}
+}
+
+void PlatformerGame::CheckCollectibleCollisions()
+{
+	auto& playerTransform = m_player->GetComponent<Transform>();
+	auto playerPos = playerTransform.position;
+
+	for (auto it = m_collectibles.begin(); it != m_collectibles.end();)
+	{
+		auto& collectibleTransform = (*it)->GetComponent<Transform>();
+		if (glm::distance(playerPos, collectibleTransform.position) < 1.0f)
+		{
+			m_score += 10;
+			m_hasPowerUp = true;
+			m_powerUpTimer = 5.0f; // 5 seconds power-up duration
+			spdlog::info("Collected! Score: {}", m_score);
+			m_entityManager.RemoveEntity((*it));
+			it = m_collectibles.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
+}
+
+void PlatformerGame::UpdatePowerUp(float dt)
+{
+	if (m_hasPowerUp)
+	{
+		m_powerUpTimer -= dt;
+		if (m_powerUpTimer <= 0.0f)
+		{
+			m_hasPowerUp = false;
+			spdlog::info("Power-up ended!");
+		}
 	}
 }
 
