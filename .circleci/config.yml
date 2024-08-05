@@ -1,31 +1,117 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
-jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/executor-intro/ & https://circleci.com/docs/configuration-reference/#executor-job
+orbs:
+  win: circleci/windows@5.0
+
+executors:
+  linux-executor:
     docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
-      - image: cimg/base:current
+      - image: cimg/base:stable
+  windows-executor:
+    machine:
+      image: windows-server-2022-gui:current
 
-    # Add steps to the job
-    # See: https://circleci.com/docs/jobs-steps/#steps-overview & https://circleci.com/docs/configuration-reference/#steps
+commands:
+  install-linux-dependencies:
     steps:
-      # Checkout the code as the first step.
-      - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: Install Linux Dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y libglfw3-dev xorg-dev libegl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
+            wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+            sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+            sudo apt update
+            sudo apt install vulkan-sdk
 
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
+  install-windows-dependencies:
+    steps:
+      - run:
+          name: Install Windows Dependencies
+          command: |
+            $vulkanSDK = "https://sdk.lunarg.com/sdk/download/1.3.283.0/windows/VulkanSDK-1.3.283.0-Installer.exe"
+            Invoke-WebRequest -Uri $vulkanSDK -OutFile VulkanSDK-Installer.exe
+            .\VulkanSDK-Installer.exe --accept-licenses --default-answer --confirm-command install
+
+jobs:
+  build-and-test:
+    parameters:
+      os:
+        type: string
+      build_type:
+        type: string
+        default: "Release"
+      c_compiler:
+        type: string
+      cpp_compiler:
+        type: string
+    executor: << parameters.os >>-executor
+    steps:
+      - checkout
+      - when:
+          condition:
+            equal: [ << parameters.os >>, "linux" ]
+          steps:
+            - install-linux-dependencies
+      - when:
+          condition:
+            equal: [ << parameters.os >>, "windows" ]
+          steps:
+            - install-windows-dependencies
+      - restore_cache:
+          keys:
+            - cpm-cache-<< parameters.os >>-{{ checksum "CMakeLists.txt" }}
+            - cpm-cache-<< parameters.os >>-
+      - run:
+          name: Configure CMake
+          command: |
+            mkdir build
+            cd build
+            cmake .. -DCMAKE_CXX_COMPILER=<< parameters.cpp_compiler >> -DCMAKE_C_COMPILER=<< parameters.c_compiler >> -DCMAKE_BUILD_TYPE=<< parameters.build_type >> -DCPM_SOURCE_CACHE=~/.cpm -DENABLE_TESTING=ON
+      - run:
+          name: Build
+          command: |
+            cd build
+            cmake --build . --config << parameters.build_type >>
+      - run:
+          name: Test
+          command: |
+            cd build
+            ctest --build-config << parameters.build_type >> --output-on-failure -VV --verbose --output-junit ../scripts/junitout.xml
+          when: always
+      - store_test_results:
+          path: scripts
+      - save_cache:
+          paths:
+            - ~/.cpm
+          key: cpm-cache-<< parameters.os >>-{{ checksum "CMakeLists.txt" }}
+      - run:
+          name: Convert XML to CTRF
+          command: |
+            pip install defusedxml pillow
+            python scripts/OutPutResultsToJsons.py scripts/junitout.xml "Real Test" --json_output scripts/finalresult.json --discord_json_output scripts/discordJson_output.json --image_out scripts/discrod_image.png --os << parameters.os >> --compiler << parameters.c_compiler >> --event ${CIRCLE_JOB} --author ${CIRCLE_USERNAME} --branch ${CIRCLE_BRANCH}
+      - store_artifacts:
+          path: scripts/discrod_image.png
+          destination: discord_image
+
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  version: 2
+  build-all:
     jobs:
-      - say-hello
+      - build-and-test:
+          matrix:
+            parameters:
+              os: [linux, windows]
+              build_type: [Release]
+              c_compiler: [gcc, clang, cl]
+              cpp_compiler: [g++, clang++, cl]
+          exclude:
+            - os: windows
+              c_compiler: gcc
+              cpp_compiler: g++
+            - os: windows
+              c_compiler: clang
+              cpp_compiler: clang++
+            - os: linux
+              c_compiler: cl
+              cpp_compiler: cl
