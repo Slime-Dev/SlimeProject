@@ -1,13 +1,12 @@
 #include "PipelineGenerator.h"
 
-#include <stdexcept>
+#include <VkBootstrapDispatch.h>
 
+#include "ShaderManager.h"
 #include "spdlog/spdlog.h"
-#include "VulkanContext.h"
 #include "VulkanUtil.h"
 
-PipelineGenerator::PipelineGenerator(VulkanContext& vulkanContext)
-      : m_vulkanContext(vulkanContext), m_disp(vulkanContext.GetDispatchTable())
+PipelineGenerator::PipelineGenerator()
 {
 }
 
@@ -298,7 +297,7 @@ PipelineGenerator& PipelineGenerator::SetPushConstantRanges(const std::vector<Vk
 	return *this;
 }
 
-void PipelineGenerator::CreatePipelineLayout()
+void PipelineGenerator::CreatePipelineLayout(vkb::DispatchTable& disp, VulkanDebugUtils& debugUtils)
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -307,11 +306,11 @@ void PipelineGenerator::CreatePipelineLayout()
 	pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(m_pushConstantRanges.size());
 	pipelineLayoutInfo.pPushConstantRanges = m_pushConstantRanges.data();
 
-	VK_CHECK(m_disp.createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_layout));
-	m_vulkanContext.GetDebugUtils().SetObjectName(m_layout, m_name + " Pipeline Layout");
+	VK_CHECK(disp.createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_layout));
+	debugUtils.SetObjectName(m_layout, m_name + " Pipeline Layout");
 }
 
-void PipelineGenerator::CreatePipeline()
+void PipelineGenerator::CreatePipeline(vkb::DispatchTable& disp, VulkanDebugUtils& debugUtils)
 {
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -332,18 +331,18 @@ void PipelineGenerator::CreatePipeline()
 	pipelineInfo.basePipelineIndex = m_basePipelineIndex;
 	pipelineInfo.pNext = &m_renderingInfo;
 
-	VK_CHECK(m_disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_basePipeline));
+	VK_CHECK(disp.createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_basePipeline));
 
-	m_vulkanContext.GetDebugUtils().SetObjectName(m_basePipeline, (m_name + " Pipeline"));
+	debugUtils.SetObjectName(m_basePipeline, (m_name + " Pipeline"));
 }
 
-PipelineConfig PipelineGenerator::Build()
+PipelineConfig PipelineGenerator::Build(vkb::DispatchTable& disp, VulkanDebugUtils& debugUtils)
 {
 	// Create pipeline layout
-	CreatePipelineLayout();
+	CreatePipelineLayout(disp, debugUtils);
 
 	// Create the graphics pipeline
-	CreatePipeline();
+	CreatePipeline(disp, debugUtils);
 
 	// Create and return the PipelineConfig
 	PipelineConfig config;

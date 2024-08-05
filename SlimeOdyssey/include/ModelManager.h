@@ -8,6 +8,7 @@
 #include "PipelineGenerator.h"
 #include "tiny_obj_loader.h"
 
+class ShaderManager;
 class DescriptorManager;
 class VulkanContext;
 struct VmaAllocator_T;

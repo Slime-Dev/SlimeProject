@@ -13,7 +13,7 @@ class Scene
 public:
 	virtual ~Scene() = default;
 
-	virtual int Enter(VulkanContext& vulkanContext, ModelManager& modelManager , ShaderManager& shaderManager, DescriptorManager& descriptorManager) = 0;
+	virtual int Enter(VulkanContext& vulkanContext, ModelManager& modelManager, DescriptorManager& descriptorManager) = 0;
 	virtual void Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager) = 0;
 	virtual void Render() = 0;
 

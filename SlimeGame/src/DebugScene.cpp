@@ -18,9 +18,9 @@ DebugScene::DebugScene(SlimeWindow* window)
     m_entityManager.AddEntity(mainCamera);
 }
 
-int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
+int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
-	SetupShaders(vulkanContext, modelManager, shaderManager, descriptorManager);
+	SetupShaders(vulkanContext, modelManager, *vulkanContext.GetShaderManager(), descriptorManager);
 
 	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
@@ -47,18 +47,10 @@ void DebugScene::SetupShaders(VulkanContext& vulkanContext, ModelManager& modelM
         {ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
 	};
 
-	std::vector<std::pair<std::string, VkShaderStageFlagBits>> gridShaderPaths = {
-		{ResourcePathManager::GetShaderPath("grid.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
-        {ResourcePathManager::GetShaderPath("grid.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
-	};
-
 	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, meshShaderPaths, true);
 
 	// Set up the shared descriptor set pair (Grabbing it from the basic descriptors)
 	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["pbr"].descriptorSetLayouts[0]);
-
-	// Set up InfiniteGrid pipeline
-	modelManager.CreatePipeline("InfiniteGrid", vulkanContext, shaderManager, descriptorManager, gridShaderPaths, false, VK_CULL_MODE_NONE);
 }
 
 void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManager& modelManager)

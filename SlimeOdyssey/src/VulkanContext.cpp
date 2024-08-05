@@ -26,6 +26,7 @@
 #include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
 #include "ResourcePathManager.h"
+#include "ShaderManager.h"
 
 VulkanContext::~VulkanContext()
 {
@@ -43,14 +44,16 @@ int VulkanContext::CreateContext(SlimeWindow* window)
 		return -1;
 	if (CreateSwapchain(window) != 0)
 		return -1;
+
+	m_shaderManager = new ShaderManager();
+	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager);
+
 	if (CreateRenderCommandBuffers() != 0)
 		return -1;
 	if (InitSyncObjects() != 0)
 		return -1;
 	if (InitImGui(window) != 0) // Add this line
 		return -1;
-
-	m_renderer.SetUp(m_disp, m_allocator, m_swapchain, m_debugUtils);
 
 	return 0;
 }
@@ -142,7 +145,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 	extendedDynamicStateFeatures.extendedDynamicState = VK_TRUE;
 	extendedDynamicStateFeatures.pNext = &extendedDynamicState3Features;
 
-		// Enable mesh shader features
+	// Enable mesh shader features
 	VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures = {};
 	meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
 	meshShaderFeatures.taskShader = VK_TRUE;
@@ -203,19 +206,19 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 	vkb::PhysicalDevice physical_device = phys_device_ret.value();
 
-    // Create device (extensions are automatically enabled as they were required in PhysicalDeviceSelector)
-    spdlog::debug("Creating logical device...");
-    vkb::DeviceBuilder device_builder{ physical_device };
+	// Create device (extensions are automatically enabled as they were required in PhysicalDeviceSelector)
+	spdlog::debug("Creating logical device...");
+	vkb::DeviceBuilder device_builder{ physical_device };
 	device_builder.add_pNext(&extendedDynamicStateFeatures);
-    auto device_ret = device_builder.build();
+	auto device_ret = device_builder.build();
 
-    if (!device_ret)
-    {
-        spdlog::error("Failed to create logical device: {}", device_ret.error().message());
-        return -1;
-    }
-    spdlog::debug("Logical device created.");
-    m_device = device_ret.value();
+	if (!device_ret)
+	{
+		spdlog::error("Failed to create logical device: {}", device_ret.error().message());
+		return -1;
+	}
+	spdlog::debug("Logical device created.");
+	m_device = device_ret.value();
 
 	m_disp = m_device.make_table();
 
@@ -299,8 +302,6 @@ int VulkanContext::CreateSwapchain(SlimeWindow* window)
 		m_debugUtils.SetObjectName(m_swapchainImages[i], "SwapchainImage_" + std::to_string(i));
 		m_debugUtils.SetObjectName(m_swapchainImageViews[i], "SwapchainImageView_" + std::to_string(i));
 	}
-
-	m_renderer.CreateDepthImage(m_disp, m_allocator, m_swapchain, m_debugUtils);
 
 	return 0;
 }
@@ -620,7 +621,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	// Begin command buffer recording
 	VkCommandBuffer cmd = m_renderCommandBuffers[imageIndex];
 
-	if (m_renderer.Draw(m_disp, cmd, modelManager, descriptorManager, m_allocator, m_commandPool, m_graphicsQueue, m_debugUtils, m_swapchain, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
+	if (m_renderer.Draw(cmd, modelManager, descriptorManager, m_commandPool, m_graphicsQueue, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
 		return -1;
 
 	VkSubmitInfo submit_info = {};
@@ -677,7 +678,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	return 0;
 }
 
-int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager)
+int VulkanContext::Cleanup(ModelManager& modelManager, DescriptorManager& descriptorManager)
 {
 	spdlog::debug("Cleaning up...");
 
@@ -706,13 +707,12 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 
 	modelManager.UnloadAllResources(m_disp, m_allocator);
 
-	shaderManager.CleanupDescriptorSetLayouts(m_disp);
+	m_shaderManager->CleanUp(m_disp);
+	delete m_shaderManager;
 
 	descriptorManager.Cleanup();
 
-	m_renderer.CleanUp(m_disp, m_allocator);
-
-	shaderManager.CleanupShaderModules(m_disp);
+	m_renderer.CleanUp();
 
 	m_disp.destroyCommandPool(m_commandPool, nullptr);
 
@@ -731,6 +731,11 @@ int VulkanContext::Cleanup(ShaderManager& shaderManager, ModelManager& modelMana
 }
 
 // GETTERS //
+
+ShaderManager* VulkanContext::GetShaderManager()
+{
+	return m_shaderManager;
+}
 
 VulkanDebugUtils& VulkanContext::GetDebugUtils()
 {

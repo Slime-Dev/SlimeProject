@@ -44,7 +44,7 @@ public:
 	        Scene* scene,
 	        std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
 	        const std::vector<std::shared_ptr<Light>>& lights,
-	        std::shared_ptr<Camera> camera);
+	        Camera* camera);
 
 	TextureResource GetShadowMap(const std::shared_ptr<Light> light) const;
 	glm::mat4 GetLightSpaceMatrix(const std::shared_ptr<Light> light) const;
@@ -102,8 +102,8 @@ private:
 	        Scene* scene,
 	        std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
 	        const std::shared_ptr<Light> light,
-	        const std::shared_ptr<Camera> camera);
-	void CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const std::shared_ptr<Camera> camera);
+	        const Camera* camera);
+	void CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const Camera* camera);
 
 	std::vector<glm::vec3> CalculateFrustumCorners(float fov, float aspect, float near, float far, const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up, const glm::vec3& right) const;
 	void CalculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius) const;

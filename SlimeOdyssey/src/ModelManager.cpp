@@ -15,6 +15,7 @@
 #include "ResourcePathManager.h"
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
+#include "ShaderManager.h"
 
 ModelManager::~ModelManager()
 {
@@ -710,7 +711,7 @@ void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderM
 	}
 	auto combinedResources = shaderManager.CombineResources(shaderModules);
 
-	PipelineGenerator pipelineGenerator(vulkanContext);
+	PipelineGenerator pipelineGenerator;
 
 	pipelineGenerator.SetName(pipelineName);
 
@@ -781,7 +782,7 @@ void ModelManager::CreateShadowMapPipeline(VulkanContext& vulkanContext, ShaderM
 
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
 
-	PipelineConfig config = pipelineGenerator.Build();
+	PipelineConfig config = pipelineGenerator.Build(vulkanContext.GetDispatchTable(), vulkanContext.GetDebugUtils());
 
 	// Store the pipeline
 	m_pipelines[pipelineName] = config;
@@ -814,7 +815,7 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;
 	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
-	PipelineGenerator pipelineGenerator(vulkanContext);
+	PipelineGenerator pipelineGenerator;
 
 	pipelineGenerator.SetName(pipelineName);
 
@@ -888,7 +889,7 @@ void ModelManager::CreatePipeline(const std::string& pipelineName, VulkanContext
 	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
 
-	PipelineConfig config = pipelineGenerator.Build();
+	PipelineConfig config = pipelineGenerator.Build(vulkanContext.GetDispatchTable(), vulkanContext.GetDebugUtils());
 
 	// Store the pipeline
 	m_pipelines[pipelineName] = config;

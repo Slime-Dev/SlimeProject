@@ -106,7 +106,7 @@ void Application::Run()
 void Application::Cleanup()
 {
 	m_scene.Exit(m_vulkanContext, m_modelManager);
-	m_vulkanContext.Cleanup(m_shaderManager, m_modelManager, *m_descriptorManager);
+	m_vulkanContext.Cleanup(m_modelManager, *m_descriptorManager);
 	delete m_descriptorManager;
 }
 
@@ -132,14 +132,13 @@ void Application::InitializeVulkanContext()
 
 void Application::InitializeManagers()
 {
-	m_shaderManager = ShaderManager();
 	m_modelManager = ModelManager();
 	m_descriptorManager = new DescriptorManager(m_vulkanContext.GetDispatchTable());
 }
 
 void Application::InitializeScene()
 {
-	if (m_scene.Enter(m_vulkanContext, m_modelManager, m_shaderManager, *m_descriptorManager) != 0)
+	if (m_scene.Enter(m_vulkanContext, m_modelManager, *m_descriptorManager) != 0)
 	{
 		throw std::runtime_error("Failed to initialize scene");
 	}

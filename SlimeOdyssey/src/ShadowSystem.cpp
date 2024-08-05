@@ -32,7 +32,7 @@ bool ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp,
         Scene* scene,
         std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
         const std::vector<std::shared_ptr<Light>>& lights,
-        std::shared_ptr<Camera> camera)
+        Camera* camera)
 {
 	bool invalidateDescriptors = false;
 
@@ -470,7 +470,7 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
         Scene* scene,
         std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
         const std::shared_ptr<Light> light,
-        const std::shared_ptr<Camera> camera)
+        const Camera* camera)
 {
 	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
 
@@ -518,7 +518,7 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
 	debugUtils.EndDebugMarker(cmd);
 }
 
-void ShadowSystem::CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const std::shared_ptr<Camera> camera)
+void ShadowSystem::CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const Camera* camera)
 {
 	auto it = m_shadowData.find(light);
 	if (it == m_shadowData.end())

@@ -1,11 +1,10 @@
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <vector>
 #include <vulkan/vulkan.h>
 
-#include "ShaderManager.h"
+#include "VulkanDebugUtils.h"
 
 class VulkanContext;
 
@@ -20,7 +19,7 @@ struct PipelineConfig
 class PipelineGenerator
 {
 public:
-	explicit PipelineGenerator(VulkanContext& vulkanContext);
+	PipelineGenerator();
 	~PipelineGenerator() = default;
 
 	// Builder methods
@@ -65,13 +64,10 @@ public:
 	PipelineGenerator& SetPushConstantRanges(const std::vector<VkPushConstantRange>& ranges);
 
 	// Build methods
-	PipelineConfig Build();
+	PipelineConfig Build(vkb::DispatchTable& disp, VulkanDebugUtils& debugUtils);
 	void Reset();
 
 private:
-	VulkanContext& m_vulkanContext;
-	const vkb::DispatchTable& m_disp;
-
 	// Pipeline state
 	std::string m_name;
 	std::vector<VkPipelineShaderStageCreateInfo> m_shaderStages;
@@ -94,6 +90,6 @@ private:
 	std::vector<VkPushConstantRange> m_pushConstantRanges;
 
 	// Helper methods
-	void CreatePipelineLayout();
-	void CreatePipeline();
+	void CreatePipelineLayout(vkb::DispatchTable& disp, VulkanDebugUtils& debugUtils);
+	void CreatePipeline(vkb::DispatchTable& disp, VulkanDebugUtils& debugUtils);
 };

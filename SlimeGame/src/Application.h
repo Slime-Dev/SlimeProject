@@ -4,7 +4,7 @@
 #include <ShaderManager.h>
 #include <VulkanContext.h>
 
-// #define DEBUG_SCENE
+#define DEBUG_SCENE
 
 
 #ifdef DEBUG_SCENE
@@ -29,7 +29,6 @@ private:
 
 	SlimeWindow m_window;
 	VulkanContext m_vulkanContext;
-	ShaderManager m_shaderManager;
 	ModelManager m_modelManager;
 	DescriptorManager* m_descriptorManager = nullptr;
 

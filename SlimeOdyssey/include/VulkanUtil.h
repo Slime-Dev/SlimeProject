@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <spdlog/spdlog.h>
 #include <VkBootstrap.h>
+#include <vk_mem_alloc.h>
 
 namespace SlimeUtil
 {

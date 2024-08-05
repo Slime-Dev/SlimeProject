@@ -27,7 +27,9 @@ public:
 
 	int CreateContext(SlimeWindow* window);
 	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene);
-	int Cleanup(ShaderManager& shaderManager, ModelManager& modelManager, DescriptorManager& descriptorManager);
+	int Cleanup(ModelManager& modelManager, DescriptorManager& descriptorManager);
+
+	ShaderManager* GetShaderManager();
 
 	// Getters
 	VulkanDebugUtils& GetDebugUtils();
@@ -77,6 +79,8 @@ private:
 	Renderer m_renderer;
 
 	VulkanDebugUtils m_debugUtils;
+
+	ShaderManager* m_shaderManager = nullptr;
 
 	// Safety checks
 	bool m_cleanUpFinished = false;
