@@ -9,7 +9,7 @@ executors:
       - image: cimg/base:stable
   windows-executor:
     machine:
-      image: windows-server-2022-gui:current
+      image: windows-default
 
 commands:
   install-linux-dependencies:
