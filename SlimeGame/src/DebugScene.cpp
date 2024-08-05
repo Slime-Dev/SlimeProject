@@ -14,7 +14,7 @@ DebugScene::DebugScene(SlimeWindow* window)
     : Scene(), m_window(window)
 {
     Entity mainCamera = Entity("MainCamera");
-    mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.001f, 1000.0f);
+    mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
     m_entityManager.AddEntity(mainCamera);
 }
 
@@ -26,6 +26,9 @@ int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, 
 	m_pbrMaterials.push_back(pbrMaterialResource);
 	
 	pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Planet Material", "planet_surface/albedo.png", "planet_surface/normal.png", "planet_surface/metallic.png", "planet_surface/roughness.png", "planet_surface/ao.png");
+	m_pbrMaterials.push_back(pbrMaterialResource);
+
+	pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "Grass Material", "grass/albedo.png", "grass/normal.png", "planet_surface/metallic.png", "grass/roughness.png", "grass/ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
 
     InitializeDebugObjects(vulkanContext, modelManager);
@@ -62,7 +65,8 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 {
 	// Light
 	auto lightEntity = std::make_shared<Entity>("Light");
-	DirectionalLight& light = lightEntity->AddComponent<DirectionalLightObject>().light;
+	DirectionalLight& light = lightEntity->AddComponent<DirectionalLight>();
+	light.SetColor(glm::vec3(0.98f, 0.506f, 0.365f));
 	m_entityManager.AddEntity(lightEntity);
 
     VmaAllocator allocator = vulkanContext.GetAllocator();
@@ -73,12 +77,23 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
 	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
 
+	auto groundPlane = modelManager.CreatePlane(allocator, 50.0f, 25);
+	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
+
+	// Create the groundPlane
+	Entity ground = Entity("Ground");
+	ground.AddComponent<Model>(groundPlane);
+	ground.AddComponent<PBRMaterial>(m_pbrMaterials[2]);
+	auto& groundTransform = ground.AddComponent<Transform>();
+	groundTransform.position = glm::vec3(0.0f, 0.2f, 0.0f); // Slightly above the grid
+	m_entityManager.AddEntity(ground);
+
 	// Create a bunny
 	Entity bunny = Entity("Bunny");
 	bunny.AddComponent<Model>(bunnyMesh);
 	bunny.AddComponent<PBRMaterial>(m_pbrMaterials[0]);
 	auto& bunnyTransform = bunny.AddComponent<Transform>();
-	bunnyTransform.position = glm::vec3(10.0f, 4.0f, -10.0f);
+	bunnyTransform.position = glm::vec3(10.0f, 3.0f, -10.0f);
 	bunnyTransform.scale = glm::vec3(20.0f);
 	m_entityManager.AddEntity(bunny);
 
@@ -136,7 +151,7 @@ void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManag
     }
 }
 
-void DebugScene::Render(VulkanContext& vulkanContext, ModelManager& modelManager)
+void DebugScene::Render()
 {
 	// scene Camera info
 	ImGui::Begin("Camera Info");
@@ -164,17 +179,17 @@ void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 	}
 
 	// Clean up lights
-	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLightObject>();
+	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLight>();
 	for (const auto& entity: lightEntities)
 	{
-		PointLightObject& light = entity->GetComponent<PointLightObject>();
+		PointLight& light = entity->GetComponent<PointLight>();
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 
-	lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLightObject>();
+	lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLight>();
 	for (const auto& entity: lightEntities)
 	{
-		DirectionalLightObject& light = entity->GetComponent<DirectionalLightObject>();
+		DirectionalLight& light = entity->GetComponent<DirectionalLight>();
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
 	}
 

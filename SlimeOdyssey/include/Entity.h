@@ -1,13 +1,13 @@
 #pragma once
 #include <memory>
 #include <ostream>
+#include <spdlog/spdlog.h>
 #include <typeindex>
 #include <unordered_map>
 #include <unordered_set>
-#include "Component.h"
 
+#include "Component.h"
 #include "EntityManager.h"
-#include <spdlog/spdlog.h>
 
 class Entity
 {
@@ -24,7 +24,7 @@ public:
 
 	void SetActive(bool isActive);
 
-    template<typename T, typename... Args>
+	template<typename T, typename... Args>
 	T& AddComponent(Args&&... args)
 	{
 		static_assert(std::is_base_of_v<Component, T>, "T must inherit from Component");
@@ -72,6 +72,17 @@ public:
 		if (it != m_components.end())
 		{
 			return std::static_pointer_cast<T>(it->second).get();
+		}
+		return nullptr;
+	}
+
+	template<typename T>
+	std::shared_ptr<T> GetComponentShrPtr() const
+	{
+		auto it = m_components.find(std::type_index(typeid(T)));
+		if (it != m_components.end())
+		{
+			return std::static_pointer_cast<T>(it->second);
 		}
 		return nullptr;
 	}

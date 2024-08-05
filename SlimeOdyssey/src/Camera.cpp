@@ -126,6 +126,21 @@ void Camera::ImGuiDebug()
 	ImGui::DragFloat("Pitch", &m_pitch, 0.1f);
 }
 
+glm::vec3 Camera::GetForward() const
+{
+	return m_front;
+}
+
+float Camera::GetFOV() const
+{
+	return m_fov;
+}
+
+float Camera::GetAspectRatio() const 
+{
+	return m_aspect;
+}
+
 void Camera::UpdateCameraVectors()
 {
 	glm::vec3 front;
@@ -133,4 +148,24 @@ void Camera::UpdateCameraVectors()
 	front.y = std::sin(glm::radians(m_pitch));
 	front.z = std::sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
 	m_front = glm::normalize(front);
+}
+
+float Camera::GetNearZ() const
+{
+	return m_nearZ;
+}
+
+float Camera::GetFarZ() const
+{
+	return m_farZ;
+}
+
+glm::vec3 Camera::GetUp() const
+{
+	return m_up;
+}
+
+glm::vec3 Camera::GetRight() const
+{
+	return glm::normalize(glm::cross(m_front, m_up));
 }
