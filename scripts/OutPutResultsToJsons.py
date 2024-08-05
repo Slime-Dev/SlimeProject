@@ -161,42 +161,45 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
     return discord_json
 
 def parse_test_results_from_file(file_path):
-    # Read the XML data from the file
-    with open(file_path, 'r', encoding='utf-8') as file:
-        xml_data = file.read()
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+    test_suite_name = root.attrib['name']
+    tests = int(root.attrib['tests'])
+    failures = int(root.attrib['failures'])
+    skipped = int(root.attrib['skipped'])
+    total_time = float(root.attrib['time'])
 
-    # Parse the XML data
-    root = ET.fromstring(xml_data)
-
-    # Extract test suite information
-    test_suite_name = root.attrib.get('name', 'Test Suite')
-    tests = root.attrib.get('tests', '0')
-    failures = root.attrib.get('failures', '0')
-    skipped = root.attrib.get('skipped', '0')
-
-    # Initialize the total time
-    total_time = 0.0
-
-    # Extract test case information
     test_cases = []
+    failed_cases = []
     for testcase in root.findall('testcase'):
-        name = testcase.attrib.get('name')
-        time = float(testcase.attrib.get('time', '0'))
-        status = 'passed' if testcase.find('failure') is None else 'failed'
-        test_cases.append((name, status, time))
+        name = testcase.attrib['name']
+        time = float(testcase.attrib['time'])
+        status = 'passed'
+        error_message = None
 
-        # Accumulate total time
-        total_time += time
+        failure = testcase.find('failure')
+        if failure is not None:
+            status = 'failed'
+            error_message = failure.attrib.get('message', '') + ' ' + testcase.find('system-out').text.strip()
+            failed_cases.append((name, error_message))
 
-    return test_suite_name, tests, failures, skipped, total_time, test_cases
+        test_cases.append((name, status, time, error_message))
 
+    return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
 
-def create_dark_theme_test_results_image(file_path, os, compiler):
+def create_horizontal_test_results_image(file_path, os, compiler, event, author, brach):
     # Parse the XML data from the file
-    test_suite_name, tests, failures, skipped, total_time, test_cases = parse_test_results_from_file(file_path)
+    test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
+
+    # Set height depending if there are failed tests
+    default_height = 0
+    if failures > 0:
+        default_height = 250
+    else:
+        default_height = 150
 
     # Set up image
-    width, height = 500, 350
+    width, height = 800, default_height + (25 * len(test_cases)) + (25 * len(failed_cases))  # Adjust height based on number of test cases and failed cases
     background_color = (45, 47, 49)  # Dark gray
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
@@ -227,11 +230,20 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
     # Draw title
     draw.text((20, 20), "Test Results", font=title_font, fill=white)
 
+    x = 200
+    # Add the trigger details
+    draw.text((x, 30), f"Author: {author}", font=body_font, fill=white)
+    x += 150
+    draw.text((x, 30), f"Event: {event}", font=body_font, fill=white)
+    x += 150
+    draw.text((x, 30), f"Branch: {brach}", font=body_font, fill=white)
     # Hard set the suite name
     test_suite_name = f"{os}-{compiler}"
 
     # Draw test suite information
     y = 60
+    draw.text((20, y), f"Details", font=header_font, fill=white)
+    y += 40
     draw.text((20, y), f"Test Suite: {test_suite_name}", font=body_font, fill=white)
     y += 25
     draw.text((20, y), f"Total Tests: {tests}", font=body_font, fill=white)
@@ -241,16 +253,30 @@ def create_dark_theme_test_results_image(file_path, os, compiler):
     draw.text((20, y), f"Skipped: {skipped}", font=body_font, fill=light_gray)
     y += 25
     draw.text((20, y), f"Duration: {total_time:.6f}", font=body_font, fill=light_gray)
-    y += 40
+
+    if failures > 0:
+        # Draw failed test summary header
+        y += 40
+        draw.text((20, y), "Failed Test Summary", font=header_font, fill=white)
+
+        # Draw failed test cases
+        y += 30
+        for name, error_message in failed_cases:
+            draw.text((20, y), name, font=body_font, fill=white)
+            y += 25
+            draw.text((20, y), error_message, font=body_font, fill=red)
+            y += 25
+
+    # Draw detailed test results header
+    draw.text((400, 60), "Detailed Test Results", font=header_font, fill=white)
 
     # Draw test cases
-    draw.text((20, y), "Detailed Test Results", font=header_font, fill=white)
-    y += 30
-    for name, status, duration in test_cases:
-        draw.text((20, y), name, font=body_font, fill=white)
+    y = 100
+    for name, status, duration, error_message in test_cases:
+        draw.text((400, y), name, font=body_font, fill=white)
         status_color = green if status == 'passed' else red
-        draw.text((200, y), status, font=body_font, fill=status_color)
-        draw.text((280, y), f"{duration:.6f}", font=body_font, fill=light_gray)  # Corrected here
+        draw.text((580, y), status, font=body_font, fill=status_color)
+        draw.text((660, y), f"{duration:.6f}", font=body_font, fill=light_gray)
         y += 25
 
     return image
@@ -296,7 +322,7 @@ if __name__ == "__main__":
         print(f"Discord JSON output has been written to {discord_json_output_file}")
 
         # Generate data
-        image = create_dark_theme_test_results_image(args.xml_file, args.os, args.compiler)
+        image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch)
 
         # Create the image
         os.makedirs(os.path.dirname(args.image_out), exist_ok=True)

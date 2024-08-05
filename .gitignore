@@ -85,12 +85,9 @@ bin/
 obj/
 *.spv
 _deps/
-scripts/ctestOutput.xml
 
-scripts/discord.json
 
-scripts/output.json
-
-scripts/testimage.png
-
-Testing/Temporary/
+# Ignore objects created for local testing
+scripts/
+# Do not ignore the python script
+!/scripts/OutPutResultsToJsons.py
