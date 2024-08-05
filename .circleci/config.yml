@@ -99,19 +99,20 @@ workflows:
   build-all:
     jobs:
       - build-and-test:
-          matrix:
-            parameters:
-              os: [linux, windows]
-              build_type: [Release]
-              c_compiler: [gcc, clang, cl]
-              cpp_compiler: [g++, clang++, cl]
-          exclude:
-            - os: windows
-              c_compiler: gcc
-              cpp_compiler: g++
-            - os: windows
-              c_compiler: clang
-              cpp_compiler: clang++
-            - os: linux
-              c_compiler: cl
-              cpp_compiler: cl
+          name: linux-gcc
+          os: linux
+          build_type: Release
+          c_compiler: gcc
+          cpp_compiler: g++
+      - build-and-test:
+          name: linux-clang
+          os: linux
+          build_type: Release
+          c_compiler: clang
+          cpp_compiler: clang++
+      - build-and-test:
+          name: windows-msvc
+          os: windows
+          build_type: Release
+          c_compiler: cl
+          cpp_compiler: cl
