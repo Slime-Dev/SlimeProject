@@ -9,7 +9,8 @@ executors:
       - image: cimg/base:stable
   windows-executor:
     machine:
-      image: windows-default
+      image: 'windows-server-2022-gui:current'
+      shell: 'powershell.exe -ExecutionPolicy Bypass'
 
 commands:
   install-linux-dependencies:
