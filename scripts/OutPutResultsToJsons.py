@@ -187,7 +187,7 @@ def parse_test_results_from_file(file_path):
 
     return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
 
-def create_horizontal_test_results_image(file_path, os, compiler):
+def create_horizontal_test_results_image(file_path, os, compiler, event, author, brach):
     # Parse the XML data from the file
     test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
 
@@ -230,6 +230,13 @@ def create_horizontal_test_results_image(file_path, os, compiler):
     # Draw title
     draw.text((20, 20), "Test Results", font=title_font, fill=white)
 
+    x = 200
+    # Add the trigger details
+    draw.text((x, 30), f"Author: {author}", font=body_font, fill=white)
+    x += 150
+    draw.text((x, 30), f"Event: {event}", font=body_font, fill=white)
+    x += 150
+    draw.text((x, 30), f"Branch: {brach}", font=body_font, fill=white)
     # Hard set the suite name
     test_suite_name = f"{os}-{compiler}"
 
@@ -315,7 +322,7 @@ if __name__ == "__main__":
         print(f"Discord JSON output has been written to {discord_json_output_file}")
 
         # Generate data
-        image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler)
+        image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch)
 
         # Create the image
         os.makedirs(os.path.dirname(args.image_out), exist_ok=True)
