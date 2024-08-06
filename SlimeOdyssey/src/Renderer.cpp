@@ -70,17 +70,17 @@ void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 	//auto mainPass = new MainRenderPass(shadowPass);
 	//m_renderPassManager.AddPass(mainPass);
 
-	auto gridPass = new GridRenderPass(*m_disp, shaderManager, m_debugUtils);
+	auto gridPass = std::make_shared<GridRenderPass>();
 	m_renderPassManager.AddPass(gridPass);
 
-	m_renderPassManager.Setup(*m_disp, m_allocator, m_swapchain, *m_debugUtils);
+	m_renderPassManager.Setup(*m_disp, m_allocator, m_swapchain, shaderManager, *m_debugUtils);
 }
 
 void Renderer::SetupViewportAndScissor(VkCommandBuffer& cmd)
 {
 	VkViewport viewport = { 0.0f, 0.0f, static_cast<float>(m_swapchain.extent.width), static_cast<float>(m_swapchain.extent.height), 0.0f, 1.0f };
 	VkRect2D scissor = {
-		{0, 0},
+		{ 0, 0 },
         m_swapchain.extent
 	};
 
@@ -126,7 +126,7 @@ void Renderer::RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImage
 		VkRenderingInfo renderingInfo = {};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 		renderingInfo.renderArea = {
-			{0, 0},
+			{ 0, 0 },
             m_swapchain.extent
 		};
 		renderingInfo.layerCount = 1;

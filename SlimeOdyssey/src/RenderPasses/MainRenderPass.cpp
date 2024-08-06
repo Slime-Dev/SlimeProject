@@ -19,7 +19,7 @@ VkDescriptorSet MainRenderPass::GetShadowMapDescriptorSet(Scene* scene, ShadowSy
 	return VK_NULL_HANDLE;
 }
 
-void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
+void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils)
 {
 }
 
@@ -27,7 +27,7 @@ void MainRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 {
 }
 
-VkRenderingInfo MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) const
+VkRenderingInfo MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
 {
 	return VkRenderingInfo();
 }

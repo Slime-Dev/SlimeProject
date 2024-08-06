@@ -6,7 +6,7 @@ ShadowRenderPass::ShadowRenderPass(ModelManager& modelManager, VmaAllocator allo
 	name = "Shadow Pass";
 }
 
-void ShadowRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
+void ShadowRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils)
 {
 	m_shadowSystem.Initialize(disp, allocator, debugUtils);
 }
@@ -41,7 +41,7 @@ void ShadowRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, S
 	        disp, cmd, m_modelManager, m_allocator, m_commandPool, m_graphicsQueue, m_debugUtils, scene, [this](vkb::DispatchTable d, VulkanDebugUtils& du, VkCommandBuffer& c, ModelManager& mm, Scene* s) { this->DrawModelsForShadowMap(d, du, c, mm, s); }, lights, camera);
 }
 
-VkRenderingInfo ShadowRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) const
+VkRenderingInfo ShadowRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
 {
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;

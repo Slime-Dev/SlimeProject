@@ -10,7 +10,7 @@ class Camera;
 class GridRenderPass : public RenderPassBase
 {
 public:
-	GridRenderPass(vkb::DispatchTable& disp, ShaderManager* shaderManager, VulkanDebugUtils* debugUtils);
+	GridRenderPass();
 	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Scene* scene, Camera* camera) override;
 
 private:
@@ -18,9 +18,13 @@ private:
 	VkPipelineLayout m_pipelineLayout;
 
 	// Inherited via RenderPassBase
-	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils) override;
+	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils) override;
 	void Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator) override;
-	VkRenderingInfo GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) const override;
+	VkRenderingInfo GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) override;
 
 	glm::vec3 m_clearColor = glm::vec3(0.0f, 0.0f, 0.0f);
+
+	VkRenderingAttachmentInfo m_colorAttachmentInfo{};
+	VkRenderingAttachmentInfo m_depthAttachmentInfo{};
+	VkRenderingInfo m_renderingInfo{};
 };

@@ -18,7 +18,7 @@ private:
 	ShadowRenderPass* m_shadowPass = nullptr;
 
 	// Inherited via RenderPassBase
-	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils) override;
+	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils) override;
 	void Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator) override;
-	VkRenderingInfo GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) const override;
+	VkRenderingInfo GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) override;
 };

@@ -5,15 +5,18 @@
 #include "ResourcePathManager.h"
 #include "Scene.h"
 #include "ShaderManager.h"
-#include <VkBootstrapDispatch.h>
+#include <VkBootstrap.h>
 
-GridRenderPass::GridRenderPass(vkb::DispatchTable& disp, ShaderManager* shaderManager, VulkanDebugUtils* debugUtils)
+GridRenderPass::GridRenderPass()
 {
 	name = "Grid";
+}
 
+void GridRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils)
+{
 	std::vector<std::pair<std::string, VkShaderStageFlagBits>> gridShaderPaths = {
-		{ResourcePathManager::GetShaderPath("grid.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
-        {ResourcePathManager::GetShaderPath("grid.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+		{ ResourcePathManager::GetShaderPath("grid.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT },
+        { ResourcePathManager::GetShaderPath("grid.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT }
 	};
 
 	// Load and parse shaders
@@ -107,13 +110,27 @@ GridRenderPass::GridRenderPass(vkb::DispatchTable& disp, ShaderManager* shaderMa
 	pipelineGenerator.SetDescriptorSetLayouts(descriptorSetLayouts);
 	pipelineGenerator.SetPushConstantRanges(combinedResources.pushConstantRanges);
 
-	PipelineConfig config = pipelineGenerator.Build(disp, *debugUtils);
-
+	PipelineConfig config = pipelineGenerator.Build(disp, debugUtils);
+	m_pipeline = config.pipeline;
+	m_pipelineLayout = config.pipelineLayout;
 	spdlog::debug("Created pipeline: {}", "Grid");
-}
 
-void GridRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
-{
+	m_colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	m_colorAttachmentInfo.pNext = VK_NULL_HANDLE;
+	m_colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	m_colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	m_colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	m_colorAttachmentInfo.clearValue = {
+		.color = { m_clearColor.r, m_clearColor.g, m_clearColor.b, 0.0f }
+	};
+
+	m_depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	m_depthAttachmentInfo.pNext = VK_NULL_HANDLE;
+	m_depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	m_depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	m_depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	m_depthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	m_depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
 }
 
 void GridRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Scene* scene, Camera* camera)
@@ -138,41 +155,26 @@ void GridRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Sce
 
 void GridRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 {
+	disp.destroyPipeline(m_pipeline, nullptr);
+	disp.destroyPipelineLayout(m_pipelineLayout, nullptr);
 }
 
-VkRenderingInfo GridRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) const
+VkRenderingInfo GridRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
 {
-	VkRenderingAttachmentInfo colorAttachmentInfo = {};
-	colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachmentInfo.pNext = VK_NULL_HANDLE;
-	colorAttachmentInfo.imageView = swapchainImageView;
-	colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentInfo.clearValue = {
-		.color = {m_clearColor.r, m_clearColor.g, m_clearColor.b, 0.0f}
-	};
+	m_colorAttachmentInfo.imageView = swapchainImageView;
+	m_depthAttachmentInfo.imageView = depthImageView;
 
-	VkRenderingAttachmentInfo depthAttachmentInfo = {};
-	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	depthAttachmentInfo.pNext = VK_NULL_HANDLE;
-	depthAttachmentInfo.imageView = depthImageView;
-	depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
-
-	VkRenderingInfo renderingInfo = {};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderingInfo.pNext = VK_NULL_HANDLE;
-	renderingInfo.renderArea = {
+	m_renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	m_renderingInfo.pNext = VK_NULL_HANDLE;
+	m_renderingInfo.flags = 0;
+	m_renderingInfo.renderArea = {
 		.offset = {0, 0},
           .extent = swapchain.extent
 	};
-	renderingInfo.layerCount = 1;
-	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &colorAttachmentInfo;
-	renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+	m_renderingInfo.layerCount = 1;
+	m_renderingInfo.colorAttachmentCount = 1;
+	m_renderingInfo.pColorAttachments = &m_colorAttachmentInfo;
+	m_renderingInfo.pDepthAttachment = &m_depthAttachmentInfo;
 
-	return renderingInfo;
+	return m_renderingInfo;
 }

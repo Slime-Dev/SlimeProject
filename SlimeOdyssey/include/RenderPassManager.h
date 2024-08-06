@@ -18,16 +18,16 @@
 class RenderPassManager
 {
 public:
-	void AddPass(RenderPassBase* pass)
+	void AddPass(std::shared_ptr<RenderPassBase> pass)
 	{
 		m_passes.push_back(std::move(pass));
 	}
 
-	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils& debugUtils)
+	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils)
 	{
 		for (auto& pass: m_passes)
 		{
-			pass->Setup(disp, allocator, swapchain, debugUtils);
+			pass->Setup(disp, allocator, swapchain, shaderManager, debugUtils);
 		}
 	}
 
@@ -56,7 +56,7 @@ public:
 		}
 	}
 
-	RenderPassBase* GetPass(std::string name)
+	std::shared_ptr<RenderPassBase> GetPass(std::string name)
 	{
 		for (auto pass: m_passes)
 		{
@@ -71,5 +71,5 @@ public:
 	}
 
 private:
-	std::vector<RenderPassBase*> m_passes;
+	std::vector<std::shared_ptr<RenderPassBase>> m_passes;
 };
