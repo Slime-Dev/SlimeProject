@@ -3,10 +3,11 @@ name: Testing for multiple platforms
 on:
   push:
     branches-ignore:
-      [ "build" ]
+      - 'build'
+      - 'circleci-project-setup'
   pull_request:
     branches:
-      [ "main" ]
+      - 'main'
 
 jobs:
   build:
