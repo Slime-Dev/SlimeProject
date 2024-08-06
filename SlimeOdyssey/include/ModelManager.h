@@ -38,7 +38,6 @@ public:
 	void UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator);
 	void BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set);
 	void TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
-	int DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model);
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
 	TextureResource* CopyTexture(const std::string& name, TextureResource* texture);
 

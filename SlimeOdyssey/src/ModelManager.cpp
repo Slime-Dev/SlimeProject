@@ -1242,11 +1242,3 @@ ModelResource* ModelManager::CreateCylinder(VmaAllocator allocator, float radius
 	return &m_modelResources[name];
 }
 
-int ModelManager::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model)
-{
-	VkDeviceSize offsets[] = { 0 };
-	disp.cmdBindVertexBuffers(cmd, 0, 1, &model.vertexBuffer, offsets);
-	disp.cmdBindIndexBuffer(cmd, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	disp.cmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
-	return 0;
-}

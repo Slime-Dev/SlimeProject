@@ -64,11 +64,11 @@ int Renderer::Draw(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorM
 
 void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 {
-	//auto shadowPass = new ShadowRenderPass(*m_modelManager, m_allocator, m_commandPool, m_graphicsQueue);
+	auto shadowPass = new ShadowRenderPass(*m_modelManager, m_allocator, m_commandPool, m_graphicsQueue);
 	//m_renderPassManager.AddPass(shadowPass);
 
-	//auto mainPass = new MainRenderPass(shadowPass);
-	//m_renderPassManager.AddPass(mainPass);
+	auto mainPass = std::make_shared<MainRenderPass>(shadowPass, *m_modelManager, m_allocator, m_commandPool, m_graphicsQueue, m_descriptorManager);
+	m_renderPassManager.AddPass(mainPass);
 
 	auto gridPass = std::make_shared<GridRenderPass>();
 	m_renderPassManager.AddPass(gridPass);
