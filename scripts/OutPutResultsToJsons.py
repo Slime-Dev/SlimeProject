@@ -206,8 +206,8 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     # Global levels
     title_height = 20
-    sub_heading_height = 125
-    content_buffer = 40
+    sub_heading_height = 100
+    content_buffer = 25
     line_buffer = 20
     event_spacing = 150
     left_buffer = 20
