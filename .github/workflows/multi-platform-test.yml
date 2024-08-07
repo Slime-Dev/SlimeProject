@@ -108,31 +108,12 @@ jobs:
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
 
-      - name: Get last commit message on Ubuntu
-        if: matrix.os == 'ubuntu-latest'
-        id: get_commit_msg
-        run: |
-          # Set "checking" variable to false by default.
-          echo "has_tags=false" >> $GITHUB_ENV
-          # Get your last commit message, not the merge commit.
-          text=$(git log -1 --no-merges --pretty=%B)
-          # Read the commit message into an array split by "#".
-          readarray -d "#" -t commit_message <<< "$text"
-          # Sanity check.
-          echo "the tags are: ${commit_message[1]}"
-          # Add tags and overwrite "checking" variable to true if there are tags.
-          if [[ "${commit_message[1]}" == *"@"*  ]]; then
-            echo "has_tags=true" >> $GITHUB_ENV
-            echo "COMMIT_MSG=${commit_message[1]}" >> $GITHUB_ENV
-          fi
-
-      - name: Get last commit message on Windows
-        if: matrix.os == 'windows-latest'
+      - name: Get last commit message
         id: get_commit_msg_windows
+        shell: bash
         run: |
           $commit_msg = & git log -1 --pretty=%B
           echo "COMMIT_MSG=$commit_msg" >> $env:GITHUB_ENV
-        shell: pwsh
 
       - name: Convert XML to CTRF
         if: success()
