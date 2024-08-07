@@ -112,7 +112,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         id: get_commit_msg
         run: |
-          echo "COMMIT_MSG=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          printf "COMMIT_MSG=%s\n" "$COMMIT_MSG" >> $GITHUB_ENV
 
       - name: Get last commit message on Windows
         if: matrix.os == 'windows-latest'
@@ -146,19 +147,21 @@ jobs:
               npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
             else
               return 1
+            fi
           else
             if exist "${{ github.workspace }}\scripts\finalresult.json"; then
               npm install github-actions-ctrf@0.0.20
               npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
             else
               return 1
+            fi
           fi
 
       - name: Ensure image was created
         if: success()
         shell: bash
         run: |
-          if [ -f "${{ github.workspace }}/scripts/discrod_image.png"" ] || if exist "${{ github.workspace }}\scripts\discrod_image.png""; then
+          if [ -f "${{ github.workspace }}/scripts/discrod_image.png"" ] || if  exist "${{ github.workspace }}\scripts\discrod_image.png""; then
             return 0
           else
             return 1
