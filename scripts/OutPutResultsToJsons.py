@@ -187,7 +187,7 @@ def parse_test_results_from_file(file_path):
 
     return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
 
-def create_horizontal_test_results_image(file_path, os, compiler, event, author, brach, commit_message):
+def create_horizontal_test_results_image(file_path, os, compiler, event, author, branch, commit_message):
     # Parse the XML data from the file
     test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
 
@@ -244,11 +244,11 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     x += 150
     draw.text((x, y), f"Event: {event}", font=body_font, fill=white)
     x += 150
-    draw.text((x, y), f"Branch: {brach}", font=body_font, fill=white)
+    draw.text((x, y), f"Branch: {branch}", font=body_font, fill=white)
     # Hard set the suite name
     test_suite_name = f"{os}-{compiler}"
     # Commit msg
-    draw.text(left_buffer, y + line_buffer), f"Commit Message: {commit_message}"
+    draw.text((left_buffer, y + line_buffer), f"Commit Message: {commit_message}")
     # Draw test suite information
     y = sub_heading_height
     draw.text((left_buffer, sub_heading_height), f"Details", font=header_font, fill=white)
