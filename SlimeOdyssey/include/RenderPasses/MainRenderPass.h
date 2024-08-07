@@ -95,7 +95,7 @@ private:
 
 	std::list<LRUCacheEntry> m_lruList;
 	std::unordered_map<size_t, std::list<LRUCacheEntry>::iterator> m_materialDescriptorCache;
-	const size_t MAX_CACHE_SIZE = 75;
+	const size_t MAX_CACHE_SIZE = 300;
 
 	VkDescriptorSet GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity);
 	void UpdatePBRMaterialDescriptors(EntityManager& entityManager, VkDescriptorSet descSet, Entity* entity);
