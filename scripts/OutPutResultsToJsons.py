@@ -187,7 +187,7 @@ def parse_test_results_from_file(file_path):
 
     return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
 
-def create_horizontal_test_results_image(file_path, os, compiler, event, author, brach):
+def create_horizontal_test_results_image(file_path, os, compiler, event, author, brach, commit_message):
     # Parse the XML data from the file
     test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
 
@@ -196,7 +196,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     if failures > 0:
         default_height = 250
     else:
-        default_height = 150
+        default_height = 200
 
     # Set up image
     width, height = 800, default_height + (25 * len(test_cases)) + (25 * len(failed_cases))  # Adjust height based on number of test cases and failed cases
@@ -204,6 +204,13 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
 
+    # Global levels
+    title_height = 20
+    sub_heading_height = 100
+    content_buffer = 40
+    line_buffer = 20
+    event_spacing = 150
+    left_buffer = 20
     # Load fonts
     try:
         if os == "Windows":
@@ -228,31 +235,33 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     red = (255, 0, 0)
 
     # Draw title
-    draw.text((20, 20), "Test Results", font=title_font, fill=white)
+    draw.text((width / 2.5, title_height), "Test Results", font=title_font, fill=white)
 
-    x = 200
-    # Add the trigger details
-    draw.text((x, 30), f"Author: {author}", font=body_font, fill=white)
+    # Draw Event details
+    x = left_buffer
+    y = title_height + content_buffer
+    draw.text((x, y), f"Author: {author}", font=body_font, fill=white)
     x += 150
-    draw.text((x, 30), f"Event: {event}", font=body_font, fill=white)
+    draw.text((x, y), f"Event: {event}", font=body_font, fill=white)
     x += 150
-    draw.text((x, 30), f"Branch: {brach}", font=body_font, fill=white)
+    draw.text((x, y), f"Branch: {brach}", font=body_font, fill=white)
     # Hard set the suite name
     test_suite_name = f"{os}-{compiler}"
-
+    # Commit msg
+    draw.text(left_buffer, y + line_buffer), f"Commit Message: {commit_message}"
     # Draw test suite information
-    y = 60
-    draw.text((20, y), f"Details", font=header_font, fill=white)
-    y += 40
-    draw.text((20, y), f"Test Suite: {test_suite_name}", font=body_font, fill=white)
-    y += 25
-    draw.text((20, y), f"Total Tests: {tests}", font=body_font, fill=white)
-    y += 25
-    draw.text((20, y), f"Failures: {failures}", font=body_font, fill=red if int(failures) > 0 else green)
-    y += 25
-    draw.text((20, y), f"Skipped: {skipped}", font=body_font, fill=light_gray)
-    y += 25
-    draw.text((20, y), f"Duration: {total_time:.6f}", font=body_font, fill=light_gray)
+    y = sub_heading_height
+    draw.text((left_buffer, sub_heading_height), f"Details", font=header_font, fill=white)
+    y += content_buffer
+    draw.text((left_buffer, y), f"Test Suite: {test_suite_name}", font=body_font, fill=white)
+    y += line_buffer
+    draw.text((left_buffer, y), f"Total Tests: {tests}", font=body_font, fill=white)
+    y += line_buffer
+    draw.text((left_buffer, y), f"Failures: {failures}", font=body_font, fill=red if int(failures) > 0 else green)
+    y += line_buffer
+    draw.text((left_buffer, y), f"Skipped: {skipped}", font=body_font, fill=light_gray)
+    y += line_buffer
+    draw.text((left_buffer, y), f"Duration: {total_time:.6f}", font=body_font, fill=light_gray)
 
     if failures > 0:
         # Draw failed test summary header
@@ -268,16 +277,16 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
             y += 25
 
     # Draw detailed test results header
-    draw.text((400, 60), "Detailed Test Results", font=header_font, fill=white)
+    draw.text((400, sub_heading_height), "Detailed Test Results", font=header_font, fill=white)
 
     # Draw test cases
-    y = 100
+    y = sub_heading_height + content_buffer
     for name, status, duration, error_message in test_cases:
         draw.text((400, y), name, font=body_font, fill=white)
         status_color = green if status == 'passed' else red
         draw.text((580, y), status, font=body_font, fill=status_color)
         draw.text((660, y), f"{duration:.6f}", font=body_font, fill=light_gray)
-        y += 25
+        y += line_buffer
 
     return image
 
@@ -293,6 +302,7 @@ if __name__ == "__main__":
     parser.add_argument('--event', help="The event triggering the action")
     parser.add_argument('--author', help="The user triggering the action")
     parser.add_argument('--branch', help="The branch branch the action was triggered on")
+    parser.add_argument('--commit_msg', help="Commit message")
 
     args = parser.parse_args()
 
@@ -322,7 +332,7 @@ if __name__ == "__main__":
         print(f"Discord JSON output has been written to {discord_json_output_file}")
 
         # Generate data
-        image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch)
+        image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch, args.commit_msg)
 
         # Create the image
         os.makedirs(os.path.dirname(args.image_out), exist_ok=True)
