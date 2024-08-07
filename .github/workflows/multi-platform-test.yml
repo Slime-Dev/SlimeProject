@@ -138,6 +138,7 @@ jobs:
 
       - name: Post results
         if: success()
+        shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             if [ -f "${{ github.workspace }}/scripts/finalresult.json" ]; then
@@ -155,6 +156,7 @@ jobs:
 
       - name: Ensure image was created
         if: success()
+        shell: bash
         run: |
           if [ -f "${{ github.workspace }}/scripts/discrod_image.png"" ] || if exist "${{ github.workspace }}\scripts\discrod_image.png""; then
             return 0
