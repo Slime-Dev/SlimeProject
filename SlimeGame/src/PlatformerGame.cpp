@@ -49,8 +49,9 @@ PlatformerGame::PlatformerGame(SlimeWindow* window)
 	m_entityManager.AddEntity(lightEntity);
 }
 
-int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManager, DescriptorManager& descriptorManager)
+int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
+	DescriptorManager& descriptorManager = *vulkanContext.GetDescriptorManager();
 	SetupShaders(vulkanContext, modelManager, *vulkanContext.GetShaderManager(), descriptorManager);
 
 	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");

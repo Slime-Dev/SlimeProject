@@ -32,11 +32,14 @@ layout(set = 0, binding = 0, scalar) uniform CameraUBO {
 
 // Light uniforms (set = 1)
 layout(set = 1, binding = 0, scalar) uniform LightUBO {
-    vec3 direction;
-    float ambientStrength;
     vec3 color;
-    float padding1;  // Add padding to ensure 16-byte alignment
+    float padding1;
+    float ambientStrength;
+    float specularStrength;
+    vec2 padding2;
     mat4 lightSpaceMatrix;
+    vec3 direction;
+    float padding3;
 } light;
 
 const mat4 bias = mat4( // Bias matrix to transform NDC space [-1,1] to texture space [0,1]

@@ -36,6 +36,9 @@ public:
 
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> GetSharedDescriptorSet();
 	void CreateSharedDescriptorSet(VkDescriptorSetLayout descriptorsetLayout);
+	
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> GetLightDescriptorSet();
+	void CreateLightDescriptorSet(VkDescriptorSetLayout descriptorsetLayout);
 
 	std::shared_ptr<PBRMaterialResource> CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
 	std::shared_ptr<BasicMaterialResource> CreateBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name);
@@ -51,6 +54,7 @@ private:
 	const vkb::DispatchTable& m_disp;
 
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> m_sharedDescriptorSet;
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> m_lightDescriptorSet;
 
 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;

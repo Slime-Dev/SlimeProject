@@ -1,13 +1,19 @@
 #include "RenderPasses/MainRenderPass.h"
 
+#include <glm/common.hpp>
+
+#include "Camera.h"
 #include "DescriptorManager.h"
+#include "Entity.h"
+#include "ModelManager.h"
 #include "PipelineGenerator.h"
 #include "RenderPasses/ShadowRenderPass.h"
 #include "ResourcePathManager.h"
 #include "ShaderManager.h"
 #include "ShadowSystem.h"
+#include "VulkanUtil.h"
 
-MainRenderPass::MainRenderPass(ShadowRenderPass* shadowPass, ModelManager& modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager& descriptorManager)
+MainRenderPass::MainRenderPass(ShadowRenderPass* shadowPass, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager)
       : m_shadowPass(shadowPass), m_modelManager(modelManager), m_allocator(allocator), m_commandPool(commandPool), m_graphicsQueue(graphicsQueue), m_descriptorManager(descriptorManager)
 {
 	name = "Main Pass";
@@ -15,6 +21,8 @@ MainRenderPass::MainRenderPass(ShadowRenderPass* shadowPass, ModelManager& model
 
 void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils)
 {
+	m_debugUtils = &debugUtils;
+
 	// Set up a basic pipeline
 	std::vector<std::pair<std::string, VkShaderStageFlagBits>> shaderPaths = {
 		{ ResourcePathManager::GetShaderPath("basic.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT },
@@ -134,51 +142,46 @@ void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	m_depthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	m_depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
+
+	m_descriptorManager->CreateSharedDescriptorSet(descriptorSetLayouts[0]);
+	m_descriptorManager->CreateLightDescriptorSet(descriptorSetLayouts[1]);
 }
 
 void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Scene* scene, Camera* camera)
 {
-	UpdateCommonBuffers(m_debugUtils, m_allocator, cmd, scene);
+	UpdateCommonBuffers(cmd, scene);
 
 	// I have removed the basic material models for now!
 	EntityManager& entityManager = scene->m_entityManager;
 	std::vector<std::shared_ptr<Entity>> modelEntities = entityManager.GetEntitiesWithComponents<Model, PBRMaterial, Transform>();
 
-	std::sort(modelEntities.begin(), modelEntities.end(), [](const auto& a, const auto& b) { return a->template GetComponent<Model>().modelResource->pipelineName < b->template GetComponent<Model>().modelResource->pipelineName; });
-
 	// Get the shared descriptor set
-	std::pair<VkDescriptorSet, VkDescriptorSetLayout> sharedDescriptorSet = m_descriptorManager.GetSharedDescriptorSet();
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> sharedDescriptorSet = m_descriptorManager->GetSharedDescriptorSet();
+	std::pair<VkDescriptorSet, VkDescriptorSetLayout> lightDescriptorSet = m_descriptorManager->GetLightDescriptorSet();
 
 	// Update shared descriptors before the loop
-	UpdateSharedDescriptors(sharedDescriptorSet.first, sharedDescriptorSet.second, entityManager, m_allocator);
+	UpdateSharedDescriptors(sharedDescriptorSet.first, lightDescriptorSet.first, entityManager);
 
 	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
+	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &lightDescriptorSet.first, 0, nullptr);
 
 	for (const auto& entity: modelEntities)
 	{
 		ModelResource* model = entity->GetComponent<Model>().modelResource;
 		Transform& transform = entity->GetComponent<Transform>();
 
-		m_debugUtils.BeginDebugMarker(cmd, ("Process Model: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
+		m_debugUtils->BeginDebugMarker(cmd, ("Process Model: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
 
 		// Bind descriptor sets
-		for (size_t i = 1; i < m_descriptorSetLayouts.size(); i++)
-		{
-			VkDescriptorSet currentDescriptorSet = GetOrUpdateDescriptorSet(entityManager, entity.get(), i);
-			disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, i, 1, &currentDescriptorSet, 0, nullptr);
-		}
+		VkDescriptorSet materialDescriptorSet = GetOrUpdateDescriptorSet(entityManager, entity.get());
+		disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 2, 1, &materialDescriptorSet, 0, nullptr);
 
 		UpdatePushConstants(disp, cmd, transform);
 
-		m_debugUtils.BeginDebugMarker(cmd, "Draw Model", debugUtil_DrawModelColour);
 		DrawModel(disp, cmd, *model);
-		m_debugUtils.EndDebugMarker(cmd);
-
-		m_debugUtils.EndDebugMarker(cmd);
+		m_debugUtils->EndDebugMarker(cmd);
 	}
-
-	m_debugUtils.EndDebugMarker(cmd);
 }
 
 int MainRenderPass::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model)
@@ -188,10 +191,6 @@ int MainRenderPass::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, co
 	disp.cmdBindIndexBuffer(cmd, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	disp.cmdDrawIndexed(cmd, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
 	return 0;
-}
-
-void MainRenderPass::BindDescriptorSets(vkb::DispatchTable& disp, VkCommandBuffer& cmd, VkPipelineLayout layout, Scene* scene)
-{
 }
 
 VkDescriptorSet MainRenderPass::GetShadowMapDescriptorSet(Scene* scene, ShadowSystem& shadowSystem)
@@ -223,4 +222,158 @@ VkRenderingInfo MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkIma
 	m_renderingInfo.pDepthAttachment = &m_depthAttachmentInfo;
 
 	return m_renderingInfo;
+}
+
+void MainRenderPass::UpdateCommonBuffers(VkCommandBuffer& cmd, Scene* scene)
+{
+	m_debugUtils->BeginDebugMarker(cmd, "Update Common Buffers", debugUtil_UpdateLightBufferColour);
+
+	EntityManager& entityManager = scene->m_entityManager;
+
+	// LIGHT
+	auto lightEntity = entityManager.GetEntityByName("Light");
+	if (!lightEntity)
+	{
+		spdlog::critical("Light entity not found!");
+		return;
+	}
+
+	DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
+	if (light.buffer == VK_NULL_HANDLE)
+	{
+		SlimeUtil::CreateBuffer("Light Buffer", m_allocator, light.GetBindingDataSize(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
+	}
+
+	auto bindingData = light.GetBindingData();
+	SlimeUtil::CopyStructToBuffer(bindingData, m_allocator, light.allocation);
+
+	// CAMERA
+	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	camera.UpdateCameraUBO(m_allocator);
+	SlimeUtil::CopyStructToBuffer(camera.GetCameraUBO(), m_allocator, camera.GetCameraUBOAllocation());
+
+	m_debugUtils->EndDebugMarker(cmd);
+}
+
+void MainRenderPass::UpdateSharedDescriptors(VkDescriptorSet cameraSet, VkDescriptorSet lightSet, EntityManager& entityManager)
+{
+	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	m_descriptorManager->BindBuffer(cameraSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
+
+	auto lightEntity = entityManager.GetEntityByName("Light");
+	if (!lightEntity)
+	{
+		spdlog::critical("Light entity not found!");
+		return;
+	}
+
+	auto light = lightEntity->GetComponentShrPtr<DirectionalLight>();
+	m_descriptorManager->BindBuffer(lightSet, 0, light->buffer, 0, light->GetBindingDataSize());
+}
+
+VkDescriptorSet MainRenderPass::GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity)
+{
+	size_t descriptorHash = GenerateDescriptorHash(entity);
+
+	if (m_forceInvalidateDecriptorSets)
+	{
+		m_forceInvalidateDecriptorSets = false;
+
+		for (auto& entry: m_materialDescriptorCache)
+		{
+			m_descriptorManager->FreeDescriptorSet(entry.second->descriptorSet);
+		}
+
+		m_materialDescriptorCache.clear();
+		m_lruList.clear();
+	}
+
+	auto it = m_materialDescriptorCache.find(descriptorHash);
+	if (it != m_materialDescriptorCache.end())
+	{
+		// Move the accessed item to the front of the LRU list
+		m_lruList.splice(m_lruList.begin(), m_lruList, it->second);
+		return it->second->descriptorSet;
+	}
+
+	// If not found in cache, create a new descriptor set
+	VkDescriptorSet newDescriptorSet = m_descriptorManager->AllocateDescriptorSet(m_descriptorSetLayouts[2]);
+	m_debugUtils->SetObjectName(newDescriptorSet, entity->GetName() + " Material Descriptor Set");
+
+	// Update the new descriptor set
+	UpdatePBRMaterialDescriptors(entityManager, newDescriptorSet, entity);
+
+	// If cache is full, remove the least recently used item
+	if (m_materialDescriptorCache.size() >= MAX_CACHE_SIZE)
+	{
+		auto last = m_lruList.back(); // This is the least recently used item
+		m_materialDescriptorCache.erase(last.hash);
+		m_descriptorManager->FreeDescriptorSet(last.descriptorSet);
+		m_lruList.pop_back();
+	}
+
+	// Add the new item to the front of the LRU list (most recently used)
+	m_lruList.push_front({ descriptorHash, newDescriptorSet });
+	m_materialDescriptorCache[descriptorHash] = m_lruList.begin();
+
+	return newDescriptorSet;
+}
+
+void MainRenderPass::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Transform& transform)
+{
+	m_mvp.model = transform.GetModelMatrix();
+	m_mvp.normalMatrix = glm::transpose(glm::inverse(glm::mat3(m_mvp.model)));
+	disp.cmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_mvp), &m_mvp);
+	m_debugUtils->InsertDebugMarker(cmd, "Update Push Constants", debugUtil_White);
+}
+
+void MainRenderPass::UpdatePBRMaterialDescriptors(EntityManager& entityManager, VkDescriptorSet descSet, Entity* entity)
+{
+	auto lightEntity = entityManager.GetEntityByName("Light");
+	auto light = lightEntity->GetComponentShrPtr<DirectionalLight>();
+
+	PBRMaterial& pbrMaterial = entity->GetComponent<PBRMaterial>();
+	PBRMaterialResource& materialResource = *pbrMaterial.materialResource;
+
+	SlimeUtil::CopyStructToBuffer(materialResource.config, m_allocator, materialResource.configAllocation);
+	m_descriptorManager->BindBuffer(descSet, 0, materialResource.configBuffer, 0, sizeof(PBRMaterialResource::Config));
+
+	// TODO add support for multiple shadow maps
+	auto shadowMap = m_shadowPass->GetShadowSystem().GetShadowMap(light);
+
+	// TODO: UPDATE THIS WHEN THE SHADOW PASS IS DONE!
+	//m_descriptorManager->BindImage(descSet, 1, shadowMap.imageView, shadowMap.sampler);
+	m_descriptorManager->BindImage(descSet, 1, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
+
+	if (materialResource.albedoTex)
+		m_descriptorManager->BindImage(descSet, 2, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
+	if (materialResource.normalTex)
+		m_descriptorManager->BindImage(descSet, 3, materialResource.normalTex->imageView, materialResource.normalTex->sampler);
+	if (materialResource.metallicTex)
+		m_descriptorManager->BindImage(descSet, 4, materialResource.metallicTex->imageView, materialResource.metallicTex->sampler);
+	if (materialResource.roughnessTex)
+		m_descriptorManager->BindImage(descSet, 5, materialResource.roughnessTex->imageView, materialResource.roughnessTex->sampler);
+	if (materialResource.aoTex)
+		m_descriptorManager->BindImage(descSet, 6, materialResource.aoTex->imageView, materialResource.aoTex->sampler);
+}
+
+// Helper function to generate a hash for a material
+// Helper function to generate a hash for all descriptor types
+inline size_t MainRenderPass::GenerateDescriptorHash(const Entity* entity)
+{
+	size_t hash;
+
+	if (entity->HasComponent<PBRMaterial>())
+	{
+		const auto& material = entity->GetComponent<PBRMaterial>().materialResource;
+		hash ^= std::hash<PBRMaterialResource::Config>{}(material->config);
+		// Include texture pointers in the hash
+		hash ^= std::hash<const void*>{}(material->albedoTex);
+		hash ^= std::hash<const void*>{}(material->normalTex);
+		hash ^= std::hash<const void*>{}(material->metallicTex);
+		hash ^= std::hash<const void*>{}(material->roughnessTex);
+		hash ^= std::hash<const void*>{}(material->aoTex);
+	}
+
+	return hash;
 }

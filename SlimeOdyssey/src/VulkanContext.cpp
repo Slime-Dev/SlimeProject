@@ -34,7 +34,7 @@ VulkanContext::~VulkanContext()
 		spdlog::error("CLEANUP WAS NOT CALLED ON THE VULKAN CONTEXT!");
 }
 
-int VulkanContext::CreateContext(SlimeWindow* window)
+int VulkanContext::CreateContext(SlimeWindow* window, ModelManager* modelManager)
 {
 	if (DeviceInit(window) != 0)
 		return -1;
@@ -46,7 +46,8 @@ int VulkanContext::CreateContext(SlimeWindow* window)
 		return -1;
 
 	m_shaderManager = new ShaderManager();
-	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager);
+	m_descriptorManager = new DescriptorManager(m_disp);
+	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager, modelManager, m_descriptorManager);
 
 	if (CreateRenderCommandBuffers() != 0)
 		return -1;
@@ -584,7 +585,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	return 0;
 }
 
-int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene)
+int VulkanContext::RenderFrame(ModelManager& modelManager, SlimeWindow* window, Scene* scene)
 {
 	if (window->WindowSuspended())
 	{
@@ -621,7 +622,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	// Begin command buffer recording
 	VkCommandBuffer cmd = m_renderCommandBuffers[imageIndex];
 
-	if (m_renderer.Draw(cmd, modelManager, descriptorManager, m_commandPool, m_graphicsQueue, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
+	if (m_renderer.Draw(cmd, m_commandPool, m_graphicsQueue, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
 		return -1;
 
 	VkSubmitInfo submit_info = {};
@@ -678,7 +679,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, DescriptorManager& de
 	return 0;
 }
 
-int VulkanContext::Cleanup(ModelManager& modelManager, DescriptorManager& descriptorManager)
+int VulkanContext::Cleanup(ModelManager& modelManager)
 {
 	spdlog::debug("Cleaning up...");
 
@@ -710,7 +711,8 @@ int VulkanContext::Cleanup(ModelManager& modelManager, DescriptorManager& descri
 	m_shaderManager->CleanUp(m_disp);
 	delete m_shaderManager;
 
-	descriptorManager.Cleanup();
+	m_descriptorManager->Cleanup();
+	delete m_descriptorManager;
 
 	m_renderer.CleanUp();
 
@@ -735,6 +737,11 @@ int VulkanContext::Cleanup(ModelManager& modelManager, DescriptorManager& descri
 ShaderManager* VulkanContext::GetShaderManager()
 {
 	return m_shaderManager;
+}
+
+DescriptorManager* VulkanContext::GetDescriptorManager()
+{
+	return m_descriptorManager;
 }
 
 VulkanDebugUtils& VulkanContext::GetDebugUtils()

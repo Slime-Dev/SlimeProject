@@ -4,6 +4,7 @@
 #include "VkBootstrap.h"
 
 class VulkanDebugUtils;
+class ShaderManager;
 
 class RenderPassBase
 {

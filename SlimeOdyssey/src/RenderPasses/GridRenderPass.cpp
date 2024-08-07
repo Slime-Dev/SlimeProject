@@ -118,7 +118,7 @@ void GridRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	m_colorAttachmentInfo.pNext = VK_NULL_HANDLE;
 	m_colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	m_colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	m_colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	m_colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	m_colorAttachmentInfo.clearValue = {
 		.color = { m_clearColor.r, m_clearColor.g, m_clearColor.b, 0.0f }
@@ -127,7 +127,7 @@ void GridRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	m_depthAttachmentInfo.pNext = VK_NULL_HANDLE;
 	m_depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	m_depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	m_depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	m_depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	m_depthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	m_depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;

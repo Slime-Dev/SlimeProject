@@ -14,7 +14,7 @@ class DebugScene : public Scene
 {
 public:
     DebugScene(SlimeWindow* window);
-	int Enter(VulkanContext& vulkanContext, ModelManager& modelManager, DescriptorManager& descriptorManager) override;
+	int Enter(VulkanContext& vulkanContext, ModelManager& modelManager) override;
     void Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager) override;
     void Render() override;
     void Exit(VulkanContext& vulkanContext, ModelManager& modelManager) override;

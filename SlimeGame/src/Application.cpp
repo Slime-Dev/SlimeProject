@@ -99,15 +99,14 @@ void Application::Run()
 	{
 		float dt = m_window.Update();
 		m_scene.Update(dt, m_vulkanContext, m_window.GetInputManager());
-		m_vulkanContext.RenderFrame(m_modelManager, *m_descriptorManager, &m_window, &m_scene);
+		m_vulkanContext.RenderFrame(m_modelManager, &m_window, &m_scene);
 	}
 }
 
 void Application::Cleanup()
 {
 	m_scene.Exit(m_vulkanContext, m_modelManager);
-	m_vulkanContext.Cleanup(m_modelManager, *m_descriptorManager);
-	delete m_descriptorManager;
+	m_vulkanContext.Cleanup(m_modelManager);
 }
 
 void Application::InitializeLogging()
@@ -124,7 +123,7 @@ void Application::InitializeWindow()
 
 void Application::InitializeVulkanContext()
 {
-	if (m_vulkanContext.CreateContext(&m_window) != 0)
+	if (m_vulkanContext.CreateContext(&m_window, &m_modelManager) != 0)
 	{
 		throw std::runtime_error("Failed to create Vulkan Context!");
 	}
@@ -133,12 +132,11 @@ void Application::InitializeVulkanContext()
 void Application::InitializeManagers()
 {
 	m_modelManager = ModelManager();
-	m_descriptorManager = new DescriptorManager(m_vulkanContext.GetDispatchTable());
 }
 
 void Application::InitializeScene()
 {
-	if (m_scene.Enter(m_vulkanContext, m_modelManager, *m_descriptorManager) != 0)
+	if (m_scene.Enter(m_vulkanContext, m_modelManager) != 0)
 	{
 		throw std::runtime_error("Failed to initialize scene");
 	}

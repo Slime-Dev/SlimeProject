@@ -14,12 +14,14 @@
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
 
-void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager)
+void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager)
 {
 	m_disp = disp;
 	m_allocator = allocator;
 	m_swapchain = swapchain;
 	m_debugUtils = debugUtils;
+	m_descriptorManager = descriptorManager;
+	m_modelManager = modelManager;
 
 	CreateDepthImage();
 	SetupRenderPasses(shaderManager);
@@ -31,7 +33,7 @@ void Renderer::CleanUp()
 	CleanupDepthImage();
 }
 
-int Renderer::Draw(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene)
+int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene)
 {
 	if (SlimeUtil::BeginCommandBuffer(*m_disp, cmd) != 0)
 		return -1;
@@ -42,7 +44,7 @@ int Renderer::Draw(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorM
 	SlimeUtil::SetupDepthTestingAndLineWidth(*m_disp, cmd);
 
 	// Transition images to appropriate layouts
-	TransitionImages(modelManager, graphicsQueue, commandPool, swapchainImages[imageIndex]);
+	TransitionImages(*m_modelManager, graphicsQueue, commandPool, swapchainImages[imageIndex]);
 
 	// Execute all render passes
 	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, m_swapchain, swapchainImageViews[imageIndex], m_depthImageView, scene, camera);
@@ -51,7 +53,7 @@ int Renderer::Draw(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorM
 	RenderImGui(cmd, swapchainImages[imageIndex], swapchainImageViews[imageIndex]);
 
 	// Transition color image to present src layout
-	modelManager.TransitionImageLayout(*m_disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	m_modelManager->TransitionImageLayout(*m_disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	if (SlimeUtil::EndCommandBuffer(*m_disp, cmd) != 0)
 		return -1;
@@ -67,7 +69,7 @@ void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 	auto shadowPass = new ShadowRenderPass(*m_modelManager, m_allocator, m_commandPool, m_graphicsQueue);
 	//m_renderPassManager.AddPass(shadowPass);
 
-	auto mainPass = std::make_shared<MainRenderPass>(shadowPass, *m_modelManager, m_allocator, m_commandPool, m_graphicsQueue, m_descriptorManager);
+	auto mainPass = std::make_shared<MainRenderPass>(shadowPass, m_modelManager, m_allocator, m_commandPool, m_graphicsQueue, m_descriptorManager);
 	m_renderPassManager.AddPass(mainPass);
 
 	auto gridPass = std::make_shared<GridRenderPass>();

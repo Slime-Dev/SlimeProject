@@ -30,7 +30,6 @@ private:
 	SlimeWindow m_window;
 	VulkanContext m_vulkanContext;
 	ModelManager m_modelManager;
-	DescriptorManager* m_descriptorManager = nullptr;
 
 #ifdef DEBUG_SCENE
 	DebugScene m_scene;

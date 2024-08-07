@@ -30,6 +30,16 @@ void DescriptorManager::CreateSharedDescriptorSet(VkDescriptorSetLayout descript
 	m_sharedDescriptorSet = { AllocateDescriptorSet(descriptorsetLayout), descriptorsetLayout };
 }
 
+std::pair<VkDescriptorSet, VkDescriptorSetLayout> DescriptorManager::GetLightDescriptorSet()
+{
+	return m_lightDescriptorSet;
+}
+
+void DescriptorManager::CreateLightDescriptorSet(VkDescriptorSetLayout descriptorsetLayout)
+{
+	m_lightDescriptorSet = { AllocateDescriptorSet(descriptorsetLayout), descriptorsetLayout };
+}
+
 VkDescriptorSet DescriptorManager::AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout)
 {
 	VkDescriptorSetAllocateInfo allocInfo{};
@@ -125,6 +135,8 @@ void DescriptorManager::CreateDescriptorPool()
 	poolInfo.maxSets = 100;
 
 	VK_CHECK(m_disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool));
+
+	spdlog::debug("Created command pool");
 }
 
 std::shared_ptr<PBRMaterialResource> DescriptorManager::CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao)

@@ -2,16 +2,17 @@
 
 #include <glm/glm.hpp>
 #include <vector>
-#include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
+#include <vulkan/vulkan.h>
 
 #include "RenderPassManager.h"
 
 // Forward declarations
-namespace vkb {
-    struct DispatchTable;
-    struct Swapchain;
-}
+namespace vkb
+{
+	struct DispatchTable;
+	struct Swapchain;
+} // namespace vkb
 class VulkanDebugUtils;
 class ModelManager;
 class DescriptorManager;
@@ -20,47 +21,45 @@ class Scene;
 class Renderer
 {
 public:
-    Renderer() = default;
-    ~Renderer() = default;
+	Renderer() = default;
+	~Renderer() = default;
 
-    void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager);
-    void CleanUp();
+	void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager);
+	void CleanUp();
 
-    int Draw(VkCommandBuffer& cmd, ModelManager& modelManager, DescriptorManager& descriptorManager, 
-             VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, 
-             std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene);
+	int Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene);
 
-    void CreateDepthImage();
+	void CreateDepthImage();
 
 private:
 	void SetupRenderPasses(ShaderManager* shaderManager);
-    void SetupViewportAndScissor(VkCommandBuffer& cmd);
-    void TransitionImages(ModelManager& modelManager, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage);
-    void RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView);
-    void RenderImGuiWindows();
-    void HandleMultiViewportRendering();
+	void SetupViewportAndScissor(VkCommandBuffer& cmd);
+	void TransitionImages(ModelManager& modelManager, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage);
+	void RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView);
+	void RenderImGuiWindows();
+	void HandleMultiViewportRendering();
 
-    void CleanupDepthImage();
+	void CleanupDepthImage();
 
-    RenderPassManager m_renderPassManager;
+	RenderPassManager m_renderPassManager;
 
-    // Vulkan objects
-    vkb::DispatchTable* m_disp = nullptr;
-    VmaAllocator m_allocator = VK_NULL_HANDLE;
-    vkb::Swapchain m_swapchain;
-    VulkanDebugUtils* m_debugUtils = nullptr;
+	// Vulkan objects
+	vkb::DispatchTable* m_disp = nullptr;
+	VmaAllocator m_allocator = VK_NULL_HANDLE;
+	vkb::Swapchain m_swapchain;
+	VulkanDebugUtils* m_debugUtils = nullptr;
 
-    // Depth buffer
-    VkImage m_depthImage = VK_NULL_HANDLE;
-    VkImageView m_depthImageView = VK_NULL_HANDLE;
-    VmaAllocation m_depthImageAllocation = VK_NULL_HANDLE;
+	// Depth buffer
+	VkImage m_depthImage = VK_NULL_HANDLE;
+	VkImageView m_depthImageView = VK_NULL_HANDLE;
+	VmaAllocation m_depthImageAllocation = VK_NULL_HANDLE;
 
-    // Other resources
-    ModelManager* m_modelManager = nullptr;
-    DescriptorManager* m_descriptorManager = nullptr;
-    VkCommandPool m_commandPool = VK_NULL_HANDLE;
-    VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+	// Other resources
+	ModelManager* m_modelManager = nullptr;
+	DescriptorManager* m_descriptorManager = nullptr;
+	VkCommandPool m_commandPool = VK_NULL_HANDLE;
+	VkQueue m_graphicsQueue = VK_NULL_HANDLE;
 
-    // Render settings
-    glm::vec3 m_clearColor = glm::vec3(0.0f, 0.0f, 0.0f);
+	// Render settings
+	glm::vec3 m_clearColor = glm::vec3(0.0f, 0.0f, 0.0f);
 };

@@ -25,11 +25,12 @@ public:
 	VulkanContext() = default;
 	~VulkanContext();
 
-	int CreateContext(SlimeWindow* window);
-	int RenderFrame(ModelManager& modelManager, DescriptorManager& descriptorManager, SlimeWindow* window, Scene* scene);
-	int Cleanup(ModelManager& modelManager, DescriptorManager& descriptorManager);
+	int CreateContext(SlimeWindow* window, ModelManager* modelManager);
+	int RenderFrame(ModelManager& modelManager, SlimeWindow* window, Scene* scene);
+	int Cleanup(ModelManager& modelManager);
 
 	ShaderManager* GetShaderManager();
+	DescriptorManager* GetDescriptorManager();
 
 	// Getters
 	VulkanDebugUtils& GetDebugUtils();
@@ -81,6 +82,7 @@ private:
 	VulkanDebugUtils m_debugUtils;
 
 	ShaderManager* m_shaderManager = nullptr;
+	DescriptorManager* m_descriptorManager = nullptr;
 
 	// Safety checks
 	bool m_cleanUpFinished = false;
