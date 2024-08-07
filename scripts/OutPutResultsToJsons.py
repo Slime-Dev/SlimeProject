@@ -206,7 +206,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     # Global levels
     title_height = 20
-    sub_heading_height = 100
+    sub_heading_height = 125
     content_buffer = 40
     line_buffer = 20
     event_spacing = 150
@@ -241,15 +241,16 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     x = left_buffer
     y = title_height + content_buffer
     draw.text((x, y), f"Author: {author}", font=body_font, fill=white)
-    x += 150
+    x += event_spacing
     draw.text((x, y), f"Event: {event}", font=body_font, fill=white)
-    x += 150
+    x += event_spacing
     draw.text((x, y), f"Branch: {branch}", font=body_font, fill=white)
     # Hard set the suite name
     test_suite_name = f"{os}-{compiler}"
     # Commit msg
     draw.text((left_buffer, y + line_buffer), f"Commit Message: {commit_message}")
     # Draw test suite information
+
     y = sub_heading_height
     draw.text((left_buffer, sub_heading_height), f"Details", font=header_font, fill=white)
     y += content_buffer

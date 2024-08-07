@@ -108,12 +108,21 @@ jobs:
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
 
-      - name: Get last commit message
-        id: get_commit_msg_windows
+      - name: Get last commit message on Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        id: get_commit_msg
         shell: bash
         run: |
-          $commit_msg = & git log -1 --pretty=%B
-          echo "COMMIT_MSG=$commit_msg" >> $env:GITHUB_ENV
+          commit_msg=$(git log -1 --pretty=%B)
+          echo "COMMIT_MSG=$commit_msg" >> $GITHUB_ENV
+
+      - name: Get last commit message on Windows
+        if: matrix.os == 'windows-latest'
+        id: get_commit_msg_windows
+        shell: pwsh
+        run: |
+          $commit_msg = git log -1 --pretty=%B
+          echo "COMMIT_MSG=$commit_msg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Convert XML to CTRF
         if: success()
