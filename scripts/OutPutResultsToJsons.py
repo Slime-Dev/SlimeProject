@@ -337,8 +337,10 @@ if __name__ == "__main__":
         # Create the image
         os.makedirs(os.path.dirname(args.image_out), exist_ok=True)
         image.save(args.image_out)
-
+        exit(0)
     except FileNotFoundError as e:
         print(e)
+        exit(1)
     except Exception as e:
         print(f"An error occurred: {e}")
+        exit(1)

@@ -123,7 +123,7 @@ jobs:
           # Add tags and overwrite "checking" variable to true if there are tags.
           if [[ "${commit_message[1]}" == *"@"*  ]]; then
             echo "has_tags=true" >> $GITHUB_ENV
-            echo "spec_tags=${commit_message[1]}" >> $GITHUB_ENV
+            echo "COMMIT_MSG=${commit_message[1]}" >> $GITHUB_ENV
           fi
 
       - name: Get last commit message on Windows
@@ -138,53 +138,16 @@ jobs:
         if: success()
         shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
             pip install defusedxml
             pip install pillow
             python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "${{ env.COMMIT_MSG }}"
-          else
-            pip install defusedxml
-            pip install pillow
-            python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "${{ env.COMMIT_MSG }}"
-          fi
 
       - name: Post results
         if: success()
         shell: bash
         run: |
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            if (Test-Path "${{ github.workspace }}\scripts\finalresult.json") {
-              npm install github-actions-ctrf@0.0.20
-              npx github-actions-ctrf "${{ github.workspace }}\scripts\finalresult.json"
-            } else {
-              exit 1
-            }
-          else
-            if [ -f "${{ github.workspace }}/scripts/finalresult.json" ]; then
-              npm install github-actions-ctrf@0.0.20
-              npx github-actions-ctrf "${{ github.workspace }}/scripts/finalresult.json"
-            else
-              exit 1
-            fi
-          fi
-
-      - name: Ensure image was created
-        if: success()
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            if (Test-Path "${{ github.workspace }}\scripts\discrod_image.png") {
-              exit 0
-            } else {
-              exit 1
-            }
-          else
-            if [ -f "${{ github.workspace }}/scripts/discrod_image.png" ]; then
-              exit 0
-            else
-              exit 1
-            fi
-          fi
+          npm install github-actions-ctrf@0.0.20
+          npx github-actions-ctrf "${{ github.workspace }}/scripts/finalresult.json"
 
       - name: Post results to Discord
         if: success()
