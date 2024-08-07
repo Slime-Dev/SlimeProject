@@ -50,7 +50,7 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue grap
 	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, m_swapchain, swapchainImageViews[imageIndex], m_depthImageView, scene, camera);
 
 	// Render ImGui
-	RenderImGui(cmd, swapchainImages[imageIndex], swapchainImageViews[imageIndex]);
+	RenderImGui(cmd, swapchainImages[imageIndex], swapchainImageViews[imageIndex], scene);
 
 	// Transition color image to present src layout
 	m_modelManager->TransitionImageLayout(*m_disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -98,7 +98,7 @@ void Renderer::TransitionImages(ModelManager& modelManager, VkQueue graphicsQueu
 	modelManager.TransitionImageLayout(*m_disp, graphicsQueue, commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 }
 
-void Renderer::RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView)
+void Renderer::RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView, Scene* scene)
 {
 	// Start the Dear ImGui frame
 	ImGui_ImplVulkan_NewFrame();
@@ -110,7 +110,7 @@ void Renderer::RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImage
 	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
 
 	// Render your ImGui windows and widgets here
-	RenderImGuiWindows();
+	RenderImGuiWindows(scene);
 
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -144,8 +144,10 @@ void Renderer::RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImage
 	}
 }
 
-void Renderer::RenderImGuiWindows()
+void Renderer::RenderImGuiWindows(Scene* scene)
 {
+	scene->Render();
+
 	// Render your ImGui windows here
 	// For example:
 	ImGui::Begin("Renderer Settings");

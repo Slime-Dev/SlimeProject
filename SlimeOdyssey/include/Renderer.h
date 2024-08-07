@@ -35,8 +35,8 @@ private:
 	void SetupRenderPasses(ShaderManager* shaderManager);
 	void SetupViewportAndScissor(VkCommandBuffer& cmd);
 	void TransitionImages(ModelManager& modelManager, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage);
-	void RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView);
-	void RenderImGuiWindows();
+	void RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView, Scene* scene);
+	void RenderImGuiWindows(Scene* scene);
 	void HandleMultiViewportRendering();
 
 	void CleanupDepthImage();
