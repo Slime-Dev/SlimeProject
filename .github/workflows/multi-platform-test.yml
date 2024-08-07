@@ -3,6 +3,9 @@ name: Testing for multiple platforms
 on:
   workflow_dispatch:
     {}
+  push:
+    branches:
+      [ "*" ]
   pull_request:
     branches:
       [ "main" ]
@@ -105,19 +108,52 @@ jobs:
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
 
+      - name: Get last commit message on Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        id: get_commit_msg_ubuntu
+        run: echo "COMMIT_MSG=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+
+      - name: Get last commit message on Windows
+        if: matrix.os == 'windows-latest'
+        id: get_commit_msg_windows
+        run: |
+          $commit_msg = & git log -1 --pretty=%B
+          echo "COMMIT_MSG=$commit_msg" >> $env:GITHUB_ENV
+        shell: pwsh
+
       - name: Convert XML to CTRF
         if: success()
         shell: bash
         run: |
-          pip install defusedxml
-          pip install pillow
-          python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "${{ github.event.head_commit.message }}"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            pip install defusedxml
+            pip install pillow
+            python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "${{ env.COMMIT_MSG }}"
+          else
+            pip install defusedxml
+            pip install pillow
+            python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "${{ env.COMMIT_MSG }}"
+          fi
 
       - name: Post results
         if: success()
         run: |
-          npm install github-actions-ctrf@0.0.20
-          npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
+          if [ -f "${{ github.workspace }}/scripts/finalresult.json" ] || if exist "${{ github.workspace }}\scripts\finalresult.json"; then
+            npm install github-actions-ctrf@0.0.20
+            npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
+          else
+            echo "finalresult.json not found"
+            return 1
+          fi
+
+      - name: Ensure image was created
+        if: success()
+        run: |
+          if [ -f "${{ github.workspace }}/scripts/discrod_image.png"" ] || if exist "${{ github.workspace }}\scripts\discrod_image.png""; then
+            return 0
+          else
+            return 1
+          fi
 
       - name: Post results to Discord
         if: success()
