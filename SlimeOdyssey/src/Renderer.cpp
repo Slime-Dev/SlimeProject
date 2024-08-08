@@ -8,6 +8,7 @@
 #include "DescriptorManager.h"
 #include "ModelManager.h"
 #include "RenderPasses/GridRenderPass.h"
+#include "RenderPasses/ImGuiRenderPass.h"
 #include "RenderPasses/MainRenderPass.h"
 #include "RenderPasses/ShadowRenderPass.h"
 #include "Scene.h"
@@ -48,9 +49,6 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue grap
 	// Execute all render passes
 	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, m_swapchain, swapchainImageViews[imageIndex], m_depthImageView, scene, camera);
 
-	// Render ImGui
-	RenderImGui(cmd, swapchainImages[imageIndex], swapchainImageViews[imageIndex], scene);
-
 	// Transition color image to present src layout
 	m_modelManager->TransitionImageLayout(*m_disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
@@ -74,6 +72,9 @@ void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 	auto gridPass = std::make_shared<GridRenderPass>();
 	m_renderPassManager.AddPass(gridPass);
 
+	auto imguiPass = std::make_shared<ImGuiRenderPass>();
+	m_renderPassManager.AddPass(imguiPass);
+
 	m_renderPassManager.Setup(*m_disp, m_allocator, m_swapchain, shaderManager, *m_debugUtils);
 }
 
@@ -83,66 +84,6 @@ void Renderer::TransitionImages(ModelManager& modelManager, VkQueue graphicsQueu
 	modelManager.TransitionImageLayout(*m_disp, graphicsQueue, commandPool, swapchainImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	// Transition depth image to depth attachment optimal
 	modelManager.TransitionImageLayout(*m_disp, graphicsQueue, commandPool, m_depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-}
-
-void Renderer::RenderImGui(VkCommandBuffer& cmd, VkImage swapchainImage, VkImageView swapchainImageView, Scene* scene)
-{
-	// Start the Dear ImGui frame
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-
-	// Create a full screen docking space for ImGui
-	ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
-	ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID, ImGui::GetMainViewport(), dockFlags);
-
-	// Render your ImGui windows and widgets here
-	RenderImGuiWindows(scene);
-
-	ImGui::Render();
-	ImDrawData* drawData = ImGui::GetDrawData();
-	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
-	if (!isMinimized)
-	{
-		// Set up rendering info for ImGui
-		VkRenderingAttachmentInfo colorAttachmentInfo = {};
-		colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		colorAttachmentInfo.imageView = swapchainImageView;
-		colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-		VkRenderingInfo renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-		renderingInfo.renderArea = {
-			{ 0, 0 },
-            m_swapchain.extent
-		};
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachmentInfo;
-
-		m_disp->cmdBeginRendering(cmd, &renderingInfo);
-
-		// Record dear imgui primitives into command buffer
-		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
-
-		m_disp->cmdEndRendering(cmd);
-	}
-}
-
-void Renderer::RenderImGuiWindows(Scene* scene)
-{
-	scene->Render();
-
-	// Render your ImGui windows here
-	// For example:
-	ImGui::Begin("Renderer Settings");
-	ImGui::ColorEdit3("Clear Color", &m_clearColor.r);
-	// Add more ImGui widgets as needed
-	ImGui::End();
-
-	// m_shadowSystem.RenderImGuiWindow();
 }
 
 void Renderer::HandleMultiViewportRendering()

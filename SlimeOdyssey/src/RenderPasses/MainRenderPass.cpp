@@ -168,6 +168,9 @@ void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb
 	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &lightDescriptorSet.first, 0, nullptr);
+	
+	// TODO: LOOK INTO A BETTER WAY OF HANDLING DESCRIPTOR SETS!
+	m_forceInvalidateDecriptorSets = true;
 
 	for (const auto& entity: modelEntities)
 	{
@@ -284,7 +287,6 @@ void MainRenderPass::UpdateSharedDescriptors(VkDescriptorSet cameraSet, VkDescri
 VkDescriptorSet MainRenderPass::GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity)
 {
 	size_t descriptorHash = GenerateDescriptorHash(entity);
-
 	if (m_forceInvalidateDecriptorSets)
 	{
 		m_forceInvalidateDecriptorSets = false;

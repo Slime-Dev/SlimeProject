@@ -30,6 +30,7 @@ private:
     std::vector<std::shared_ptr<PBRMaterialResource>> m_pbrMaterials;
 	std::vector<std::shared_ptr<BasicMaterialResource>> m_basicMaterials;
 	std::vector<std::shared_ptr<Model>> m_models;
+	std::vector<Transform*> m_cubeTransforms;
 
     // Debug camera controls
     bool m_cameraMouseControl = true;

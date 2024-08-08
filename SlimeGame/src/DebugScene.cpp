@@ -94,7 +94,7 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
     CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);
 
     // Grid of cubes
-    const int gridSize = 10;
+    const int gridSize = 6;
     const float startY = 6.0f;
     const float cubeOffset = 2.0f;
     const float yVariation = 1.5f;
@@ -121,6 +121,7 @@ void DebugScene::CreateCube(ModelResource* mesh, const glm::vec3& position, cons
     transform.position = position;
     transform.scale = scale;
     m_entityManager.AddEntity(cube);
+	m_cubeTransforms.push_back(&transform);
 }
 
 void DebugScene::CreateLargeCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
@@ -137,6 +138,16 @@ void DebugScene::CreateLargeCube(ModelResource* mesh, const glm::vec3& position,
 void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager)
 {
     UpdateFlyCam(dt, inputManager);
+
+	static float time = 0.0f;
+	time += dt;
+	int cubeIndex = 0;
+	for (auto& cubeTransform : m_cubeTransforms)
+	{
+		// Move the cubes up and down
+		cubeTransform->position.y = 2.25f + sin(time + cubeIndex * 0.5f) * 0.5f;
+		cubeIndex++;
+	}
 
     if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
     {

@@ -123,8 +123,8 @@ void DescriptorManager::BindImage(VkDescriptorSet descriptorSet, uint32_t bindin
 void DescriptorManager::CreateDescriptorPool()
 {
 	VkDescriptorPoolSize poolSizes[] = {
-		{         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 300 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 300 }
+		{         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 }
 	};
 
 	VkDescriptorPoolCreateInfo poolInfo{};
@@ -132,7 +132,7 @@ void DescriptorManager::CreateDescriptorPool()
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	poolInfo.poolSizeCount = 2;
 	poolInfo.pPoolSizes = poolSizes;
-	poolInfo.maxSets = 500;
+	poolInfo.maxSets = 100;
 
 	VK_CHECK(m_disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool));
 

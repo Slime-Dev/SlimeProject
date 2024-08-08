@@ -954,11 +954,11 @@ ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int
 			float z = -size / 2 + j * step;
 			Vertex vertex;
 			vertex.pos = glm::vec3(x, 0.0f, z);
-			vertex.normal = glm::vec3(0.0f, 1.0f, -1.0f);
+			vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
 			// Calculate UV coordinates to be 0-1 for each quad, but uniform direction
 			vertex.texCoord = glm::vec2(static_cast<float>(i % 2), static_cast<float>(1 - (j % 2)));
 			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-			vertex.bitangent = glm::vec3(0.0f, 0.0f, -1.0f);
+			vertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
 			model.vertices.push_back(vertex);
 		}
 	}
