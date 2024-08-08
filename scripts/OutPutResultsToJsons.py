@@ -167,8 +167,8 @@ def parse_test_results_from_file(file_path):
     tests = int(root.attrib['tests'])
     failures = int(root.attrib['failures'])
     skipped = int(root.attrib['skipped'])
-    total_time = float(root.attrib['time'])
 
+    total_time = 0
     test_cases = []
     failed_cases = []
     for testcase in root.findall('testcase'):
@@ -185,43 +185,64 @@ def parse_test_results_from_file(file_path):
 
         test_cases.append((name, status, time, error_message))
 
+        total_time += time
+
     return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
 
 def create_horizontal_test_results_image(file_path, os, compiler, event, author, branch, commit_message):
     # Parse the XML data from the file
     test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
 
+    test_suite_name = compiler
+
     # Set height depending if there are failed tests
-    default_height = 0
+    default_height = 300
     if failures > 0:
-        default_height = 250
+        default_height = 300
     else:
-        default_height = 200
+        default_height = 300
 
     # Set up image
-    width, height = 800, default_height + (25 * len(test_cases)) + (25 * len(failed_cases))  # Adjust height based on number of test cases and failed cases
-    background_color = (45, 47, 49)  # Dark gray
+    width, height = 850, default_height + (35 * len(test_cases)) + (35 * len(failed_cases))  # Adjust height based on number of test cases and failed cases
+    background_color = (35, 37, 39)  # Darker gray
+    shading_color = (55, 57, 59)  # Slightly lighter shade for background
+    gradient_color = (50, 50, 150)  # Gradient color
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
 
+    # Create gradient effect
+    for i in range(height):
+        ratio = i / height
+        r = int(background_color[0] * (1 - ratio) + gradient_color[0] * ratio)
+        g = int(background_color[1] * (1 - ratio) + gradient_color[1] * ratio)
+        b = int(background_color[2] * (1 - ratio) + gradient_color[2] * ratio)
+        draw.line([(0, i), (width, i)], fill=(r, g, b))
+
     # Global levels
-    title_height = 20
-    sub_heading_height = 100
-    content_buffer = 25
-    line_buffer = 20
-    event_spacing = 150
-    left_buffer = 20
+    title_height = 30
+    sub_heading_height = 150
+    content_buffer = 30
+    line_buffer = 25
+    event_spacing = 180
+    left_buffer = 30
+    padding = 15  # Padding around shaded areas
+    border_radius = 20
+    content_box_height = 330
+    content_box_width = 400
+    column_buffer = width // 2.08
+    title_box_width = content_box_width * 2.03
+
     # Load fonts
     try:
         if os == "Windows":
-            title_font = ImageFont.truetype("arial.ttf", 24)
-            header_font = ImageFont.truetype("arial.ttf", 18)
-            body_font = ImageFont.truetype("arial.ttf", 14)
+            title_font = ImageFont.truetype("arial.ttf", 28)
+            header_font = ImageFont.truetype("arial.ttf", 20)
+            body_font = ImageFont.truetype("arial.ttf", 16)
         else:
             # Use DejaVuSans as it is commonly available across platforms
-            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)
-            header_font = ImageFont.truetype("DejaVuSans.ttf", 18)
-            body_font = ImageFont.truetype("DejaVuSans.ttf", 14)
+            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 28)
+            header_font = ImageFont.truetype("DejaVuSans.ttf", 20)
+            body_font = ImageFont.truetype("DejaVuSans.ttf", 16)
     except IOError:
         # Fallback to default font if not available
         title_font = ImageFont.load_default()
@@ -231,13 +252,22 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Colors
     white = (255, 255, 255)
     light_gray = (200, 200, 200)
-    green = (0, 255, 0)
-    red = (255, 0, 0)
+    green = (0, 255, 100)
+    red = (255, 100, 100)
+    shadow_color = (0, 0, 0, 80)
 
-    # Draw title
-    draw.text((width / 2.5, title_height), "Test Results", font=title_font, fill=white)
+    # Draw rounded rectangle with shadow for event details
+    event_details_box = [left_buffer - padding, title_height - padding, title_box_width, sub_heading_height - line_buffer]
+    shadow_box = [left_buffer - padding + 5, title_height - padding + 5, title_box_width + 5, sub_heading_height - line_buffer + 5]
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(event_details_box, fill=shading_color, radius=border_radius)
 
-    # Draw Event details
+    # Draw title with drop shadow
+    title_position = (width // 2 - 100, title_height)
+    draw.text((title_position[0] + 2, title_position[1] + 2), "Test Results", font=title_font, fill=shadow_color)
+    draw.text(title_position, "Test Results", font=title_font, fill=white)
+
+    # Draw Event details text
     x = left_buffer
     y = title_height + content_buffer
     draw.text((x, y), f"Author: {author}", font=body_font, fill=white)
@@ -245,12 +275,15 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     draw.text((x, y), f"Event: {event}", font=body_font, fill=white)
     x += event_spacing
     draw.text((x, y), f"Branch: {branch}", font=body_font, fill=white)
-    # Hard set the suite name
-    test_suite_name = f"{os}-{compiler}"
-    # Commit msg
-    draw.text((left_buffer, y + line_buffer), f"Commit Message: {commit_message}")
-    # Draw test suite information
+    draw.text((left_buffer, y + line_buffer), f"Commit Message: {commit_message}", font=body_font, fill=white)
 
+    # Draw rounded rectangle with shadow for Details section
+    details_box = [left_buffer - padding, sub_heading_height - padding, content_box_width, content_box_height]
+    shadow_box = [left_buffer - padding + 5, sub_heading_height - padding + 5, content_box_width + 5, content_box_height + 5]
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(details_box, fill=shading_color, radius=border_radius)
+
+    # Draw Details text
     y = sub_heading_height
     draw.text((left_buffer, sub_heading_height), f"Details", font=header_font, fill=white)
     y += content_buffer
@@ -264,32 +297,30 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     y += line_buffer
     draw.text((left_buffer, y), f"Duration: {total_time:.6f}", font=body_font, fill=light_gray)
 
-    if failures > 0:
-        # Draw failed test summary header
-        y += 40
-        draw.text((20, y), "Failed Test Summary", font=header_font, fill=white)
+    # Draw rounded rectangle with shadow for Detailed Test Results section
+    detailed_results_box = [width // 2 - padding, sub_heading_height - padding, (width // 2 - padding) + content_box_width, content_box_height]
+    shadow_box = [width // 2 - padding + 5, sub_heading_height - padding + 5, (width // 2 - padding) + content_box_width + 5, content_box_height + 5]
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(detailed_results_box, fill=shading_color, radius=border_radius)
 
-        # Draw failed test cases
-        y += 30
-        for name, error_message in failed_cases:
-            draw.text((20, y), name, font=body_font, fill=white)
-            y += 25
-            draw.text((20, y), error_message, font=body_font, fill=red)
-            y += 25
-
-    # Draw detailed test results header
-    draw.text((400, sub_heading_height), "Detailed Test Results", font=header_font, fill=white)
-
-    # Draw test cases
-    y = sub_heading_height + content_buffer
+    # Draw Detailed Test Results text
+    y = sub_heading_height
+    draw.text((column_buffer + 20, sub_heading_height), "Detailed Test Results", font=header_font, fill=white)
+    y += content_buffer
     for name, status, duration, error_message in test_cases:
-        draw.text((400, y), name, font=body_font, fill=white)
+        draw.text((column_buffer + 20, y), name, font=body_font, fill=white)
         status_color = green if status == 'passed' else red
-        draw.text((580, y), status, font=body_font, fill=status_color)
-        draw.text((660, y), f"{duration:.6f}", font=body_font, fill=light_gray)
+        draw.text((column_buffer + 200, y), status, font=body_font, fill=status_color)
+        draw.text((column_buffer + 300, y), f"{duration:.6f}", font=body_font, fill=light_gray)
         y += line_buffer
 
+    # # Add a footer or decorative line at the bottom
+    # footer_position = height - 20
+    # draw.line([(left_buffer, footer_position), (width - left_buffer, footer_position)], fill=white, width=2)
+
     return image
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
@@ -331,7 +362,6 @@ if __name__ == "__main__":
         with open(discord_json_output_file, 'w') as discord_json_file:
             json.dump(discord_json, discord_json_file, indent=2)
         print(f"Discord JSON output has been written to {discord_json_output_file}")
-
         # Generate data
         image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch, args.commit_msg)
 
