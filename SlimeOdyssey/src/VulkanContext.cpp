@@ -47,7 +47,7 @@ int VulkanContext::CreateContext(SlimeWindow* window, ModelManager* modelManager
 
 	m_shaderManager = new ShaderManager();
 	m_descriptorManager = new DescriptorManager(m_disp);
-	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager, modelManager, m_descriptorManager);
+	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager, modelManager, m_descriptorManager, m_commandPool, m_graphicsQueue);
 
 	if (CreateRenderCommandBuffers() != 0)
 		return -1;

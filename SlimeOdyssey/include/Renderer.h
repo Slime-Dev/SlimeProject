@@ -24,7 +24,7 @@ public:
 	Renderer() = default;
 	~Renderer() = default;
 
-	void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager);
+	void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager, VkCommandPool commandPool, VkQueue graphicsQueue);
 	void CleanUp();
 
 	int Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene);

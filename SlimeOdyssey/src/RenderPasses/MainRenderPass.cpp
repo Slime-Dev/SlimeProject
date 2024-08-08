@@ -13,7 +13,7 @@
 #include "ShadowSystem.h"
 #include "VulkanUtil.h"
 
-MainRenderPass::MainRenderPass(ShadowRenderPass* shadowPass, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager)
+MainRenderPass::MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager)
       : m_shadowPass(shadowPass), m_modelManager(modelManager), m_allocator(allocator), m_commandPool(commandPool), m_graphicsQueue(graphicsQueue), m_descriptorManager(descriptorManager)
 {
 	name = "Main Pass";
@@ -147,8 +147,11 @@ void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_descriptorManager->CreateLightDescriptorSet(descriptorSetLayouts[1]);
 }
 
-void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Scene* scene, Camera* camera)
+void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera)
 {
+	SetupViewportAndScissor(disp, cmd, swapchain);
+	SlimeUtil::SetupDepthTestingAndLineWidth(disp, cmd);
+	
 	UpdateCommonBuffers(cmd, scene);
 
 	// I have removed the basic material models for now!
@@ -193,9 +196,16 @@ int MainRenderPass::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, co
 	return 0;
 }
 
-VkDescriptorSet MainRenderPass::GetShadowMapDescriptorSet(Scene* scene, ShadowSystem& shadowSystem)
+void MainRenderPass::SetupViewportAndScissor(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain)
 {
-	return VK_NULL_HANDLE;
+	VkViewport viewport = { 0.0f, 0.0f, static_cast<float>(swapchain.extent.width), static_cast<float>(swapchain.extent.height), 0.0f, 1.0f };
+	VkRect2D scissor = {
+		{0, 0},
+        swapchain.extent
+	};
+
+	disp.cmdSetViewport(cmd, 0, 1, &viewport);
+	disp.cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
 void MainRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
@@ -204,7 +214,7 @@ void MainRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 	disp.destroyPipelineLayout(m_pipelineLayout, nullptr);
 }
 
-VkRenderingInfo MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
+VkRenderingInfo* MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
 {
 	m_colorAttachmentInfo.imageView = swapchainImageView;
 	m_depthAttachmentInfo.imageView = depthImageView;
@@ -221,7 +231,7 @@ VkRenderingInfo MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkIma
 	m_renderingInfo.pColorAttachments = &m_colorAttachmentInfo;
 	m_renderingInfo.pDepthAttachment = &m_depthAttachmentInfo;
 
-	return m_renderingInfo;
+	return &m_renderingInfo;
 }
 
 void MainRenderPass::UpdateCommonBuffers(VkCommandBuffer& cmd, Scene* scene)
@@ -339,11 +349,16 @@ void MainRenderPass::UpdatePBRMaterialDescriptors(EntityManager& entityManager, 
 	m_descriptorManager->BindBuffer(descSet, 0, materialResource.configBuffer, 0, sizeof(PBRMaterialResource::Config));
 
 	// TODO add support for multiple shadow maps
-	auto shadowMap = m_shadowPass->GetShadowSystem().GetShadowMap(light);
+	ShadowData* shadowData = m_shadowPass->GetShadowSystem().GetShadowData(light);
+	if (!shadowData)
+	{
+		spdlog::critical("No Shadows??");
+	}
+	TextureResource& shadowMap = shadowData->shadowMap;
 
 	// TODO: UPDATE THIS WHEN THE SHADOW PASS IS DONE!
-	//m_descriptorManager->BindImage(descSet, 1, shadowMap.imageView, shadowMap.sampler);
-	m_descriptorManager->BindImage(descSet, 1, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
+	m_descriptorManager->BindImage(descSet, 1, shadowMap.imageView, shadowMap.sampler);
+	//m_descriptorManager->BindImage(descSet, 1, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);
 
 	if (materialResource.albedoTex)
 		m_descriptorManager->BindImage(descSet, 2, materialResource.albedoTex->imageView, materialResource.albedoTex->sampler);

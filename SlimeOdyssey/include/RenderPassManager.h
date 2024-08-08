@@ -45,12 +45,19 @@ public:
 		{
 			debugUtils.BeginDebugMarker(cmd, ("Render Pass: " + pass->name).c_str(), debugUtil_BeginColour);
 
-			auto renderingInfo = pass->GetRenderingInfo(swapchain, swapchainImageView, depthImageView);
-			disp.cmdBeginRendering(cmd, &renderingInfo);
+			VkRenderingInfo* renderingInfo = pass->GetRenderingInfo(swapchain, swapchainImageView, depthImageView);
+			
+			if (renderingInfo)
+			{
+				disp.cmdBeginRendering(cmd, renderingInfo);
+			}
 
-			pass->Execute(disp, cmd, scene, camera);
+			pass->Execute(disp, cmd, swapchain, scene, camera);
 
-			disp.cmdEndRendering(cmd);
+			if (renderingInfo)
+			{
+				disp.cmdEndRendering(cmd);
+			}
 
 			debugUtils.EndDebugMarker(cmd);
 		}

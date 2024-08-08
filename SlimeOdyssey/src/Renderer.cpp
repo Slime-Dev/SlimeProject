@@ -14,7 +14,7 @@
 #include "VulkanContext.h"
 #include "VulkanUtil.h"
 
-void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager)
+void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager, VkCommandPool commandPool, VkQueue graphicsQueue)
 {
 	m_disp = disp;
 	m_allocator = allocator;
@@ -22,6 +22,8 @@ void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swap
 	m_debugUtils = debugUtils;
 	m_descriptorManager = descriptorManager;
 	m_modelManager = modelManager;
+	m_commandPool = commandPool;
+	m_graphicsQueue = graphicsQueue;
 
 	CreateDepthImage();
 	SetupRenderPasses(shaderManager);
@@ -39,9 +41,6 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue grap
 		return -1;
 
 	Camera* camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponentPtr<Camera>();
-
-	SetupViewportAndScissor(cmd);
-	SlimeUtil::SetupDepthTestingAndLineWidth(*m_disp, cmd);
 
 	// Transition images to appropriate layouts
 	TransitionImages(*m_modelManager, graphicsQueue, commandPool, swapchainImages[imageIndex]);
@@ -66,8 +65,8 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue grap
 
 void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 {
-	auto shadowPass = new ShadowRenderPass(*m_modelManager, m_allocator, m_commandPool, m_graphicsQueue);
-	//m_renderPassManager.AddPass(shadowPass);
+	auto shadowPass = std::make_shared<ShadowRenderPass>(*m_modelManager, m_allocator, m_commandPool, m_graphicsQueue);
+	m_renderPassManager.AddPass(shadowPass);
 
 	auto mainPass = std::make_shared<MainRenderPass>(shadowPass, m_modelManager, m_allocator, m_commandPool, m_graphicsQueue, m_descriptorManager);
 	m_renderPassManager.AddPass(mainPass);
@@ -76,18 +75,6 @@ void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 	m_renderPassManager.AddPass(gridPass);
 
 	m_renderPassManager.Setup(*m_disp, m_allocator, m_swapchain, shaderManager, *m_debugUtils);
-}
-
-void Renderer::SetupViewportAndScissor(VkCommandBuffer& cmd)
-{
-	VkViewport viewport = { 0.0f, 0.0f, static_cast<float>(m_swapchain.extent.width), static_cast<float>(m_swapchain.extent.height), 0.0f, 1.0f };
-	VkRect2D scissor = {
-		{ 0, 0 },
-        m_swapchain.extent
-	};
-
-	m_disp->cmdSetViewport(cmd, 0, 1, &viewport);
-	m_disp->cmdSetScissor(cmd, 0, 1, &scissor);
 }
 
 void Renderer::TransitionImages(ModelManager& modelManager, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage)

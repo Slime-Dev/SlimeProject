@@ -45,9 +45,9 @@ namespace std
 class MainRenderPass : public RenderPassBase
 {
 public:
-	MainRenderPass(ShadowRenderPass* shadowPass, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager);
+	MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager);
 
-	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Scene* scene, Camera* camera) override;
+	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera) override;
 
 private:
 	// Push Constant
@@ -57,14 +57,13 @@ private:
 		glm::mat3 normalMatrix;
 	} m_mvp;
 
-	VkDescriptorSet GetShadowMapDescriptorSet(Scene* scene, ShadowSystem& shadowSystem);
-
-	ShadowRenderPass* m_shadowPass = nullptr;
+	std::shared_ptr<ShadowRenderPass> m_shadowPass = nullptr;
 
 	int DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model);
+	void SetupViewportAndScissor(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain);
 	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils) override;
 	void Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator) override;
-	VkRenderingInfo GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) override;
+	VkRenderingInfo* GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) override;
 
 	VkPipeline m_pipeline;
 	VkPipelineLayout m_pipelineLayout;

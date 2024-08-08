@@ -56,14 +56,14 @@ bool ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp,
 	return invalidateDescriptors;
 }
 
-TextureResource ShadowSystem::GetShadowMap(const std::shared_ptr<Light> light) const
+ShadowData* ShadowSystem::GetShadowData(const std::shared_ptr<Light> light)
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
 	{
-		return it->second.shadowMap;
+		return &it->second;
 	}
-	return TextureResource(); // Return an empty TextureResource if not found
+	return nullptr;
 }
 
 glm::mat4 ShadowSystem::GetLightSpaceMatrix(const std::shared_ptr<Light> light) const
@@ -474,7 +474,8 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
 {
 	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
 
-	auto shadowMap = GetShadowMap(light);
+	ShadowData* shadowData = GetShadowData(light);
+	TextureResource& shadowMap = shadowData->shadowMap;
 
 	// Transition shadow map image to depth attachment optimal
 	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);

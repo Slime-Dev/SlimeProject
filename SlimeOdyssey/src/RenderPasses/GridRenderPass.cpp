@@ -133,7 +133,7 @@ void GridRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
 }
 
-void GridRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Scene* scene, Camera* camera)
+void GridRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera)
 {
 	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
@@ -159,7 +159,7 @@ void GridRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 	disp.destroyPipelineLayout(m_pipelineLayout, nullptr);
 }
 
-VkRenderingInfo GridRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
+VkRenderingInfo* GridRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
 {
 	m_colorAttachmentInfo.imageView = swapchainImageView;
 	m_depthAttachmentInfo.imageView = depthImageView;
@@ -176,5 +176,5 @@ VkRenderingInfo GridRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkIma
 	m_renderingInfo.pColorAttachments = &m_colorAttachmentInfo;
 	m_renderingInfo.pDepthAttachment = &m_depthAttachmentInfo;
 
-	return m_renderingInfo;
+	return &m_renderingInfo;
 }

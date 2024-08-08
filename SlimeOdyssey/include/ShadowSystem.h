@@ -25,6 +25,20 @@ namespace vkb
 	struct Swapchain;
 } // namespace vkb
 
+struct ShadowData
+{
+	ImTextureID textureId = 0;
+	TextureResource shadowMap;
+	glm::mat4 lightSpaceMatrix;
+	VkBuffer stagingBuffer = VK_NULL_HANDLE;
+	VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
+	VkDeviceSize stagingBufferSize = 0;
+
+	// For optimizing the recalculations
+	glm::vec3 lastCameraPosition;
+	float frustumRadius;
+};
+
 class ShadowSystem
 {
 public:
@@ -46,7 +60,7 @@ public:
 	        const std::vector<std::shared_ptr<Light>>& lights,
 	        Camera* camera);
 
-	TextureResource GetShadowMap(const std::shared_ptr<Light> light) const;
+	ShadowData* GetShadowData(const std::shared_ptr<Light> light);
 	glm::mat4 GetLightSpaceMatrix(const std::shared_ptr<Light> light) const;
 
 	void SetShadowMapResolution(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, uint32_t width, uint32_t height, bool reconstructImmediately = false);
@@ -63,20 +77,6 @@ public:
 	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
 
 private:
-	struct ShadowData
-	{
-		ImTextureID textureId = 0;
-		TextureResource shadowMap;
-		glm::mat4 lightSpaceMatrix;
-		VkBuffer stagingBuffer = VK_NULL_HANDLE;
-		VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
-		VkDeviceSize stagingBufferSize = 0;
-
-		// For optimizing the recalculations
-		glm::vec3 lastCameraPosition;
-		float frustumRadius;
-	};
-
 	std::unordered_map<std::shared_ptr<Light>, ShadowData> m_shadowData;
 
 	float m_directionalLightDistance = 100.0f;
