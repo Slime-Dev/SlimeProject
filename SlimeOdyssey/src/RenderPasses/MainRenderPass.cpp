@@ -170,7 +170,7 @@ void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &lightDescriptorSet.first, 0, nullptr);
 	
 	// TODO: LOOK INTO A BETTER WAY OF HANDLING DESCRIPTOR SETS!
-	m_forceInvalidateDecriptorSets = true;
+	//m_forceInvalidateDecriptorSets = true;
 
 	for (const auto& entity: modelEntities)
 	{
