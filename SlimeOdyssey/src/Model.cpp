@@ -1,29 +1,6 @@
 #include "Model.h"
 #include "imgui.h"
 
-void PBRMaterial::ImGuiDebug()
-{
-    if (!materialResource)
-    {
-		return;
-    }
-
-    ImGui::ColorEdit3("Albedo", &materialResource->config.albedo.x);
-    ImGui::DragFloat("Metallic", &materialResource->config.metallic, 0.1f);
-    ImGui::DragFloat("Roughness", &materialResource->config.roughness, 0.1f);
-    ImGui::DragFloat("AO", &materialResource->config.ao, 0.1f);
-}
-
-void BasicMaterial::ImGuiDebug()
-{
-	if (!materialResource)
-	{
-		return;
-	}
-
-	ImGui::ColorEdit3("Albedo", &materialResource->config.albedo.x);
-}
-
 void Model::ImGuiDebug()
 {
     ImGui::Text("Pipeline: %s", modelResource->pipelineName.c_str());

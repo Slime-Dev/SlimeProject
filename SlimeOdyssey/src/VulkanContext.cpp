@@ -27,6 +27,7 @@
 #include "imgui.h"
 #include "ResourcePathManager.h"
 #include "ShaderManager.h"
+#include "MaterialManager.h"
 
 VulkanContext::~VulkanContext()
 {
@@ -47,7 +48,8 @@ int VulkanContext::CreateContext(SlimeWindow* window, ModelManager* modelManager
 
 	m_shaderManager = new ShaderManager();
 	m_descriptorManager = new DescriptorManager(m_disp);
-	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager, modelManager, m_descriptorManager, m_commandPool, m_graphicsQueue);
+	m_materialManager = new MaterialManager(m_disp, m_allocator, m_descriptorManager, m_graphicsQueue, m_commandPool);
+	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager, m_materialManager, modelManager, m_descriptorManager, m_commandPool, m_graphicsQueue);
 
 	if (CreateRenderCommandBuffers() != 0)
 		return -1;
@@ -714,6 +716,8 @@ int VulkanContext::Cleanup(ModelManager& modelManager)
 	m_descriptorManager->Cleanup();
 	delete m_descriptorManager;
 
+	delete m_materialManager;
+
 	m_renderer.CleanUp();
 
 	m_disp.destroyCommandPool(m_commandPool, nullptr);
@@ -782,4 +786,9 @@ VmaAllocator VulkanContext::GetAllocator() const
 vkb::DispatchTable& VulkanContext::GetDispatchTable()
 {
 	return m_disp;
+}
+
+MaterialManager* VulkanContext::GetMaterialManager()
+{
+	return m_materialManager;
 }

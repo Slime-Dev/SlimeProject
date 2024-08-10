@@ -4,14 +4,15 @@
 
 #pragma once
 
+#include <imgui.h>
 #include <vector>
 #include <vk_mem_alloc.h>
 
-#include "VulkanDebugUtils.h"
 #include "Renderer.h"
 #include "SlimeWindow.h"
-#include <imgui.h>
+#include "VulkanDebugUtils.h"
 
+struct MaterialManager;
 struct TempMaterialTextures;
 struct PipelineContainer;
 class ShaderManager;
@@ -41,6 +42,7 @@ public:
 	VkCommandPool GetCommandPool() const;
 	VmaAllocator GetAllocator() const;
 	vkb::DispatchTable& GetDispatchTable();
+	MaterialManager* GetMaterialManager();
 
 	// Helper methods
 	int CreateSwapchain(SlimeWindow* window); // Needs to be public for window resize callback
@@ -83,6 +85,7 @@ private:
 
 	ShaderManager* m_shaderManager = nullptr;
 	DescriptorManager* m_descriptorManager = nullptr;
+	MaterialManager* m_materialManager = nullptr;
 
 	// Safety checks
 	bool m_cleanUpFinished = false;

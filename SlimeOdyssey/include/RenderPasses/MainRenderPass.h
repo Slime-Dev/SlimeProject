@@ -9,6 +9,7 @@
 #include "Model.h"
 
 class DescriptorManager;
+class MaterialManager;
 class ModelManager;
 class ShadowRenderPass;
 class ShadowSystem;
@@ -16,36 +17,10 @@ class Entity;
 struct ModelResource;
 struct Transform;
 
-// Custom hash functions for material configurations
-namespace std
-{
-	template<>
-	struct hash<BasicMaterialResource::Config>
-	{
-		size_t operator()(const BasicMaterialResource::Config& config) const
-		{
-			return hash<glm::vec4>()(config.albedo);
-		}
-	};
-
-	template<>
-	struct hash<PBRMaterialResource::Config>
-	{
-		size_t operator()(const PBRMaterialResource::Config& config) const
-		{
-			size_t h1 = hash<glm::vec3>()(config.albedo);
-			size_t h2 = hash<float>()(config.metallic);
-			size_t h3 = hash<float>()(config.roughness);
-			size_t h4 = hash<float>()(config.ao);
-			return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
-		}
-	};
-} // namespace std
-
 class MainRenderPass : public RenderPassBase
 {
 public:
-	MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager);
+	MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, MaterialManager* materialManager, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager);
 
 	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera) override;
 
@@ -75,6 +50,7 @@ private:
 	VkRenderingAttachmentInfo m_depthAttachmentInfo{};
 	VkRenderingInfo m_renderingInfo{};
 
+	MaterialManager* m_materialManager = nullptr;
 	ModelManager* m_modelManager = nullptr;
 	DescriptorManager* m_descriptorManager = nullptr;
 	VmaAllocator m_allocator;
@@ -83,22 +59,7 @@ private:
 	VulkanDebugUtils* m_debugUtils = nullptr;
 
 	void UpdateCommonBuffers(VkCommandBuffer& cmd, Scene* scene);
-
-	void UpdateSharedDescriptors(VkDescriptorSet cameraSet, VkDescriptorSet lightSet, EntityManager& entityManager);
-
-	struct LRUCacheEntry
-	{
-		size_t hash;
-		VkDescriptorSet descriptorSet;
-	};
-
-	std::list<LRUCacheEntry> m_lruList;
-	std::unordered_map<size_t, std::list<LRUCacheEntry>::iterator> m_materialDescriptorCache;
-	const size_t MAX_CACHE_SIZE = 300;
-
-	VkDescriptorSet GetOrUpdateDescriptorSet(EntityManager& entityManager, Entity* entity);
-	void UpdatePBRMaterialDescriptors(EntityManager& entityManager, VkDescriptorSet descSet, Entity* entity);
-	size_t GenerateDescriptorHash(const Entity* entity);
+	void UpdateSharedDescriptors(vkb::DispatchTable& disp, VkDescriptorSet cameraSet, VkDescriptorSet lightSet, EntityManager& entityManager);
 	void UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Transform& transform);
-	bool m_forceInvalidateDecriptorSets = false;
+
 };

@@ -22,14 +22,7 @@ public:
 
 	// Descriptor Set Management
 	VkDescriptorSet AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout);
-	VkDescriptorSet GetDescriptorSet(uint32_t layoutIndex);
-	size_t AddDescriptorSetLayout(VkDescriptorSetLayout layout);
-	size_t AddDescriptorSetLayouts(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
 	void FreeDescriptorSet(VkDescriptorSet descriptorSet);
-
-	// Resource Binding
-	void BindBuffer(VkDescriptorSet descriptorSet, uint32_t binding, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
-	void BindImage(VkDescriptorSet descriptorSet, uint32_t binding, VkImageView imageView, VkSampler sampler);
 
 	// Cleanup
 	void Cleanup();
@@ -40,11 +33,10 @@ public:
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> GetLightDescriptorSet();
 	void CreateLightDescriptorSet(VkDescriptorSetLayout descriptorsetLayout);
 
-	std::shared_ptr<PBRMaterialResource> CreatePBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::string albedo, std::string normal, std::string metallic, std::string roughness, std::string ao);
-	std::shared_ptr<BasicMaterialResource> CreateBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name);
-
-	std::shared_ptr<PBRMaterialResource> CopyPBRMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::shared_ptr<PBRMaterialResource> inMaterial);
-	std::shared_ptr<BasicMaterialResource> CopyBasicMaterial(VulkanContext& vulkanContext, ModelManager& modelManager, std::string name, std::shared_ptr<BasicMaterialResource> inMaterial);
+	int GetDescriptorSetCount() const
+	{
+		return m_descriptorSetCount;
+	}
 
 private:
 	// Private Methods
@@ -57,6 +49,5 @@ private:
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> m_lightDescriptorSet;
 
 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
-	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
-	std::unordered_map<uint32_t, VkDescriptorSet> m_descriptorSets;
+	int m_descriptorSetCount = 0;
 };

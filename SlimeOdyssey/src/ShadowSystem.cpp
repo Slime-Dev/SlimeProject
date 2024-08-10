@@ -478,7 +478,7 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
 	TextureResource& shadowMap = shadowData->shadowMap;
 
 	// Transition shadow map image to depth attachment optimal
-	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	SlimeUtil::TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -514,7 +514,7 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
 	disp.cmdEndRendering(cmd);
 
 	// Transition shadow map image to shader read-only optimal
-	modelManager.TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	SlimeUtil::TransitionImageLayout(disp, graphicsQueue, commandPool, shadowMap.image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	debugUtils.EndDebugMarker(cmd);
 }

@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 #include <VulkanContext.h>
 #include "glm/gtc/random.hpp"
+#include <MaterialManager.h>
 
 struct Velocity : public Component
 {
@@ -54,7 +55,10 @@ int PlatformerGame::Enter(VulkanContext& vulkanContext, ModelManager& modelManag
 	DescriptorManager& descriptorManager = *vulkanContext.GetDescriptorManager();
 	SetupShaders(vulkanContext, modelManager, *vulkanContext.GetShaderManager(), descriptorManager);
 
-	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	MaterialManager& materialManager = *vulkanContext.GetMaterialManager();
+
+	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = materialManager.CreatePBRMaterial();
+	materialManager.SetAllTextures(pbrMaterialResource, "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
 
 	InitializeGameObjects(vulkanContext, modelManager);

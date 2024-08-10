@@ -17,6 +17,7 @@ class VulkanDebugUtils;
 class ModelManager;
 class DescriptorManager;
 class Scene;
+class MaterialManager;
 
 class Renderer
 {
@@ -24,7 +25,7 @@ public:
 	Renderer() = default;
 	~Renderer() = default;
 
-	void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, ModelManager* modelManager, DescriptorManager* descriptorManager, VkCommandPool commandPool, VkQueue graphicsQueue);
+	void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, MaterialManager* materialManager, ModelManager* modelManager, DescriptorManager* descriptorManager, VkCommandPool commandPool, VkQueue graphicsQueue);
 	void CleanUp();
 
 	int Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene);
@@ -33,7 +34,7 @@ public:
 
 private:
 	void SetupRenderPasses(ShaderManager* shaderManager);
-	void TransitionImages(ModelManager& modelManager, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage);
+	void TransitionImages(VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage);
 	void HandleMultiViewportRendering();
 
 	void CleanupDepthImage();
@@ -53,6 +54,7 @@ private:
 
 	// Other resources
 	ModelManager* m_modelManager = nullptr;
+	MaterialManager* m_materialManager = nullptr;
 	DescriptorManager* m_descriptorManager = nullptr;
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;
 	VkQueue m_graphicsQueue = VK_NULL_HANDLE;

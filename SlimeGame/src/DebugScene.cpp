@@ -4,18 +4,19 @@
 #include <DescriptorManager.h>
 #include <imgui.h>
 #include <Light.h>
+#include <MaterialManager.h>
 #include <ModelManager.h>
+#include <ResourcePathManager.h>
 #include <SlimeWindow.h>
 #include <spdlog/spdlog.h>
 #include <VulkanContext.h>
-#include <ResourcePathManager.h>
 
 DebugScene::DebugScene(SlimeWindow* window)
-    : Scene(), m_window(window)
+      : Scene(), m_window(window)
 {
-    Entity mainCamera = Entity("MainCamera");
-    mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
-    m_entityManager.AddEntity(mainCamera);
+	Entity mainCamera = Entity("MainCamera");
+	mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
+	m_entityManager.AddEntity(mainCamera);
 }
 
 int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -23,17 +24,22 @@ int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager)
 	DescriptorManager& descriptorManager = *vulkanContext.GetDescriptorManager();
 	SetupShaders(vulkanContext, modelManager, *vulkanContext.GetShaderManager(), descriptorManager);
 
-	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Material", "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
-	m_pbrMaterials.push_back(pbrMaterialResource);
-	
-	pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "PBR Planet Material", "planet_surface/albedo.png", "planet_surface/normal.png", "planet_surface/metallic.png", "planet_surface/roughness.png", "planet_surface/ao.png");
+	MaterialManager& materialManager = *vulkanContext.GetMaterialManager();
+
+	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = materialManager.CreatePBRMaterial();
+	materialManager.SetAllTextures(pbrMaterialResource, "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
 
-	pbrMaterialResource = descriptorManager.CreatePBRMaterial(vulkanContext, modelManager, "Grass Material", "grass/albedo.png", "grass/normal.png", "planet_surface/metallic.png", "grass/roughness.png", "grass/ao.png");
+	pbrMaterialResource = materialManager.CreatePBRMaterial();
+	materialManager.SetAllTextures(pbrMaterialResource, "planet_surface/albedo.png", "planet_surface/normal.png", "planet_surface/metallic.png", "planet_surface/roughness.png", "planet_surface/ao.png");
 	m_pbrMaterials.push_back(pbrMaterialResource);
 
-    InitializeDebugObjects(vulkanContext, modelManager);
-    
+	pbrMaterialResource = materialManager.CreatePBRMaterial();
+	materialManager.SetAllTextures(pbrMaterialResource, "grass/albedo.png", "grass/normal.png", "planet_surface/metallic.png", "grass/roughness.png", "grass/ao.png");
+	m_pbrMaterials.push_back(pbrMaterialResource);
+
+	InitializeDebugObjects(vulkanContext, modelManager);
+
 	return 0;
 }
 
@@ -44,7 +50,7 @@ void DebugScene::SetupShaders(VulkanContext& vulkanContext, ModelManager& modelM
 
 	// Set up a basic pipeline
 	std::vector<std::pair<std::string, VkShaderStageFlagBits>> meshShaderPaths = {
-		{ResourcePathManager::GetShaderPath("basic.vert.spv"), VK_SHADER_STAGE_VERTEX_BIT},
+		{ResourcePathManager::GetShaderPath("basic.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
         {ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
 	};
 
@@ -62,9 +68,9 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	light.SetColor(glm::vec3(0.98f, 0.506f, 0.365f));
 	m_entityManager.AddEntity(lightEntity);
 
-    VmaAllocator allocator = vulkanContext.GetAllocator();
-    auto debugMesh = modelManager.CreateCube(allocator);
-    modelManager.CreateBuffersForMesh(allocator, *debugMesh);
+	VmaAllocator allocator = vulkanContext.GetAllocator();
+	auto debugMesh = modelManager.CreateCube(allocator);
+	modelManager.CreateBuffersForMesh(allocator, *debugMesh);
 	debugMesh->pipelineName = "pbr";
 
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
@@ -90,69 +96,71 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	bunnyTransform.scale = glm::vec3(20.0f);
 	m_entityManager.AddEntity(bunny);
 
-    // Large cube at Y=1
-    CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);
+	// Large cube at Y=1
+	CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);
 
-    // Grid of cubes
-    const int gridSize = 6;
-    const float startY = 6.0f;
-    const float cubeOffset = 2.0f;
-    const float yVariation = 1.5f;
+	// Grid of cubes
+	const int gridSize = 6;
+	const float startY = 6.0f;
+	const float cubeOffset = 2.0f;
+	const float yVariation = 1.5f;
 
-    for (int x = 0; x < gridSize; ++x) {
-        for (int z = 0; z < gridSize; ++z) {
-            float xPos = (x - (gridSize - 1) / 2.0f) * cubeOffset;
-            float zPos = (z - (gridSize - 1) / 2.0f) * cubeOffset;
-            float yPos = startY + static_cast<float>(rand()) / RAND_MAX * yVariation;
+	for (int x = 0; x < gridSize; ++x)
+	{
+		for (int z = 0; z < gridSize; ++z)
+		{
+			float xPos = (x - (gridSize - 1) / 2.0f) * cubeOffset;
+			float zPos = (z - (gridSize - 1) / 2.0f) * cubeOffset;
+			float yPos = startY + static_cast<float>(rand()) / RAND_MAX * yVariation;
 
-            int materialIndex = rand() % m_pbrMaterials.size();
-            CreateCube(debugMesh, glm::vec3(xPos, yPos, zPos), glm::vec3(1.0f), m_pbrMaterials[materialIndex]);
-        }
-    }
+			int materialIndex = rand() % m_pbrMaterials.size();
+			CreateCube(debugMesh, glm::vec3(xPos, yPos, zPos), glm::vec3(1.0f), m_pbrMaterials[materialIndex]);
+		}
+	}
 }
 
 void DebugScene::CreateCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
 {
-    static int cubeCount = 0;
-    Entity cube = Entity("Debug Cube " + std::to_string(++cubeCount));
-    cube.AddComponent<Model>(mesh);
-    cube.AddComponent<PBRMaterial>(material);
-    auto& transform = cube.AddComponent<Transform>();
-    transform.position = position;
-    transform.scale = scale;
-    m_entityManager.AddEntity(cube);
+	static int cubeCount = 0;
+	Entity cube = Entity("Debug Cube " + std::to_string(++cubeCount));
+	cube.AddComponent<Model>(mesh);
+	cube.AddComponent<PBRMaterial>(material);
+	auto& transform = cube.AddComponent<Transform>();
+	transform.position = position;
+	transform.scale = scale;
+	m_entityManager.AddEntity(cube);
 	m_cubeTransforms.push_back(&transform);
 }
 
 void DebugScene::CreateLargeCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
 {
-    Entity largeCube = Entity("Large Debug Cube");
-    largeCube.AddComponent<Model>(mesh);
-    largeCube.AddComponent<PBRMaterial>(material);
-    auto& transform = largeCube.AddComponent<Transform>();
-    transform.position = position;
-    transform.scale = scale;
-    m_entityManager.AddEntity(largeCube);
+	Entity largeCube = Entity("Large Debug Cube");
+	largeCube.AddComponent<Model>(mesh);
+	largeCube.AddComponent<PBRMaterial>(material);
+	auto& transform = largeCube.AddComponent<Transform>();
+	transform.position = position;
+	transform.scale = scale;
+	m_entityManager.AddEntity(largeCube);
 }
 
 void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager)
 {
-    UpdateFlyCam(dt, inputManager);
+	UpdateFlyCam(dt, inputManager);
 
 	static float time = 0.0f;
 	time += dt;
 	int cubeIndex = 0;
-	for (auto& cubeTransform : m_cubeTransforms)
+	for (auto& cubeTransform: m_cubeTransforms)
 	{
 		// Move the cubes up and down
 		cubeTransform->position.y = 2.25f + sin(time + cubeIndex * 0.5f) * 0.5f;
 		cubeIndex++;
 	}
 
-    if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
-    {
-        m_window->Close();
-    }
+	if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
+	{
+		m_window->Close();
+	}
 }
 
 void DebugScene::Render()
@@ -165,7 +173,7 @@ void DebugScene::Render()
 	ImGui::Text("Camera Speed: %.2f", m_cameraSpeed);
 	ImGui::End();
 
-    m_entityManager.ImGuiDebug();
+	m_entityManager.ImGuiDebug();
 }
 
 void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)

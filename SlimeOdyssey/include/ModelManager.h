@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "Model.h"
+#include "Material.h"
 #include "PipelineGenerator.h"
 #include "tiny_obj_loader.h"
 
@@ -33,13 +34,8 @@ public:
 	void CreatePipeline(
 	        const std::string& pipelineName, VulkanContext& vulkanContext, ShaderManager& shaderManager, DescriptorManager& descriptorManager, const std::vector<std::pair<std::string, VkShaderStageFlagBits>>& shaderPaths, bool depthTestEnabled, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL);
 
-	TextureResource* LoadTexture(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VmaAllocator allocator, DescriptorManager* descriptorManager, const std::string& name);
-	const TextureResource* GetTexture(const std::string& name) const;
 	void UnloadAllResources(vkb::DispatchTable& disp, VmaAllocator allocator);
-	void BindTexture(vkb::DispatchTable& disp, const std::string& name, uint32_t binding, VkDescriptorSet set);
-	void TransitionImageLayout(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void CreateBuffersForMesh(VmaAllocator allocator, ModelResource& model);
-	TextureResource* CopyTexture(const std::string& name, TextureResource* texture);
 
 	std::map<std::string, PipelineConfig>& GetPipelines();
 
@@ -47,7 +43,6 @@ public:
 
 private:
 	std::unordered_map<std::string, ModelResource> m_modelResources;
-	std::unordered_map<std::string, TextureResource> m_textures;
 	std::map<std::string, PipelineConfig> m_pipelines;
 
 	void CenterModel(std::vector<Vertex>& vector);
@@ -69,8 +64,6 @@ private:
 	glm::vec3 ExtractNormal(const tinyobj::attrib_t& attrib, const tinyobj::index_t& index);
 	void CalculateFaceNormals(const ModelResource& model, std::vector<glm::vec3>& faceNormals, std::vector<std::vector<uint32_t>>& vertexFaces);
 	void AverageVertexNormals(ModelResource& model, const std::vector<glm::vec3>& faceNormals, const std::vector<std::vector<uint32_t>>& vertexFaces);
-	VkImageView CreateImageView(vkb::DispatchTable& disp, VkImage image, VkFormat format);
-	void CopyBufferToImage(vkb::DispatchTable& disp, VkQueue graphicsQueue, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 };
 
 template<>
