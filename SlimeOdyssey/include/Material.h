@@ -16,8 +16,8 @@ struct TextureResource
 	VkImage image = VK_NULL_HANDLE;
 	VkImageView imageView = VK_NULL_HANDLE;
 	VkSampler sampler = VK_NULL_HANDLE;
-	uint32_t width;
-	uint32_t height;
+	uint32_t width = 0;
+	uint32_t height = 0;
 };
 
 struct MaterialResource
@@ -46,7 +46,7 @@ struct PBRMaterialResource : public MaterialResource
 		float metallic = 0.5f;
 		float roughness = 0.5f;
 		float ao = 0.5f;
-		glm::vec2 padding;
+		glm::vec2 padding = glm::vec2(420.0f);
 	};
 
 	Config config;

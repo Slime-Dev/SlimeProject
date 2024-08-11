@@ -173,12 +173,6 @@ void PlatformerGame::Render()
 
 void PlatformerGame::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
-	// Cleanup debug material
-	for (auto& material: m_pbrMaterials)
-	{
-		vmaDestroyBuffer(vulkanContext.GetAllocator(), material->configBuffer, material->configAllocation);
-	}
-
 	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLight>();
 	for (const auto& entity: lightEntities)
 	{

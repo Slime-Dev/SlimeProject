@@ -89,6 +89,8 @@ void MaterialManager::UpdateMaterialBuffer(MaterialResource* material)
 {
 	if (material->dirty)
 	{
+		material->dirty = false;
+	
 		if (auto pbrMaterial = dynamic_cast<PBRMaterialResource*>(material))
 		{
 			SlimeUtil::CopyStructToBuffer(pbrMaterial->config, m_allocator, material->configAllocation);
@@ -97,7 +99,6 @@ void MaterialManager::UpdateMaterialBuffer(MaterialResource* material)
 		{
 			SlimeUtil::CopyStructToBuffer(basicMaterial->config, m_allocator, material->configAllocation);
 		}
-		material->dirty = false;
 	}
 }
 
@@ -115,7 +116,7 @@ VkDescriptorSet MaterialManager::GetOrCreateDescriptorSet(MaterialResource* mate
 	// If it's a PBR material, bind the textures
 	if (auto pbrMaterial = dynamic_cast<PBRMaterialResource*>(material))
 	{
-		SlimeUtil::BindBuffer(m_disp, newDescriptorSet, 0, material->configBuffer, 0, sizeof(PBRMaterialResource::Config));
+		SlimeUtil::BindBuffer(m_disp, newDescriptorSet, 0, pbrMaterial->configBuffer, 0, sizeof(PBRMaterialResource::Config));
 
 		SlimeUtil::BindImage(m_disp, newDescriptorSet, 1, shadowMap->imageView, shadowMap->sampler);
 
@@ -130,9 +131,9 @@ VkDescriptorSet MaterialManager::GetOrCreateDescriptorSet(MaterialResource* mate
 		if (pbrMaterial->aoTex)
 			SlimeUtil::BindImage(m_disp, newDescriptorSet, 6, pbrMaterial->aoTex->imageView, pbrMaterial->aoTex->sampler);
 	}
-	else
-	{ // Assume basic material
-		SlimeUtil::BindBuffer(m_disp, newDescriptorSet, 0, material->configBuffer, 0, sizeof(BasicMaterialResource::Config));
+	else if(auto basicMaterial = dynamic_cast<BasicMaterialResource*>(material))
+	{
+		SlimeUtil::BindBuffer(m_disp, newDescriptorSet, 0, basicMaterial->configBuffer, 0, sizeof(BasicMaterialResource::Config));
 	}
 
 	return newDescriptorSet;

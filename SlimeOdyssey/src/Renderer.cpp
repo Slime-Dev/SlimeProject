@@ -131,7 +131,7 @@ void Renderer::CreateDepthImage()
 	VmaAllocationCreateInfo depthAllocInfo = {};
 	depthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	VK_CHECK(vmaCreateImage(m_allocator, &depthImageInfo, &depthAllocInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
+	SlimeUtil::CreateImage("DepthImage", m_allocator, &depthImageInfo, &depthAllocInfo, m_depthImage, m_depthImageAllocation);
 	m_debugUtils->SetObjectName(m_depthImage, "DepthImage");
 
 	// Create the depth image view

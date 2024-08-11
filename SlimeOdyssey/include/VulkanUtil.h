@@ -91,6 +91,17 @@ namespace SlimeUtil
 		spdlog::debug("Created Buffer: {}", name);
 	}
 
+	inline void CreateImage(const char* name, VmaAllocator allocator, VkImageCreateInfo* createInfo, VmaAllocationCreateInfo* allocInfo, VkImage& image, VmaAllocation& allocation)
+	{
+		if (vmaCreateImage(allocator, createInfo, allocInfo, &image, &allocation, nullptr) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create image!");
+		}
+
+		vmaSetAllocationName(allocator, allocation, name);
+		spdlog::debug("Created Image Buffer: {}", name);
+	}
+
 	inline void CreateImage(const char* name, VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VkImage& image, VmaAllocation& allocation)
 	{
 		VkImageCreateInfo imageInfo{};
@@ -360,8 +371,8 @@ namespace SlimeUtil
 		barrier.subresourceRange.baseArrayLayer = 0;
 		barrier.subresourceRange.layerCount = 1;
 
-		VkPipelineStageFlags sourceStage;
-		VkPipelineStageFlags destinationStage;
+		VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		VkPipelineStageFlags destinationStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
 		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 		{
@@ -487,7 +498,6 @@ namespace SlimeUtil
 			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		}
-
 		else
 		{
 			spdlog::error("unsupported layout transition!");

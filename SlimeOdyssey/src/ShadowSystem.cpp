@@ -421,7 +421,7 @@ void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator alloca
 	VmaAllocationCreateInfo shadowMapAllocInfo = {};
 	shadowMapAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	VK_CHECK(vmaCreateImage(allocator, &shadowMapImageInfo, &shadowMapAllocInfo, &shadowData.shadowMap.image, &shadowData.shadowMap.allocation, nullptr));
+	SlimeUtil::CreateImage("ShadowMapImage", allocator, &shadowMapImageInfo, &shadowMapAllocInfo, shadowData.shadowMap.image, shadowData.shadowMap.allocation);
 	debugUtils.SetObjectName(shadowData.shadowMap.image, "ShadowMapImage");
 
 	// Create the shadow map image view

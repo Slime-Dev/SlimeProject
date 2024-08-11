@@ -178,18 +178,6 @@ void DebugScene::Render()
 
 void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
-	// Cleanup debug material
-	for (auto& material: m_pbrMaterials)
-	{
-		vmaDestroyBuffer(vulkanContext.GetAllocator(), material->configBuffer, material->configAllocation);
-	}
-
-	// Cleanup basic material
-	for (auto& material: m_basicMaterials)
-	{
-		vmaDestroyBuffer(vulkanContext.GetAllocator(), material->configBuffer, material->configAllocation);
-	}
-
 	// Clean up lights
 	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLight>();
 	for (const auto& entity: lightEntities)
