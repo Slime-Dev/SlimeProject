@@ -12,11 +12,13 @@ public:
 
 	void Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator) override;
 
-	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera) override;
+	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager) override;
 
 	VkRenderingInfo* GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView) override;
 
 	ShadowSystem& GetShadowSystem();
+	
+	void ImGuiDraw(vkb::DispatchTable disp) override;
 
 private:
 	void DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene);

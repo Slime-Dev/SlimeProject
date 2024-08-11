@@ -28,12 +28,12 @@ public:
 	void SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swapchain swapchain, VulkanDebugUtils* debugUtils, ShaderManager* shaderManager, MaterialManager* materialManager, ModelManager* modelManager, DescriptorManager* descriptorManager, VkCommandPool commandPool, VkQueue graphicsQueue);
 	void CleanUp();
 
-	int Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene);
+	int Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, vkb::Swapchain swapchain, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene);
 
-	void CreateDepthImage();
+	void CreateDepthImage(vkb::Swapchain swapchain);
 
 private:
-	void SetupRenderPasses(ShaderManager* shaderManager);
+	void SetupRenderPasses(ShaderManager* shaderManager, vkb::Swapchain swapchain);
 	void TransitionImages(VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage);
 	void HandleMultiViewportRendering();
 
@@ -44,7 +44,6 @@ private:
 	// Vulkan objects
 	vkb::DispatchTable* m_disp = nullptr;
 	VmaAllocator m_allocator = VK_NULL_HANDLE;
-	vkb::Swapchain m_swapchain;
 	VulkanDebugUtils* m_debugUtils = nullptr;
 
 	// Depth buffer

@@ -148,7 +148,7 @@ void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_descriptorManager->CreateLightDescriptorSet(descriptorSetLayouts[1]);
 }
 
-void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera)
+void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager)
 {
 	SetupViewportAndScissor(disp, cmd, swapchain);
 	SlimeUtil::SetupDepthTestingAndLineWidth(disp, cmd);

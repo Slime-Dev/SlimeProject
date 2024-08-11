@@ -6,6 +6,7 @@
 #include "Scene.h"
 #include "ShaderManager.h"
 #include <VkBootstrap.h>
+#include "RenderPassManager.h"
 
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
@@ -33,7 +34,7 @@ void ImGuiRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vk
 	m_renderingInfo.colorAttachmentCount = 1;
 }
 
-void ImGuiRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera)
+void ImGuiRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager)
 {
 	// Start the Dear ImGui frame
 	ImGui_ImplVulkan_NewFrame();
@@ -46,6 +47,9 @@ void ImGuiRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vk
 
 	// Render your ImGui windows and widgets here
 	scene->Render();
+
+	// Render the renderpasses imguis
+	renderPassManager->DrawImGui(disp);
 
 	ImGui::Render();
 	ImDrawData* drawData = ImGui::GetDrawData();

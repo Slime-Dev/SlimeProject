@@ -20,7 +20,6 @@ void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swap
 {
 	m_disp = disp;
 	m_allocator = allocator;
-	m_swapchain = swapchain;
 	m_debugUtils = debugUtils;
 	m_descriptorManager = descriptorManager;
 	m_modelManager = modelManager;
@@ -28,8 +27,8 @@ void Renderer::SetUp(vkb::DispatchTable* disp, VmaAllocator allocator, vkb::Swap
 	m_graphicsQueue = graphicsQueue;
 	m_materialManager = materialManager;
 
-	CreateDepthImage();
-	SetupRenderPasses(shaderManager);
+	CreateDepthImage(swapchain);
+	SetupRenderPasses(shaderManager, swapchain);
 }
 
 void Renderer::CleanUp()
@@ -38,7 +37,7 @@ void Renderer::CleanUp()
 	CleanupDepthImage();
 }
 
-int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene)
+int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue graphicsQueue, vkb::Swapchain swapchain, std::vector<VkImage>& swapchainImages, std::vector<VkImageView>& swapchainImageViews, uint32_t imageIndex, Scene* scene)
 {
 	if (SlimeUtil::BeginCommandBuffer(*m_disp, cmd) != 0)
 		return -1;
@@ -49,7 +48,7 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue grap
 	TransitionImages(graphicsQueue, commandPool, swapchainImages[imageIndex]);
 
 	// Execute all render passes
-	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, m_swapchain, swapchainImageViews[imageIndex], m_depthImageView, scene, camera);
+	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, swapchain, swapchainImageViews[imageIndex], m_depthImageView, scene, camera);
 
 	// Transition color image to present src layout
 	SlimeUtil::TransitionImageLayout(*m_disp, graphicsQueue, commandPool, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -63,7 +62,7 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, VkQueue grap
 	return 0;
 }
 
-void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
+void Renderer::SetupRenderPasses(ShaderManager* shaderManager, vkb::Swapchain swapchain)
 {
 	auto shadowPass = std::make_shared<ShadowRenderPass>(*m_modelManager, m_allocator, m_commandPool, m_graphicsQueue);
 	m_renderPassManager.AddPass(shadowPass);
@@ -77,7 +76,7 @@ void Renderer::SetupRenderPasses(ShaderManager* shaderManager)
 	auto imguiPass = std::make_shared<ImGuiRenderPass>();
 	m_renderPassManager.AddPass(imguiPass);
 
-	m_renderPassManager.Setup(*m_disp, m_allocator, m_swapchain, shaderManager, *m_debugUtils);
+	m_renderPassManager.Setup(*m_disp, m_allocator, swapchain, shaderManager, *m_debugUtils);
 }
 
 void Renderer::TransitionImages(VkQueue graphicsQueue, VkCommandPool commandPool, VkImage swapchainImage)
@@ -101,7 +100,7 @@ void Renderer::HandleMultiViewportRendering()
 //
 /// DEPTH TESTING ///////////////////////////////////
 //
-void Renderer::CreateDepthImage()
+void Renderer::CreateDepthImage(vkb::Swapchain swapchain)
 {
 	spdlog::debug("Creating depth image");
 
@@ -116,8 +115,8 @@ void Renderer::CreateDepthImage()
 	VkImageCreateInfo depthImageInfo = {};
 	depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
-	depthImageInfo.extent.width = m_swapchain.extent.width;
-	depthImageInfo.extent.height = m_swapchain.extent.height;
+	depthImageInfo.extent.width = swapchain.extent.width;
+	depthImageInfo.extent.height = swapchain.extent.height;
 	depthImageInfo.extent.depth = 1;
 	depthImageInfo.mipLevels = 1;
 	depthImageInfo.arrayLayers = 1;

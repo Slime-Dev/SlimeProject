@@ -11,7 +11,7 @@ class GridRenderPass : public RenderPassBase
 {
 public:
 	GridRenderPass();
-	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera) override;
+	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager) override;
 
 private:
 	VkPipeline m_pipeline;

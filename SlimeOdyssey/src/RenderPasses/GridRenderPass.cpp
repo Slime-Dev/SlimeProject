@@ -133,7 +133,7 @@ void GridRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb
 	m_depthAttachmentInfo.clearValue.depthStencil.depth = 1.f;
 }
 
-void GridRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera)
+void GridRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager)
 {
 	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 

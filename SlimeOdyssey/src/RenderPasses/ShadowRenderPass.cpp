@@ -124,7 +124,7 @@ void ShadowRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 	disp.destroyPipelineLayout(m_pipelineLayout, nullptr);
 }
 
-void ShadowRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera)
+void ShadowRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager)
 {
 	std::vector<std::shared_ptr<Light>> lights;
 	scene->m_entityManager.ForEachEntityWith<DirectionalLight>(
@@ -157,6 +157,11 @@ VkRenderingInfo* ShadowRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, Vk
 ShadowSystem& ShadowRenderPass::GetShadowSystem()
 {
 	return m_shadowSystem;
+}
+
+void ShadowRenderPass::ImGuiDraw(vkb::DispatchTable disp)
+{
+	m_shadowSystem.RenderShadowMapInspector(disp, m_allocator, m_commandPool, m_graphicsQueue, m_modelManager, m_debugUtils);
 }
 
 void ShadowRenderPass::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)

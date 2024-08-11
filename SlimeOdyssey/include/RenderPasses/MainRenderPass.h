@@ -22,7 +22,7 @@ class MainRenderPass : public RenderPassBase
 public:
 	MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, MaterialManager* materialManager, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager);
 
-	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera) override;
+	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager) override;
 
 private:
 	// Push Constant

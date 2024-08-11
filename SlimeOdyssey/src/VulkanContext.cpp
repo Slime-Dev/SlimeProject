@@ -624,7 +624,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, SlimeWindow* window, 
 	// Begin command buffer recording
 	VkCommandBuffer cmd = m_renderCommandBuffers[imageIndex];
 
-	if (m_renderer.Draw(cmd, m_commandPool, m_graphicsQueue, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
+	if (m_renderer.Draw(cmd, m_commandPool, m_graphicsQueue, m_swapchain, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
 		return -1;
 
 	VkSubmitInfo submit_info = {};

@@ -52,7 +52,7 @@ public:
 				disp.cmdBeginRendering(cmd, renderingInfo);
 			}
 
-			pass->Execute(disp, cmd, swapchain, scene, camera);
+			pass->Execute(disp, cmd, swapchain, scene, camera, this);
 
 			if (renderingInfo)
 			{
@@ -60,6 +60,14 @@ public:
 			}
 
 			debugUtils.EndDebugMarker(cmd);
+		}
+	}
+
+	void DrawImGui(vkb::DispatchTable& disp)
+	{
+		for (auto& pass: m_passes)
+		{
+			pass->ImGuiDraw(disp);
 		}
 	}
 
