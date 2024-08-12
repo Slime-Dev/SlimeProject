@@ -160,6 +160,15 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
 
     return discord_json
 
+def insert_newlines(text, max_length=70):
+    lines = []
+    while len(text) > max_length:
+        split_index = max_length
+        lines.append(text[:split_index])
+        text = text[split_index:]
+    lines.append(text)  # Add the remainder of the text
+    return '\n'.join(lines)
+
 def parse_test_results_from_file(file_path):
     tree = ET.parse(file_path)
     root = tree.getroot()
@@ -196,11 +205,11 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     test_suite_name = compiler
 
     # Set height depending if there are failed tests
-    default_height = 300
+    default_height = 500
     if failures > 0:
-        default_height = 300
+        default_height = 500
     else:
-        default_height = 300
+        default_height = 500
 
     # Set up image
     width, height = 850, default_height + (35 * len(test_cases)) + (35 * len(failed_cases))  # Adjust height based on number of test cases and failed cases
@@ -220,17 +229,19 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     # Global levels
     title_height = 30
-    sub_heading_height = 150
+    sub_heading_height = 140
+    comment_height = 350
     content_buffer = 30
     line_buffer = 25
     event_spacing = 180
     left_buffer = 30
     padding = 15  # Padding around shaded areas
     border_radius = 20
-    content_box_height = 330
+    content_box_height = 300
     content_box_width = 400
     column_buffer = width // 2.08
     title_box_width = content_box_width * 2.03
+    title_box_height = sub_heading_height - line_buffer - 20
 
     # Load fonts
     try:
@@ -257,8 +268,8 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     shadow_color = (0, 0, 0, 80)
 
     # Draw rounded rectangle with shadow for event details
-    event_details_box = [left_buffer - padding, title_height - padding, title_box_width, sub_heading_height - line_buffer]
-    shadow_box = [left_buffer - padding + 5, title_height - padding + 5, title_box_width + 5, sub_heading_height - line_buffer + 5]
+    event_details_box = [left_buffer - padding, title_height - padding, title_box_width, title_box_height]
+    shadow_box = [left_buffer - padding + 5, title_height - padding + 5, title_box_width + 5, title_box_height + 5]
     draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(event_details_box, fill=shading_color, radius=border_radius)
 
@@ -275,7 +286,6 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     draw.text((x, y), f"Event: {event}", font=body_font, fill=white)
     x += event_spacing
     draw.text((x, y), f"Branch: {branch}", font=body_font, fill=white)
-    draw.text((left_buffer, y + line_buffer), f"Commit Message: {commit_message}", font=body_font, fill=white)
 
     # Draw rounded rectangle with shadow for Details section
     details_box = [left_buffer - padding, sub_heading_height - padding, content_box_width, content_box_height]
@@ -314,13 +324,24 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
         draw.text((column_buffer + 300, y), f"{duration:.6f}", font=body_font, fill=light_gray)
         y += line_buffer
 
-    # # Add a footer or decorative line at the bottom
-    # footer_position = height - 20
-    # draw.line([(left_buffer, footer_position), (width - left_buffer, footer_position)], fill=white, width=2)
+    # Adding the commit msg
+    # Draw rounded rectangle with a shadow for commit message
+    formatted_comment = insert_newlines(commit_message, 80)
+    num_new_liens = formatted_comment.count('\n')
+    print(num_new_liens)
+    dynamic_height = title_box_height * (num_new_liens * 2.5)
+    comment_box = [left_buffer - padding, comment_height - padding, title_box_width, dynamic_height]
+    shadow_box = [left_buffer - padding + 5, comment_height - padding + 5, title_box_width + 5, dynamic_height + 5]
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(comment_box, fill=shading_color, radius=border_radius)
+
+    # Draw Commit comment text
+    y = comment_height
+    draw.text((left_buffer, y), "Commit Comment", font=header_font, fill=white)
+    y += content_buffer
+    draw.text((left_buffer, y), f"{formatted_comment}", font=body_font, fill=white)
 
     return image
-
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Convert XML test results to JSON and Discord markdown.')
