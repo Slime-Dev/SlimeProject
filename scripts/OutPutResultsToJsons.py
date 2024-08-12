@@ -5,7 +5,7 @@ import argparse
 import os
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timezone
-import re
+import traceback
 
 def xml_to_json(xml_file, tool_name):
     # Check if the file exists
@@ -373,5 +373,13 @@ if __name__ == "__main__":
         print(e)
         exit(1)
     except Exception as e:
+        tb = traceback.extract_tb(e.__traceback__)  # Extract traceback details
+        for frame in tb:
+            filename = frame.filename
+            lineno = frame.lineno
+            function_name = frame.name
+            line = frame.line
+            print(f"File: {filename}, Line: {lineno}, Function: {function_name}")
+            print(f"Code: {line}")
         print(f"An error occurred: {e}")
         exit(1)
