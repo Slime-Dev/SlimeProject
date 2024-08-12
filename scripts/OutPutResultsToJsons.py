@@ -204,13 +204,16 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     test_suite_name = compiler
 
-    # Retrieve the amount of new lines in the comment
-    print(commit_message)
-    num_new_liens = commit_message.count('\n')
-    print(num_new_liens)
+    num_new_lines = commit_message.count('\n')
+    print(f"Number of new lines: {num_new_lines}")
 
-    # Set height depending if there are failed tests
-    default_height = 500 + (20 * num_new_liens)
+    # Set height depending on the amount of new lines in the comment
+    default_height = 550  # Base height
+    height_per_line = 25  # Additional height per new line
+
+    # Calculate the total height
+    total_height = default_height + (num_new_lines * height_per_line)
+    print(f"Calculated image height: {total_height}")
 
     # Set up image
     width, height = 850, default_height + (35 * len(test_cases)) + (35 * len(failed_cases))  # Adjust height based on number of test cases and failed cases
@@ -328,7 +331,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Adding the commit msg
     # Draw rounded rectangle with a shadow for commit message
     #formatted_comment = insert_newlines(commit_message, 80)
-    dynamic_height = title_box_height * (num_new_liens * 2.5)
+    dynamic_height = title_box_height + (num_new_lines * 60)
     comment_box = [left_buffer - padding, comment_height - padding, title_box_width, dynamic_height]
     shadow_box = [left_buffer - padding + 5, comment_height - padding + 5, title_box_width + 5, dynamic_height + 5]
     draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
