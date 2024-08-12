@@ -160,14 +160,36 @@ def json_to_discord_json(json_data, os_name, compiler, event, author, branch):
 
     return discord_json
 
-def insert_newlines(text, max_length=70):
-    lines = []
-    while len(text) > max_length:
-        split_index = max_length
-        lines.append(text[:split_index])
-        text = text[split_index:]
-    lines.append(text)  # Add the remainder of the text
-    return '\n'.join(lines)
+def insert_newlines_after_max_length(commit_message, max_length=75):
+    # Find the position of the last newline character
+    last_newline_pos = commit_message.rfind('\n')
+
+    # If there are no newlines, start from the beginning of the string
+    if last_newline_pos == -1:
+        start_pos = 0
+    else:
+        start_pos = last_newline_pos + 1
+
+    # Process the part of the string after the last newline
+    post_last_newline = commit_message[start_pos:]
+
+    # Split the string into words
+    words = post_last_newline.split()
+
+    current_length = 0
+    new_message = commit_message[:start_pos]  # Start with the part before or including the last newline
+
+    for word in words:
+        # If adding the next word would exceed the max_length, add a newline
+        if current_length + len(word) + 1 > max_length:  # +1 for the space
+            new_message += '\n'
+            current_length = 0  # Reset the line length counter
+
+        # Add the word to the new message
+        new_message += word + ' '
+        current_length += len(word) + 1  # +1 for the space
+
+    return new_message.rstrip()  # Remove any trailing spaces
 
 def parse_test_results_from_file(file_path):
     tree = ET.parse(file_path)
@@ -202,14 +224,16 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Parse the XML data from the file
     test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
 
+    # Manually setting the suite name as it is incorrect from the XML
     test_suite_name = compiler
 
+    commit_message = insert_newlines_after_max_length(commit_message)
     num_new_lines = commit_message.count('\n')
     print(f"Number of new lines: {num_new_lines}")
 
     # Set height depending on the amount of new lines in the comment
-    default_height = 550  # Base height
-    height_per_line = 25  # Additional height per new line
+    default_height = 450  # Base height
+    height_per_line = 10  # Additional height per new line
 
     # Calculate the total height
     total_height = default_height + (num_new_lines * height_per_line)
@@ -330,8 +354,8 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     # Adding the commit msg
     # Draw rounded rectangle with a shadow for commit message
-    #formatted_comment = insert_newlines(commit_message, 80)
-    dynamic_height = title_box_height + (num_new_lines * 60)
+    dynamic_height = comment_height + title_box_height + (num_new_lines * height_per_line)
+    print(f"Calculated dynamic box height {dynamic_height}")
     comment_box = [left_buffer - padding, comment_height - padding, title_box_width, dynamic_height]
     shadow_box = [left_buffer - padding + 5, comment_height - padding + 5, title_box_width + 5, dynamic_height + 5]
     draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
