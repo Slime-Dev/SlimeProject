@@ -307,7 +307,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Draw rounded rectangle with shadow for event details
     event_details_box = [left_buffer - padding, title_height - padding, title_box_width, title_box_height]
     shadow_box = [left_buffer - padding + 5, title_height - padding + 5, title_box_width + 5, title_box_height + 5]
-    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(event_details_box, fill=shading_color, radius=border_radius)
 
     # Draw title with drop shadow
@@ -327,7 +327,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Draw rounded rectangle with shadow for Details section
     details_box = [left_buffer - padding, sub_heading_height - padding, content_box_width, content_box_height]
     shadow_box = [left_buffer - padding + 5, sub_heading_height - padding + 5, content_box_width + 5, content_box_height + 5]
-    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(details_box, fill=shading_color, radius=border_radius)
 
     # Draw Details text
@@ -347,7 +347,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Draw rounded rectangle with shadow for Detailed Test Results section
     detailed_results_box = [width // 2 - padding, sub_heading_height - padding, (width // 2 - padding) + content_box_width, content_box_height]
     shadow_box = [width // 2 - padding + 5, sub_heading_height - padding + 5, (width // 2 - padding) + content_box_width + 5, content_box_height + 5]
-    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(detailed_results_box, fill=shading_color, radius=border_radius)
 
     # Draw Detailed Test Results text
@@ -367,7 +367,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     print(f"Calculated dynamic box height {dynamic_height}")
     comment_box = [left_buffer - padding, comment_height - padding, title_box_width, dynamic_height]
     shadow_box = [left_buffer - padding + 5, comment_height - padding + 5, title_box_width + 5, dynamic_height + 5]
-    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(comment_box, fill=shading_color, radius=border_radius)
 
     # Draw Commit comment text
@@ -383,7 +383,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
         detailed_failure_box = [left_buffer - padding, failure_box_height - padding, title_box_width, dynamic_height + 200]
         shadow_box = [left_buffer - padding + 5, failure_box_height - padding + 5, title_box_width + 5, dynamic_height + 205]
 
-        draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+        #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
         draw.rounded_rectangle(detailed_failure_box, fill=shading_color, radius=border_radius)
         draw.text((left_buffer, failure_box_height), "Detailed Failed Results", font=header_font, fill=white)
 
