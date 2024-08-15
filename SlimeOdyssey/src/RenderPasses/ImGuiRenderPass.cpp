@@ -71,5 +71,19 @@ VkRenderingInfo* ImGuiRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkI
 	m_colorAttachmentInfo.imageView = swapchainImageView;
 	m_renderingInfo.pColorAttachments = &m_colorAttachmentInfo;
 
+
+	m_colorAttachmentInfo.imageView = swapchainImageView;
+
+	m_renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	m_renderingInfo.pNext = VK_NULL_HANDLE;
+	m_renderingInfo.flags = 0;
+	m_renderingInfo.renderArea = {
+		.offset = {0, 0},
+          .extent = swapchain.extent
+	};
+	m_renderingInfo.layerCount = 1;
+	m_renderingInfo.colorAttachmentCount = 1;
+	m_renderingInfo.pColorAttachments = &m_colorAttachmentInfo;
+
 	return &m_renderingInfo;
 }

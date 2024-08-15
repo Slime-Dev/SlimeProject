@@ -8,8 +8,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-MaterialManager::MaterialManager(vkb::DispatchTable& disp, VmaAllocator allocator, DescriptorManager* descriptorManager, VkQueue graphicsQueue, VkCommandPool commandPool)
-      : m_disp(disp), m_allocator(allocator), m_descriptorManager(descriptorManager), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool)
+MaterialManager::MaterialManager(vkb::DispatchTable& disp, VmaAllocator allocator, DescriptorManager* descriptorManager, VkCommandPool commandPool)
+      : m_disp(disp), m_allocator(allocator), m_descriptorManager(descriptorManager), m_commandPool(commandPool)
 {
 }
 
@@ -53,6 +53,11 @@ MaterialManager::~MaterialManager()
 		}
 	}
 	m_materials.clear();
+}
+
+void MaterialManager::SetGraphicsQueue(VkQueue queue)
+{
+	m_graphicsQueue = queue;
 }
 
 std::shared_ptr<PBRMaterialResource> MaterialManager::CreatePBRMaterial()

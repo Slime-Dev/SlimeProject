@@ -18,7 +18,7 @@ public:
 	// Constructors and Destructor
 	DescriptorManager() = default;
 	explicit DescriptorManager(const vkb::DispatchTable& disp);
-	~DescriptorManager() = default;
+	~DescriptorManager();
 
 	// Descriptor Set Management
 	VkDescriptorSet AllocateDescriptorSet(VkDescriptorSetLayout descriptorLayout);

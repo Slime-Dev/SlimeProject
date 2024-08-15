@@ -10,8 +10,10 @@
 class MaterialManager
 {
 public:
-	MaterialManager(vkb::DispatchTable& disp, VmaAllocator allocator, DescriptorManager* descriptorManager, VkQueue graphicsQueue, VkCommandPool commandPool);
+	MaterialManager(vkb::DispatchTable& disp, VmaAllocator allocator, DescriptorManager* descriptorManager, VkCommandPool commandPool);
 	~MaterialManager();
+
+	void SetGraphicsQueue(VkQueue queue);
 
 	std::shared_ptr<PBRMaterialResource> CreatePBRMaterial();
 	std::shared_ptr<BasicMaterialResource> CreateBasicMaterial();

@@ -14,9 +14,6 @@ public:
 	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager) override;
 
 private:
-	VkPipeline m_pipeline;
-	VkPipelineLayout m_pipelineLayout;
-
 	// Inherited via RenderPassBase
 	void Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils) override;
 	void Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator) override;

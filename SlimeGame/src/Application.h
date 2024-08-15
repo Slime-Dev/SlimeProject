@@ -3,6 +3,7 @@
 #include <ModelManager.h>
 #include <ShaderManager.h>
 #include <VulkanContext.h>
+#include <SlimeWindow.h>
 
 #define DEBUG_SCENE
 

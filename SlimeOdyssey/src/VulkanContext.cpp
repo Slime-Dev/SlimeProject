@@ -14,20 +14,20 @@
 #include <vk_mem_alloc.h>
 
 #include "DescriptorManager.h"
+#include "MaterialManager.h"
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
+#include "Renderer.h"
+#include "ResourcePathManager.h"
 #include "Scene.h"
+#include "ShaderManager.h"
+#include "SlimeWindow.h"
 #include "VulkanUtil.h"
-
-#define MAX_FRAMES_IN_FLIGHT 2
 
 // IMGUI
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
-#include "ResourcePathManager.h"
-#include "ShaderManager.h"
-#include "MaterialManager.h"
 
 VulkanContext::~VulkanContext()
 {
@@ -41,20 +41,18 @@ int VulkanContext::CreateContext(SlimeWindow* window, ModelManager* modelManager
 		return -1;
 	if (CreateCommandPool() != 0)
 		return -1;
-	if (GetQueues() != 0)
-		return -1;
-	if (CreateSwapchain(window) != 0)
-		return -1;
+
+		vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
 
 	m_shaderManager = new ShaderManager();
 	m_descriptorManager = new DescriptorManager(m_disp);
-	m_materialManager = new MaterialManager(m_disp, m_allocator, m_descriptorManager, m_graphicsQueue, m_commandPool);
-	m_renderer.SetUp(&m_disp, m_allocator, m_swapchain, &m_debugUtils, m_shaderManager, m_materialManager, modelManager, m_descriptorManager, m_commandPool, m_graphicsQueue);
+	m_materialManager = new MaterialManager(m_disp, m_allocator, m_descriptorManager, m_commandPool);
 
-	if (CreateRenderCommandBuffers() != 0)
-		return -1;
-	if (InitSyncObjects() != 0)
-		return -1;
+	m_renderer = new Renderer(m_device);
+	m_renderer->SetUp(&m_disp, m_allocator, &m_surface, &m_debugUtils, window, m_shaderManager, m_materialManager, modelManager, m_descriptorManager, m_commandPool);
+
+	m_materialManager->SetGraphicsQueue(m_renderer->GetGraphicsQueue());
+
 	if (InitImGui(window) != 0) // Add this line
 		return -1;
 
@@ -269,67 +267,7 @@ int VulkanContext::DeviceInit(SlimeWindow* window)
 
 int VulkanContext::CreateSwapchain(SlimeWindow* window)
 {
-	spdlog::debug("Creating swapchain...");
-	m_disp.deviceWaitIdle();
-
-	vkb::SwapchainBuilder swapchain_builder(m_device, m_surface);
-
-	auto swap_ret = swapchain_builder.use_default_format_selection()
-	                        .set_desired_format(VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_UNORM, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-	                        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // Use vsync present mode
-	                        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-	                        .set_old_swapchain(m_swapchain)
-	                        .set_desired_extent(window->GetWidth(), window->GetHeight())
-	                        .build();
-
-	if (!swap_ret)
-	{
-		spdlog::error("Failed to create swapchain: {}", swap_ret.error().message());
-		return -1;
-	}
-
-	vkb::destroy_swapchain(m_swapchain);
-	m_swapchain = swap_ret.value();
-
-	// Delete old image views
-	for (auto& image_view: m_swapchainImageViews)
-	{
-		m_disp.destroyImageView(image_view, nullptr);
-	}
-
-	m_swapchainImages = m_swapchain.get_images().value();
-	m_swapchainImageViews = m_swapchain.get_image_views().value();
-
-	for (size_t i = 0; i < m_swapchainImages.size(); i++)
-	{
-		m_debugUtils.SetObjectName(m_swapchainImages[i], "SwapchainImage_" + std::to_string(i));
-		m_debugUtils.SetObjectName(m_swapchainImageViews[i], "SwapchainImageView_" + std::to_string(i));
-	}
-
-	return 0;
-}
-
-int VulkanContext::GetQueues()
-{
-	auto gq = m_device.get_queue(vkb::QueueType::graphics);
-	if (!gq.has_value())
-	{
-		spdlog::error("failed to get graphics queue: {}", gq.error().message());
-		return -1;
-	}
-	m_graphicsQueue = gq.value();
-
-	auto pq = m_device.get_queue(vkb::QueueType::present);
-	if (!pq.has_value())
-	{
-		spdlog::error("failed to get present queue: {}", pq.error().message());
-		return -1;
-	}
-	m_presentQueue = pq.value();
-
-	m_debugUtils.SetObjectName(m_graphicsQueue, "GraphicsQueue");
-	m_debugUtils.SetObjectName(m_presentQueue, "PresentQueue");
-	return 0;
+	return m_renderer->CreateSwapchain(window);
 }
 
 int VulkanContext::CreateCommandPool()
@@ -342,54 +280,6 @@ int VulkanContext::CreateCommandPool()
 	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
 	VK_CHECK(m_disp.createCommandPool(&pool_info, nullptr, &m_commandPool));
-
-	return 0;
-}
-
-int VulkanContext::CreateRenderCommandBuffers()
-{
-	spdlog::debug("Recording command buffers...");
-	m_renderCommandBuffers.resize(m_swapchain.image_count + 10);
-
-	VkCommandBufferAllocateInfo alloc_info = {};
-	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	alloc_info.commandPool = m_commandPool;
-	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandBufferCount = static_cast<uint32_t>(m_renderCommandBuffers.size());
-
-	VK_CHECK(m_disp.allocateCommandBuffers(&alloc_info, m_renderCommandBuffers.data()));
-
-	int index = 0;
-	for (auto& cmd: m_renderCommandBuffers)
-	{
-		m_debugUtils.SetObjectName(cmd, std::string("Render Command Buffer: " + std::to_string(index++)));
-	}
-
-	return 0;
-}
-
-int VulkanContext::InitSyncObjects()
-{
-	spdlog::debug("Initializing synchronization objects...");
-	// Create synchronization objects
-	m_availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_finishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
-	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-	m_imageInFlight.resize(m_swapchain.image_count, VK_NULL_HANDLE);
-
-	VkSemaphoreCreateInfo semaphore_info = {};
-	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fence_info = {};
-	fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		VK_CHECK(m_disp.createSemaphore(&semaphore_info, nullptr, &m_availableSemaphores[i]));
-		VK_CHECK(m_disp.createSemaphore(&semaphore_info, nullptr, &m_finishedSemaphore[i]));
-		VK_CHECK(m_disp.createFence(&fence_info, nullptr, &m_inFlightFences[i]));
-	}
 
 	return 0;
 }
@@ -556,12 +446,12 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	initInfo.PhysicalDevice = m_device.physical_device;
 	initInfo.Device = m_device.device;
 	initInfo.QueueFamily = m_device.get_queue_index(vkb::QueueType::graphics).value();
-	initInfo.Queue = m_graphicsQueue;
+	initInfo.Queue = m_renderer->GetGraphicsQueue();
 	initInfo.PipelineCache = VK_NULL_HANDLE;
 	initInfo.DescriptorPool = m_imguiDescriptorPool;
 	initInfo.Subpass = 0;
-	initInfo.MinImageCount = m_swapchain.image_count;
-	initInfo.ImageCount = m_swapchain.image_count;
+	initInfo.MinImageCount = m_renderer->GetSwapchain().image_count;
+	initInfo.ImageCount = m_renderer->GetSwapchain().image_count;
 	initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 	initInfo.Allocator = nullptr;
 	initInfo.CheckVkResultFn = nullptr;
@@ -572,7 +462,7 @@ int VulkanContext::InitImGui(SlimeWindow* window)
 	imguiPipelineInfo.pNext = nullptr;
 	imguiPipelineInfo.viewMask = 0;
 	imguiPipelineInfo.colorAttachmentCount = 1;
-	imguiPipelineInfo.pColorAttachmentFormats = &m_swapchain.image_format;
+	imguiPipelineInfo.pColorAttachmentFormats = &m_renderer->GetSwapchain().image_format;
 	imguiPipelineInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
 	imguiPipelineInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 	initInfo.PipelineRenderingCreateInfo = imguiPipelineInfo;
@@ -595,83 +485,7 @@ int VulkanContext::RenderFrame(ModelManager& modelManager, SlimeWindow* window, 
 		return 0;
 	}
 
-	// Wait for the frame to be finished
-	VK_CHECK(m_disp.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX));
-
-	uint32_t imageIndex;
-	VkResult result = m_disp.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_availableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		if (CreateSwapchain(window) != 0)
-			return -1;
-		return 0;
-	}
-	else
-	{
-		VK_CHECK(result);
-	}
-
-	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
-	if (m_imageInFlight[imageIndex] != VK_NULL_HANDLE)
-	{
-		m_disp.waitForFences(1, &m_imageInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-	}
-
-	// Mark the image as now being in use by this frame
-	m_imageInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
-
-	// Begin command buffer recording
-	VkCommandBuffer cmd = m_renderCommandBuffers[imageIndex];
-
-	if (m_renderer.Draw(cmd, m_commandPool, m_graphicsQueue, m_swapchain, m_swapchainImages, m_swapchainImageViews, imageIndex, scene) != 0)
-		return -1;
-
-	VkSubmitInfo submit_info = {};
-	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-	VkSemaphore wait_semaphores[] = { m_availableSemaphores[m_currentFrame] };
-	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	submit_info.waitSemaphoreCount = 1;
-	submit_info.pWaitSemaphores = wait_semaphores;
-	submit_info.pWaitDstStageMask = wait_stages;
-
-	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &cmd;
-
-	VkSemaphore signal_semaphores[] = { m_finishedSemaphore[m_currentFrame] };
-	submit_info.signalSemaphoreCount = 1;
-	submit_info.pSignalSemaphores = signal_semaphores;
-
-	m_disp.resetFences(1, &m_inFlightFences[m_currentFrame]);
-
-	m_debugUtils.BeginQueueDebugMarker(m_graphicsQueue, "FrameSubmission", debugUtil_FrameSubmission);
-	VK_CHECK(m_disp.queueSubmit(m_graphicsQueue, 1, &submit_info, m_inFlightFences[m_currentFrame]));
-	m_debugUtils.EndQueueDebugMarker(m_graphicsQueue);
-
-	VkPresentInfoKHR present_info = {};
-	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = signal_semaphores;
-
-	VkSwapchainKHR swapchains[] = { m_swapchain };
-	present_info.swapchainCount = 1;
-	present_info.pSwapchains = swapchains;
-	present_info.pImageIndices = &imageIndex;
-
-	result = m_disp.queuePresentKHR(m_presentQueue, &present_info);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-	{
-		if (CreateSwapchain(window) != 0)
-			return -1;
-	}
-	else
-	{
-		VK_CHECK(result);
-	}
-
-	m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	m_renderer->RenderFrame(modelManager, window, scene);
 
 	if (window->ShouldClose())
 	{
@@ -695,34 +509,17 @@ int VulkanContext::Cleanup(ModelManager& modelManager)
 	// Destroy ImGui descriptor pool
 	m_disp.destroyDescriptorPool(m_imguiDescriptorPool, nullptr);
 
-	// Destroy synchronization objects
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		m_disp.destroySemaphore(m_availableSemaphores[i], nullptr);
-		m_disp.destroySemaphore(m_finishedSemaphore[i], nullptr);
-		m_disp.destroyFence(m_inFlightFences[i], nullptr);
-	}
-
-	for (auto& image_view: m_swapchainImageViews)
-	{
-		m_disp.destroyImageView(image_view, nullptr);
-	}
-
 	modelManager.UnloadAllResources(m_disp, m_allocator);
 
 	m_shaderManager->CleanUp(m_disp);
 	delete m_shaderManager;
 
-	m_descriptorManager->Cleanup();
+	delete m_renderer;
 	delete m_descriptorManager;
-
 	delete m_materialManager;
-
-	m_renderer.CleanUp();
 
 	m_disp.destroyCommandPool(m_commandPool, nullptr);
 
-	vkb::destroy_swapchain(m_swapchain);
 	vkb::destroy_surface(m_instance, m_surface);
 
 	// Destroy the allocator
@@ -756,21 +553,6 @@ VulkanDebugUtils& VulkanContext::GetDebugUtils()
 VkDevice VulkanContext::GetDevice() const
 {
 	return m_device.device;
-}
-
-const vkb::Swapchain& VulkanContext::GetSwapchain() const
-{
-	return m_swapchain;
-}
-
-VkQueue VulkanContext::GetGraphicsQueue() const
-{
-	return m_graphicsQueue;
-}
-
-VkQueue VulkanContext::GetPresentQueue() const
-{
-	return m_presentQueue;
 }
 
 VkCommandPool VulkanContext::GetCommandPool() const

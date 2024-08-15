@@ -12,6 +12,11 @@ DescriptorManager::DescriptorManager(const vkb::DispatchTable& disp)
 	CreateDescriptorPool();
 }
 
+DescriptorManager::~DescriptorManager()
+{
+	Cleanup();
+}
+
 void DescriptorManager::Cleanup()
 {
 	if (m_descriptorPool != VK_NULL_HANDLE)
