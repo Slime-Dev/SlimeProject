@@ -203,6 +203,15 @@ void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb
 	}
 }
 
+void MainRenderPass::ImGuiDraw(vkb::DispatchTable disp)
+{
+	ImGui::Begin("Main Render Pass");
+
+	ImGui::ColorEdit3("Clear Color", &m_clearColor.r);
+
+	ImGui::End();
+}
+
 int MainRenderPass::DrawModel(vkb::DispatchTable& disp, VkCommandBuffer& cmd, const ModelResource& model)
 {
 	VkDeviceSize offsets[] = { 0 };
@@ -232,6 +241,10 @@ void MainRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 
 VkRenderingInfo* MainRenderPass::GetRenderingInfo(vkb::Swapchain swapchain, VkImageView& swapchainImageView, VkImageView& depthImageView)
 {
+	m_colorAttachmentInfo.clearValue = {
+		.color = {m_clearColor.r, m_clearColor.g, m_clearColor.b, 0.0f}
+	};
+
 	m_colorAttachmentInfo.imageView = swapchainImageView;
 	m_depthAttachmentInfo.imageView = depthImageView;
 

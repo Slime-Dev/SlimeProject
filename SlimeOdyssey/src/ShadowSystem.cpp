@@ -221,7 +221,7 @@ float ShadowSystem::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocato
 
 void ShadowSystem::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils)
 {
-	ImGui::Begin("Shadow Map Inspector", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Begin("Shadow Map Inspector");
 
 	// Shadow Map Selection
 	static int currentItem = 0;

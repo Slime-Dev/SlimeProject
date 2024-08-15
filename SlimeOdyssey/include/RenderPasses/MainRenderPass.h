@@ -23,6 +23,7 @@ public:
 	MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, MaterialManager* materialManager, ModelManager* modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, DescriptorManager* descriptorManager);
 
 	void Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager) override;
+	void ImGuiDraw(vkb::DispatchTable disp) override;
 
 private:
 	// Push Constant
@@ -44,7 +45,7 @@ private:
 	VkPipelineLayout m_pipelineLayout;
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
 
-	glm::vec3 m_clearColor = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 m_clearColor = glm::vec3(231.0f, 146.0f, 114.0f);
 
 	VkRenderingAttachmentInfo m_colorAttachmentInfo{};
 	VkRenderingAttachmentInfo m_depthAttachmentInfo{};
