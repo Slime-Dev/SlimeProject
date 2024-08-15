@@ -6,6 +6,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timezone
 import traceback
+import textwrap
 
 def xml_to_json(xml_file, tool_name):
     # Check if the file exists
@@ -243,7 +244,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     total_height = default_height + (num_new_lines * height_per_line)
 
     if failures != 0:
-        total_height = total_height + 225 + (failures * height_per_line)
+        total_height = total_height + 125 + (failures * height_per_line)
 
     print(f"Calculated image height: {total_height}")
 
@@ -375,21 +376,33 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     y += content_buffer
     draw.text((left_buffer, y), f"{commit_message}", font=body_font, fill=white)
 
-    # Only draw detailed failed tests if they are any
+    # Only draw detailed failed tests if there are any
     if failures != 0:
-        failure_box_height = dynamic_height + content_buffer
         dynamic_height = comment_height + title_box_height + (failures * height_per_line)
-        print(failure_box_height)
-        detailed_failure_box = [left_buffer - padding, failure_box_height - padding, title_box_width, dynamic_height + 100]
-        shadow_box = [left_buffer - padding + 5, failure_box_height - padding + 5, title_box_width + 5, dynamic_height + 105]
+        failure_box_height = dynamic_height + content_buffer
+        detailed_failure_box = [left_buffer - padding, failure_box_height - padding, title_box_width, dynamic_height + 200]
+        shadow_box = [left_buffer - padding + 5, failure_box_height - padding + 5, title_box_width + 5, dynamic_height + 205]
+
         draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
         draw.rounded_rectangle(detailed_failure_box, fill=shading_color, radius=border_radius)
         draw.text((left_buffer, failure_box_height), "Detailed Failed Results", font=header_font, fill=white)
+
+        y = failure_box_height + content_buffer
         for name, status, duration, error_message in test_cases:
-            y = failure_box_height + content_buffer
             if status == 'failed':
+                # Draw the test name
                 draw.text((left_buffer, y), name, font=body_font, fill=red)
-                draw.text((left_buffer + 150, y), clean_up_error_msg(error_message), font=body_font, fill=white)
+
+                # Clean and wrap the error message to fit within the box width
+                clean_message = clean_up_error_msg(error_message)
+                wrapped_message = textwrap.fill(clean_message, width=80)  # Adjust width as needed
+
+                # Draw each line of the wrapped error message
+                for line in wrapped_message.splitlines():
+                    draw.text((left_buffer + 150, y), line, font=body_font, fill=white)
+                    y += height_per_line  # Increment y for each line of text
+
+                y += content_buffer  # Add some buffer before the next entry
 
 
     return image
