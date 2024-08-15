@@ -45,7 +45,7 @@ private:
 	VkPipelineLayout m_pipelineLayout;
 	std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
 
-	glm::vec3 m_clearColor = glm::vec3(231.0f, 146.0f, 114.0f);
+	glm::vec3 m_clearColor;
 
 	VkRenderingAttachmentInfo m_colorAttachmentInfo{};
 	VkRenderingAttachmentInfo m_depthAttachmentInfo{};

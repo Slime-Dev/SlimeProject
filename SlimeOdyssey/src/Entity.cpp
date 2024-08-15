@@ -84,6 +84,11 @@ bool Entity::HasTag(const std::string& tag) const
 	return m_tags.find(tag) != m_tags.end();
 }
 
+const std::unordered_set<std::string>& Entity::GetTags() const
+{
+	return m_tags;
+}
+
 const std::unordered_map<std::type_index, std::shared_ptr<Component>>& Entity::GetComponents() const
 {
 	return m_components;

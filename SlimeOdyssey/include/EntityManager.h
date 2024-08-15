@@ -45,6 +45,10 @@ public:
 	// Get entity by name
 	std::shared_ptr<Entity> GetEntityByName(const std::string& name) const;
 
+	void DeleteEntity(const Entity& entity);
+
+	std::shared_ptr<Entity> CloneEntity(const Entity& entity);
+
 	// Get entities with specific components
 	template<typename... Ts>
 	std::vector<std::shared_ptr<Entity>> GetEntitiesWithComponents()
@@ -90,6 +94,7 @@ public:
 			}
 		}
 	}
+
 
 	// Update component masks when an entity's components change
 	void OnEntityComponentChanged(const Entity& entity);

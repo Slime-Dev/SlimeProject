@@ -106,6 +106,49 @@ std::shared_ptr<Entity> EntityManager::GetEntityByName(const std::string& name) 
 	return it != m_entities.end() ? *it : nullptr;
 }
 
+void EntityManager::DeleteEntity(const Entity& entity)
+{
+	auto it = std::find_if(m_entities.begin(), m_entities.end(), [&entity](const auto& e) { return e->GetId() == entity.GetId(); });
+
+	if (it != m_entities.end())
+	{
+		// If the deleted entity is currently selected, deselect it
+		if (m_selectedEntity == it->get())
+		{
+			m_selectedEntity = nullptr;
+		}
+
+		// Remove the entity's mask
+		size_t entityIndex = std::distance(m_entities.begin(), it);
+		if (entityIndex < m_entityMasks.size())
+		{
+			m_entityMasks.erase(m_entityMasks.begin() + entityIndex);
+		}
+
+		// Remove the entity from the vector
+		m_entities.erase(it);
+	}
+}
+
+// This function isnt complete yet
+std::shared_ptr<Entity> EntityManager::CloneEntity(const Entity& entity)
+{
+	// Create a new entity with the same name as the original
+	auto clonedEntity = std::make_shared<Entity>(entity.GetName() + "_clone");
+
+	// Copy all tags from the original entity to the clone
+	for (const auto& tag: entity.GetTags())
+	{
+		clonedEntity->AddTag(tag);
+	}
+	 
+	// Add the cloned entity to the manager
+	AddEntity(clonedEntity);
+
+	return clonedEntity;
+}
+
+
 // Update component masks when an entity's components change
 void EntityManager::OnEntityComponentChanged(const Entity& entity)
 {
@@ -158,12 +201,14 @@ void EntityManager::ImGuiDebug()
 
 void EntityManager::RenderEntityTree(const std::string& searchStr)
 {
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 6)); // Reduce vertical spacing between items
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 6));
 
-	for (const auto& entity: m_entities)
+	for (auto it = m_entities.begin(); it != m_entities.end();)
 	{
+		const auto& entity = *it;
 		if (!searchStr.empty() && entity->GetName().find(searchStr) == std::string::npos)
 		{
+			++it;
 			continue;
 		}
 
@@ -171,27 +216,39 @@ void EntityManager::RenderEntityTree(const std::string& searchStr)
 
 		ImGui::PushID(entity.get());
 
-		// Use Selectable for the full-width background and selection
 		if (ImGui::Selectable(entity->GetName().c_str(), isSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap))
 		{
 			m_selectedEntity = entity.get();
 		}
 
-		// Context menu
+		bool breakEarly = false;
+
 		if (ImGui::BeginPopupContextItem("EntityContextMenu"))
 		{
 			if (ImGui::MenuItem("Delete Entity"))
 			{
-				// TODO: Implement delete functionality
-			}
-			if (ImGui::MenuItem("Clone Entity"))
-			{
-				// TODO: Implement clone functionality
+				DeleteEntity(*entity);
+				
+				// If the deleted entity is currently selected, deselect it
+				if (m_selectedEntity == entity.get())
+				{
+					m_selectedEntity = nullptr;
+				}
+
+				// Iterators are invalidated after erase, so break out of the loop
+				breakEarly = true;
 			}
 			ImGui::EndPopup();
 		}
 
 		ImGui::PopID();
+
+		if (breakEarly)
+		{
+			break;
+		}
+
+		++it;
 	}
 
 	ImGui::PopStyleVar();

@@ -22,6 +22,7 @@ MainRenderPass::MainRenderPass(std::shared_ptr<ShadowRenderPass> shadowPass, Mat
 
 void MainRenderPass::Setup(vkb::DispatchTable& disp, VmaAllocator allocator, vkb::Swapchain swapchain, ShaderManager* shaderManager, VulkanDebugUtils& debugUtils)
 {
+	m_clearColor = glm::vec3(231.0f / 255.0f, 146.0f / 255.0f, 114.0f / 255.0f);
 	m_debugUtils = &debugUtils;
 
 	// Set up a basic pipeline

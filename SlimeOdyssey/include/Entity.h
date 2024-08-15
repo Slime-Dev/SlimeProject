@@ -111,6 +111,7 @@ public:
 	void RemoveTag(const std::string& tag);
 	bool HasTag(const std::string& tag) const;
 
+	const std::unordered_set<std::string>& GetTags() const;
 	const std::unordered_map<std::type_index, std::shared_ptr<Component>>& GetComponents() const;
 
 	// Allow for debug print in spdlog
