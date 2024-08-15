@@ -220,6 +220,10 @@ def parse_test_results_from_file(file_path):
 
     return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
 
+def clean_up_error_msg(message):
+    lines = message.split("]")
+    return lines[len(lines) - 1]
+
 def create_horizontal_test_results_image(file_path, os, compiler, event, author, branch, commit_message):
     # Parse the XML data from the file
     test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
@@ -232,14 +236,14 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     print(f"Number of new lines: {num_new_lines}")
 
     # Set height depending on the amount of new lines in the comment
-    default_height = 350  # Base height
+    default_height = 475  # Base height
     height_per_line = 10  # Additional height per new line
 
     # Calculate the total height
     total_height = default_height + (num_new_lines * height_per_line)
 
     if failures != 0:
-        total_height = total_height + 350 + (failures * height_per_line)
+        total_height = total_height + 225 + (failures * height_per_line)
 
     print(f"Calculated image height: {total_height}")
 
@@ -345,8 +349,6 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(detailed_results_box, fill=shading_color, radius=border_radius)
 
-    failed_test_names = []
-    failed_test_msg = []
     # Draw Detailed Test Results text
     y = sub_heading_height
     draw.text((column_buffer + 20, sub_heading_height), "Detailed Test Results", font=header_font, fill=white)
@@ -357,10 +359,6 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
         draw.text((column_buffer + 200, y), status, font=body_font, fill=status_color)
         draw.text((column_buffer + 300, y), f"{duration:.6f}", font=body_font, fill=light_gray)
         y += line_buffer
-        if status == "failed":
-            failed_test_names.append(name)
-            failed_test_msg.append(error_message)
-            print(f'Test names length: {len(failed_test_names)}')
 
     # Adding the commit msg
     # Draw rounded rectangle with a shadow for commit message
@@ -378,7 +376,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     draw.text((left_buffer, y), f"{commit_message}", font=body_font, fill=white)
 
     # Only draw detailed failed tests if they are any
-    if failures != 0 and len(failed_test_msg) != 0:
+    if failures != 0:
         failure_box_height = dynamic_height + content_buffer
         dynamic_height = comment_height + title_box_height + (failures * height_per_line)
         print(failure_box_height)
@@ -387,6 +385,11 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
         draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
         draw.rounded_rectangle(detailed_failure_box, fill=shading_color, radius=border_radius)
         draw.text((left_buffer, failure_box_height), "Detailed Failed Results", font=header_font, fill=white)
+        for name, status, duration, error_message in test_cases:
+            y = failure_box_height + content_buffer
+            if status == 'failed':
+                draw.text((left_buffer, y), name, font=body_font, fill=red)
+                draw.text((left_buffer + 150, y), clean_up_error_msg(error_message), font=body_font, fill=white)
 
 
     return image
