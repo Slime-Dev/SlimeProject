@@ -316,7 +316,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     # Draw title with drop shadow
     title_position = (width // 2 - 100, title_height)
-    draw.text((title_position[0] + 2, title_position[1] + 2), "Test Results", font=title_font, fill=shadow_color)
+    #draw.text((title_position[0] + 2, title_position[1] + 2), "Test Results", font=title_font, fill=shadow_color)
     draw.text(title_position, "Test Results", font=title_font, fill=white)
 
     # Draw Event details text
