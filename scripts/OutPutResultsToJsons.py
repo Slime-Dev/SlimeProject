@@ -244,25 +244,25 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     total_height = default_height + (num_new_lines * height_per_line)
 
     if failures != 0:
-        total_height = total_height + 125 + (failures * height_per_line)
+        total_height = total_height + 175 + (failures * height_per_line)
 
     print(f"Calculated image height: {total_height}")
 
     # Set up image
     width, height = 850, total_height  # Adjust height based on number of test cases and failed cases
-    background_color = (35, 37, 39)  # Darker gray
+    background_color = (0,0,0)  # black
     shading_color = (55, 57, 59)  # Slightly lighter shade for background
-    gradient_color = (50, 50, 150)  # Gradient color
+    #gradient_color = (50, 50, 150)  # Gradient color
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
 
     # Create gradient effect
-    for i in range(height):
-        ratio = i / height
-        r = int(background_color[0] * (1 - ratio) + gradient_color[0] * ratio)
-        g = int(background_color[1] * (1 - ratio) + gradient_color[1] * ratio)
-        b = int(background_color[2] * (1 - ratio) + gradient_color[2] * ratio)
-        draw.line([(0, i), (width, i)], fill=(r, g, b))
+    # for i in range(height):
+    #     ratio = i / height
+    #     r = int(background_color[0] * (1 - ratio) + gradient_color[0] * ratio)
+    #     g = int(background_color[1] * (1 - ratio) + gradient_color[1] * ratio)
+    #     b = int(background_color[2] * (1 - ratio) + gradient_color[2] * ratio)
+    #     draw.line([(0, i), (width, i)], fill=(r, g, b))
 
     # Global levels
     title_height = 30
@@ -302,12 +302,16 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     light_gray = (200, 200, 200)
     green = (0, 255, 100)
     red = (255, 100, 100)
-    shadow_color = (0, 0, 0, 80)
+    shadow_color = (0,0,0)
+    if failures > 0:
+        shadow_color = (255, 100, 100)
+    else:
+        shadow_color = (0, 255, 100)
 
     # Draw rounded rectangle with shadow for event details
     event_details_box = [left_buffer - padding, title_height - padding, title_box_width, title_box_height]
     shadow_box = [left_buffer - padding + 5, title_height - padding + 5, title_box_width + 5, title_box_height + 5]
-    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(event_details_box, fill=shading_color, radius=border_radius)
 
     # Draw title with drop shadow
@@ -327,7 +331,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Draw rounded rectangle with shadow for Details section
     details_box = [left_buffer - padding, sub_heading_height - padding, content_box_width, content_box_height]
     shadow_box = [left_buffer - padding + 5, sub_heading_height - padding + 5, content_box_width + 5, content_box_height + 5]
-    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(details_box, fill=shading_color, radius=border_radius)
 
     # Draw Details text
@@ -347,7 +351,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     # Draw rounded rectangle with shadow for Detailed Test Results section
     detailed_results_box = [width // 2 - padding, sub_heading_height - padding, (width // 2 - padding) + content_box_width, content_box_height]
     shadow_box = [width // 2 - padding + 5, sub_heading_height - padding + 5, (width // 2 - padding) + content_box_width + 5, content_box_height + 5]
-    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(detailed_results_box, fill=shading_color, radius=border_radius)
 
     # Draw Detailed Test Results text
@@ -367,7 +371,7 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     print(f"Calculated dynamic box height {dynamic_height}")
     comment_box = [left_buffer - padding, comment_height - padding, title_box_width, dynamic_height]
     shadow_box = [left_buffer - padding + 5, comment_height - padding + 5, title_box_width + 5, dynamic_height + 5]
-    #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+    draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
     draw.rounded_rectangle(comment_box, fill=shading_color, radius=border_radius)
 
     # Draw Commit comment text
@@ -380,10 +384,10 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     if failures != 0:
         dynamic_height = comment_height + title_box_height + (failures * height_per_line)
         failure_box_height = dynamic_height + content_buffer
-        detailed_failure_box = [left_buffer - padding, failure_box_height - padding, title_box_width, dynamic_height + 200]
-        shadow_box = [left_buffer - padding + 5, failure_box_height - padding + 5, title_box_width + 5, dynamic_height + 205]
+        detailed_failure_box = [left_buffer - padding, failure_box_height - padding, title_box_width, dynamic_height + 150]
+        shadow_box = [left_buffer - padding + 5, failure_box_height - padding + 5, title_box_width + 5, dynamic_height + 155]
 
-        #draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
+        draw.rounded_rectangle(shadow_box, fill=shadow_color, radius=border_radius)
         draw.rounded_rectangle(detailed_failure_box, fill=shading_color, radius=border_radius)
         draw.text((left_buffer, failure_box_height), "Detailed Failed Results", font=header_font, fill=white)
 
