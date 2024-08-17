@@ -3,9 +3,6 @@ name: Testing for multiple platforms
 on:
   workflow_dispatch:
     {}
-  push:
-    branches:
-      [ "*" ]
   pull_request:
     branches:
       [ "main" ]
