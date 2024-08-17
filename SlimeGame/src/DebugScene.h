@@ -9,6 +9,11 @@ class InputManager;
 class ModelManager;
 class ShaderManager;
 class DescriptorManager;
+class ModelResource;
+class PBRMaterialResource;
+class BasicMaterialResource;
+class Transform;
+class Model;
 
 class DebugScene : public Scene
 {

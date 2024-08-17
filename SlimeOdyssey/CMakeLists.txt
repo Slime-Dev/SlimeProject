@@ -29,6 +29,12 @@ set(IMGUI_SOURCES
 )
 set(SOURCES ${SOURCES} ${IMGUI_SOURCES})
 
+# ENTT Setup
+set(ENTT_SOURCES
+    ${ENTT_SOURCE_DIR}/src/entt/entt.hpp
+)
+set(SOURCES ${SOURCES} ${ENTT_SOURCES})
+
 # Create SlimeOdyssey library
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
 
@@ -76,6 +82,7 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE ${ENTT_SOURCE_DIR}/src)
 target_include_directories(${PROJECT_NAME} PRIVATE ${SPIRV_CROSS_INCLUDE_DIRS})
 
 if(Vulkan_FOUND)
@@ -117,7 +124,7 @@ set(PCH_HEADERS
 target_precompile_headers(${PROJECT_NAME} PRIVATE ${PCH_HEADERS})
 
 # set a variable so that any project that includes this project can use the include directories
-set(SLIME_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/external ${IMGUI_SOURCE_DIR} PARENT_SCOPE)
+set(SLIME_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/external ${IMGUI_SOURCE_DIR} ${ENTT_SOURCE_DIR}/src PARENT_SCOPE)
 
 # set a path to the resources directory
 set(SLIME_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources" PARENT_SCOPE)

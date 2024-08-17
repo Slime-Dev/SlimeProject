@@ -14,9 +14,8 @@
 DebugScene::DebugScene(SlimeWindow* window)
       : Scene(), m_window(window)
 {
-	Entity mainCamera = Entity("MainCamera");
-	mainCamera.AddComponent<Camera>(90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
-	m_entityManager.AddEntity(mainCamera);
+	entt::entity mainCamera = m_entityRegistry.create();
+	m_entityRegistry.emplace<Camera>(mainCamera, 90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
 }
 
 int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager)
@@ -63,10 +62,9 @@ void DebugScene::SetupShaders(VulkanContext& vulkanContext, ModelManager& modelM
 void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	// Light
-	auto lightEntity = std::make_shared<Entity>("Light");
-	DirectionalLight& light = lightEntity->AddComponent<DirectionalLight>();
-	light.SetColor(glm::vec3(0.98f, 0.506f, 0.365f));
-	m_entityManager.AddEntity(lightEntity);
+	entt::entity lightEntity = m_entityRegistry.create();
+	m_entityRegistry.emplace<Transform>(lightEntity, glm::vec3(0.0f, 10.0f, 0.0f));
+	m_entityRegistry.emplace<DirectionalLight>(lightEntity, glm::vec3(-0.98f, 0.506f, 0.365f));
 
 	VmaAllocator allocator = vulkanContext.GetAllocator();
 	auto debugMesh = modelManager.CreateCube(allocator);
@@ -80,21 +78,16 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
 
 	// Create the groundPlane
-	Entity ground = Entity("Ground");
-	ground.AddComponent<Model>(groundPlane);
-	ground.AddComponent<PBRMaterial>(m_pbrMaterials[2]);
-	auto& groundTransform = ground.AddComponent<Transform>();
-	groundTransform.position = glm::vec3(0.0f, 0.2f, 0.0f); // Slightly above the grid
-	m_entityManager.AddEntity(ground);
+	entt::entity gridEntity = m_entityRegistry.create();
+	m_entityRegistry.emplace<Transform>(gridEntity, glm::vec3(0.0f, 0.2f, 0.0f));
+	m_entityRegistry.emplace<Model>(gridEntity, groundPlane);
+	m_entityRegistry.emplace<PBRMaterial>(gridEntity, m_pbrMaterials[2]);
 
 	// Create a bunny
-	Entity bunny = Entity("Bunny");
-	bunny.AddComponent<Model>(bunnyMesh);
-	bunny.AddComponent<PBRMaterial>(m_pbrMaterials[0]);
-	auto& bunnyTransform = bunny.AddComponent<Transform>();
-	bunnyTransform.position = glm::vec3(10.0f, 3.0f, -10.0f);
-	bunnyTransform.scale = glm::vec3(20.0f);
-	m_entityManager.AddEntity(bunny);
+	entt::entity bunnyEntity = m_entityRegistry.create();
+	m_entityRegistry.emplace<Transform>(bunnyEntity, glm::vec3(7.5f, 3.0f, 0.0f), glm::vec3(0.0f), glm::vec3(20.0f)); // pos, rot, scale
+	m_entityRegistry.emplace<Model>(bunnyEntity, bunnyMesh);
+	m_entityRegistry.emplace<PBRMaterial>(bunnyEntity, m_pbrMaterials[0]);
 
 	// Large cube at Y=1
 	CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);
@@ -122,25 +115,19 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 void DebugScene::CreateCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
 {
 	static int cubeCount = 0;
-	Entity cube = Entity("Debug Cube " + std::to_string(++cubeCount));
-	cube.AddComponent<Model>(mesh);
-	cube.AddComponent<PBRMaterial>(material);
-	auto& transform = cube.AddComponent<Transform>();
-	transform.position = position;
-	transform.scale = scale;
-	m_entityManager.AddEntity(cube);
-	m_cubeTransforms.push_back(&transform);
+	entt::entity cubeEntity = m_entityRegistry.create();
+	m_entityRegistry.emplace<Transform>(cubeEntity, position, glm::vec3(0.0f), scale);
+	m_entityRegistry.emplace<Model>(cubeEntity, mesh);
+	m_entityRegistry.emplace<PBRMaterial>(cubeEntity, material);
+	m_cubeTransforms.push_back(&m_entityRegistry.get<Transform>(cubeEntity));
 }
 
 void DebugScene::CreateLargeCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
 {
-	Entity largeCube = Entity("Large Debug Cube");
-	largeCube.AddComponent<Model>(mesh);
-	largeCube.AddComponent<PBRMaterial>(material);
-	auto& transform = largeCube.AddComponent<Transform>();
-	transform.position = position;
-	transform.scale = scale;
-	m_entityManager.AddEntity(largeCube);
+	entt::entity largeCube = m_entityRegistry.create();
+	m_entityRegistry.emplace<Transform>(largeCube, position, glm::vec3(0.0f), scale);
+	m_entityRegistry.emplace<Model>(largeCube, mesh);
+	m_entityRegistry.emplace<PBRMaterial>(largeCube, material);
 }
 
 void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager)
@@ -173,33 +160,29 @@ void DebugScene::Render()
 	ImGui::Text("Camera Speed: %.2f", m_cameraSpeed);
 	ImGui::End();
 
-	m_entityManager.ImGuiDebug();
+	// m_entityRegistry.ImGuiDebug(); // Might wanna add a wrapper around entt?
+
+	// Light info
+	m_entityRegistry.view<DirectionalLight>().each([&](auto entity, DirectionalLight& light) {
+		light.ImGuiDebug();
+	});
 }
 
 void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	// Clean up lights
-	std::vector<std::shared_ptr<Entity>> lightEntities = m_entityManager.GetEntitiesWithComponents<PointLight>();
-	for (const auto& entity: lightEntities)
-	{
-		PointLight& light = entity->GetComponent<PointLight>();
+	m_entityRegistry.view<PointLight>().each([&](auto entity, PointLight& light) {
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
-	}
+	});
 
-	lightEntities = m_entityManager.GetEntitiesWithComponents<DirectionalLight>();
-	for (const auto& entity: lightEntities)
-	{
-		DirectionalLight& light = entity->GetComponent<DirectionalLight>();
+	m_entityRegistry.view<DirectionalLight>().each([&](auto entity, DirectionalLight& light) {
 		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
-	}
+	});
 
 	// Clean up cameras
-	std::vector<std::shared_ptr<Entity>> cameraEntities = m_entityManager.GetEntitiesWithComponents<Camera>();
-	for (const auto& entity: cameraEntities)
-	{
-		Camera& camera = entity->GetComponent<Camera>();
+	m_entityRegistry.view<Camera>().each([&](auto entity, Camera& camera) {
 		camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator());
-	}
+	});
 
 	modelManager.CleanUpAllPipelines(vulkanContext.GetDispatchTable());
 }
@@ -276,11 +259,8 @@ void DebugScene::UpdateFlyCam(float dt, const InputManager* inputManager)
 		m_flyCamPosition -= flyCamUp * moveSpeed;
 
 	// Update camera
-	auto cameraEntity = m_entityManager.GetEntityByName("MainCamera");
-	if (cameraEntity)
-	{
-		auto& camera = cameraEntity->GetComponent<Camera>();
-		camera.SetPosition(m_flyCamPosition);
-		camera.SetTarget(m_flyCamPosition + flyCamFront);
-	}
+	entt::entity cameraEntity = m_entityRegistry.view<Camera>().front();
+	Camera& camera = m_entityRegistry.get<Camera>(cameraEntity);
+	camera.SetPosition(m_flyCamPosition);
+	camera.SetTarget(m_flyCamPosition + flyCamFront);
 }

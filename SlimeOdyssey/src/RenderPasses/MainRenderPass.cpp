@@ -1,10 +1,10 @@
 #include "RenderPasses/MainRenderPass.h"
 
 #include <glm/common.hpp>
+#include <entt/entt.hpp>
 
 #include "Camera.h"
 #include "DescriptorManager.h"
-#include "Entity.h"
 #include "MaterialManager.h"
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
@@ -157,25 +157,30 @@ void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb
 	UpdateCommonBuffers(cmd, scene);
 
 	// I have removed the basic material models for now!
-	EntityManager& entityManager = scene->m_entityManager;
-	std::vector<std::shared_ptr<Entity>> modelEntities = entityManager.GetEntitiesWithComponents<Model, PBRMaterial, Transform>();
+	entt::registry& registry = scene->m_entityRegistry;
+	// Get all entities with a model component
+	std::vector<entt::entity> modelEntities;
+	registry.view<Model, PBRMaterial, Transform>().each([&modelEntities](auto entity, Model& model, PBRMaterial& material, Transform& transform)
+	{
+		modelEntities.push_back(entity);
+	});
 
 	// Get the shared descriptor set
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> sharedDescriptorSet = m_descriptorManager->GetSharedDescriptorSet();
 	std::pair<VkDescriptorSet, VkDescriptorSetLayout> lightDescriptorSet = m_descriptorManager->GetLightDescriptorSet();
 
 	// Update shared descriptors before the loop
-	UpdateSharedDescriptors(disp, sharedDescriptorSet.first, lightDescriptorSet.first, entityManager);
+	UpdateSharedDescriptors(disp, sharedDescriptorSet.first, lightDescriptorSet.first, registry);
 
 	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &sharedDescriptorSet.first, 0, nullptr);
 	disp.cmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &lightDescriptorSet.first, 0, nullptr);
 
 
-	auto lightEntity = entityManager.GetEntityByName("Light");
-	auto light = lightEntity->GetComponentShrPtr<DirectionalLight>();
+	entt::entity lightEntity = registry.view<DirectionalLight>().front();
+	Light& light = registry.get<DirectionalLight>(lightEntity);
 
-	ShadowData* shadowData = m_shadowPass->GetShadowSystem().GetShadowData(light);
+	ShadowData* shadowData = m_shadowPass->GetShadowSystem().GetShadowData(&light);
 	if (!shadowData)
 	{
 		spdlog::critical("No Shadows??");
@@ -184,11 +189,11 @@ void MainRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb
 
 	for (const auto& entity: modelEntities)
 	{
-		ModelResource* model = entity->GetComponent<Model>().modelResource;
-		Transform& transform = entity->GetComponent<Transform>();
-		PBRMaterial& pbrMaterial = entity->GetComponent<PBRMaterial>();
+		ModelResource* model = registry.get<Model>(entity).modelResource;
+		Transform& transform = registry.get<Transform>(entity);
+		PBRMaterial& pbrMaterial = registry.get<PBRMaterial>(entity);
 
-		m_debugUtils->BeginDebugMarker(cmd, ("Process Model: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
+		m_debugUtils->BeginDebugMarker(cmd, ("Process Model with pipeline: " + model->pipelineName).c_str(), debugUtil_StartDrawColour); // TODO: Update once we have names again
 
 		// Update material buffer if dirty
 		m_materialManager->UpdateMaterialBuffer(pbrMaterial.materialResource.get());
@@ -268,47 +273,37 @@ void MainRenderPass::UpdateCommonBuffers(VkCommandBuffer& cmd, Scene* scene)
 {
 	m_debugUtils->BeginDebugMarker(cmd, "Update Common Buffers", debugUtil_UpdateLightBufferColour);
 
-	EntityManager& entityManager = scene->m_entityManager;
+	entt::registry& registry = scene->m_entityRegistry;
 
 	// LIGHT
-	auto lightEntity = entityManager.GetEntityByName("Light");
-	if (!lightEntity)
-	{
-		spdlog::critical("Light entity not found!");
-		return;
-	}
-
-	DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
+	entt::entity lightEntity = registry.view<DirectionalLight>().front();
+	DirectionalLight& light = registry.get<DirectionalLight>(lightEntity);
 	if (light.buffer == VK_NULL_HANDLE)
 	{
 		SlimeUtil::CreateBuffer("Light Buffer", m_allocator, light.GetBindingDataSize(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, light.buffer, light.allocation);
 	}
 
-	auto bindingData = light.GetBindingData();
+	const DirectionalLight::BindingData& bindingData = light.GetBindingData();
 	SlimeUtil::CopyStructToBuffer(bindingData, m_allocator, light.allocation);
 
 	// CAMERA
-	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	entt::entity cameraEntity = registry.view<Camera>().front();
+	Camera& camera = registry.get<Camera>(cameraEntity);
 	camera.UpdateCameraUBO(m_allocator);
 	SlimeUtil::CopyStructToBuffer(camera.GetCameraUBO(), m_allocator, camera.GetCameraUBOAllocation());
 
 	m_debugUtils->EndDebugMarker(cmd);
 }
 
-void MainRenderPass::UpdateSharedDescriptors(vkb::DispatchTable& disp, VkDescriptorSet cameraSet, VkDescriptorSet lightSet, EntityManager& entityManager)
+void MainRenderPass::UpdateSharedDescriptors(vkb::DispatchTable& disp, VkDescriptorSet cameraSet, VkDescriptorSet lightSet, entt::registry& registry)
 {
-	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	entt::entity cameraEntity = registry.view<Camera>().front();
+	Camera& camera = registry.get<Camera>(cameraEntity);
 	SlimeUtil::BindBuffer(disp, cameraSet, 0, camera.GetCameraUBOBuffer(), 0, sizeof(CameraUBO));
 
-	auto lightEntity = entityManager.GetEntityByName("Light");
-	if (!lightEntity)
-	{
-		spdlog::critical("Light entity not found!");
-		return;
-	}
-
-	auto light = lightEntity->GetComponentShrPtr<DirectionalLight>();
-	SlimeUtil::BindBuffer(disp, lightSet, 0, light->buffer, 0, light->GetBindingDataSize());
+	entt::entity lightEntity = registry.view<DirectionalLight>().front();
+	DirectionalLight& light = registry.get<DirectionalLight>(lightEntity);
+	SlimeUtil::BindBuffer(disp, lightSet, 0, light.buffer, 0, light.GetBindingDataSize());
 }
 
 void MainRenderPass::UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Transform& transform)

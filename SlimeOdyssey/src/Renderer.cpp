@@ -154,13 +154,15 @@ int Renderer::Draw(VkCommandBuffer& cmd, VkCommandPool commandPool, Scene* scene
 	if (SlimeUtil::BeginCommandBuffer(*m_disp, cmd) != 0)
 		return -1;
 
-	Camera* camera = scene->m_entityManager.GetEntityByName("MainCamera")->GetComponentPtr<Camera>();
+	entt::registry& registry = scene->m_entityRegistry;
+	entt::entity cameraEntity = registry.view<Camera>().front();
+	Camera& camera = registry.get<Camera>(cameraEntity);
 
 	// Transition images to appropriate layouts
 	TransitionImages(m_graphicsQueue, commandPool, m_swapchainImages[imageIndex]);
 
 	// Execute all render passes
-	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, m_swapchain, m_swapchainImageViews[imageIndex], m_depthImageView, scene, camera);
+	m_renderPassManager.ExecutePasses(*m_disp, cmd, *m_debugUtils, m_swapchain, m_swapchainImageViews[imageIndex], m_depthImageView, scene, &camera);
 
 	// Transition color image to present src layout
 	SlimeUtil::TransitionImageLayout(*m_disp, m_graphicsQueue, commandPool, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);

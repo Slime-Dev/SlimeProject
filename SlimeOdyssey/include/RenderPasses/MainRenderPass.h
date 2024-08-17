@@ -13,7 +13,6 @@ class MaterialManager;
 class ModelManager;
 class ShadowRenderPass;
 class ShadowSystem;
-class Entity;
 struct ModelResource;
 struct Transform;
 
@@ -60,7 +59,7 @@ private:
 	VulkanDebugUtils* m_debugUtils = nullptr;
 
 	void UpdateCommonBuffers(VkCommandBuffer& cmd, Scene* scene);
-	void UpdateSharedDescriptors(vkb::DispatchTable& disp, VkDescriptorSet cameraSet, VkDescriptorSet lightSet, EntityManager& entityManager);
+	void UpdateSharedDescriptors(vkb::DispatchTable& disp, VkDescriptorSet cameraSet, VkDescriptorSet lightSet, entt::registry& registry);
 	void UpdatePushConstants(vkb::DispatchTable& disp, VkCommandBuffer& cmd, Transform& transform);
 
 };

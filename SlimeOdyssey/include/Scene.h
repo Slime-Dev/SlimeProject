@@ -1,6 +1,5 @@
 #pragma once
-#include "EntityManager.h"
-#include "Entity.h"
+#include <entt/entt.hpp>
 
 class ModelManager;
 class ShaderManager;
@@ -19,5 +18,5 @@ public:
 
 	virtual void Exit(VulkanContext& vulkanContext, ModelManager& modelManager) = 0;
 
-	EntityManager m_entityManager;
+	entt::registry m_entityRegistry;
 };

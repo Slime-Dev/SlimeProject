@@ -57,11 +57,11 @@ public:
 	        VulkanDebugUtils& debugUtils,
 	        Scene* scene,
 	        std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
-	        const std::vector<std::shared_ptr<Light>>& lights,
+	        const std::vector<Light*>& lights,
 	        Camera* camera);
 
-	ShadowData* GetShadowData(const std::shared_ptr<Light> light);
-	glm::mat4 GetLightSpaceMatrix(const std::shared_ptr<Light> light) const;
+	ShadowData* GetShadowData(Light* light);
+	glm::mat4 GetLightSpaceMatrix(Light* light) const;
 
 	void SetShadowMapResolution(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, uint32_t width, uint32_t height, bool reconstructImmediately = false);
 	void ReconstructShadowMaps(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils);
@@ -72,12 +72,12 @@ public:
 	void SetDirectionalLightDistance(float distance);
 	float GetDirectionalLightDistance() const;
 
-	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, const std::shared_ptr<Light> light, int x, int y) const;
+	float GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, Light* light, int x, int y) const;
 
 	void RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, ModelManager& modelManager, VulkanDebugUtils& debugUtils);
 
 private:
-	std::unordered_map<std::shared_ptr<Light>, ShadowData> m_shadowData;
+	std::unordered_map<Light*, ShadowData> m_shadowData;
 
 	float m_directionalLightDistance = 100.0f;
 
@@ -90,8 +90,8 @@ private:
 	float m_shadowNear = 0.1f;
 	float m_shadowFar = 120.0f;
 
-	void CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, const std::shared_ptr<Light> light);
-	void CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, const std::shared_ptr<Light> light);
+	void CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, Light* light);
+	void CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, Light* light);
 	void GenerateShadowMap(vkb::DispatchTable& disp,
 	        VkCommandBuffer& cmd,
 	        ModelManager& modelManager,
@@ -101,9 +101,9 @@ private:
 	        VulkanDebugUtils& debugUtils,
 	        Scene* scene,
 	        std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
-	        const std::shared_ptr<Light> light,
+	        Light* light,
 	        const Camera* camera);
-	void CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const Camera* camera);
+	void CalculateLightSpaceMatrix(Light* light, const Camera* camera);
 
 	std::vector<glm::vec3> CalculateFrustumCorners(float fov, float aspect, float near, float far, const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up, const glm::vec3& right) const;
 	void CalculateFrustumSphere(const std::vector<glm::vec3>& frustumCorners, glm::vec3& center, float& radius) const;

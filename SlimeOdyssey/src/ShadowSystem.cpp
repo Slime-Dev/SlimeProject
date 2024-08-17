@@ -31,7 +31,7 @@ bool ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp,
         VulkanDebugUtils& debugUtils,
         Scene* scene,
         std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
-        const std::vector<std::shared_ptr<Light>>& lights,
+        const std::vector<Light*>& lights,
         Camera* camera)
 {
 	bool invalidateDescriptors = false;
@@ -43,7 +43,7 @@ bool ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp,
 		ReconstructShadowMaps(disp, allocator, debugUtils);
 	}
 
-	for (const auto light: lights)
+	for (auto& light: lights)
 	{
 		if (m_shadowData.find(light) == m_shadowData.end())
 		{
@@ -56,7 +56,7 @@ bool ShadowSystem::UpdateShadowMaps(vkb::DispatchTable& disp,
 	return invalidateDescriptors;
 }
 
-ShadowData* ShadowSystem::GetShadowData(const std::shared_ptr<Light> light)
+ShadowData* ShadowSystem::GetShadowData(Light* light)
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
@@ -66,7 +66,7 @@ ShadowData* ShadowSystem::GetShadowData(const std::shared_ptr<Light> light)
 	return nullptr;
 }
 
-glm::mat4 ShadowSystem::GetLightSpaceMatrix(const std::shared_ptr<Light> light) const
+glm::mat4 ShadowSystem::GetLightSpaceMatrix(Light* light) const
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
@@ -150,7 +150,7 @@ inline float ShadowSystem::GetDirectionalLightDistance() const
 	return m_directionalLightDistance;
 }
 
-float ShadowSystem::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, const std::shared_ptr<Light> light, int x, int y) const
+float ShadowSystem::GetShadowMapPixelValue(vkb::DispatchTable& disp, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue, Light* light, int x, int y) const
 {
 	auto it = m_shadowData.find(light);
 	if (it == m_shadowData.end())
@@ -398,7 +398,7 @@ void ShadowSystem::RenderShadowMapInspector(vkb::DispatchTable& disp, VmaAllocat
 	ImGui::End();
 }
 
-void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, const std::shared_ptr<Light> light)
+void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, VulkanDebugUtils& debugUtils, Light* light)
 {
 	ShadowData& shadowData = m_shadowData[light];
 
@@ -447,7 +447,7 @@ void ShadowSystem::CreateShadowMap(vkb::DispatchTable& disp, VmaAllocator alloca
 	SlimeUtil::CreateBuffer("ShadowMapPixelStagingBuffer", allocator, shadowData.stagingBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, shadowData.stagingBuffer, shadowData.stagingBufferAllocation);
 }
 
-void ShadowSystem::CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, const std::shared_ptr<Light> light)
+void ShadowSystem::CleanupShadowMap(vkb::DispatchTable& disp, VmaAllocator allocator, Light* light)
 {
 	auto it = m_shadowData.find(light);
 	if (it != m_shadowData.end())
@@ -469,7 +469,7 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
         VulkanDebugUtils& debugUtils,
         Scene* scene,
         std::function<void(vkb::DispatchTable, VulkanDebugUtils&, VkCommandBuffer&, ModelManager&, Scene*)> drawModels,
-        const std::shared_ptr<Light> light,
+        Light* light,
         const Camera* camera)
 {
 	debugUtils.BeginDebugMarker(cmd, "Draw Models for Shadow Map", debugUtil_BeginColour);
@@ -519,7 +519,7 @@ void ShadowSystem::GenerateShadowMap(vkb::DispatchTable& disp,
 	debugUtils.EndDebugMarker(cmd);
 }
 
-void ShadowSystem::CalculateLightSpaceMatrix(const std::shared_ptr<Light> light, const Camera* camera)
+void ShadowSystem::CalculateLightSpaceMatrix(Light* light, const Camera* camera)
 {
 	auto it = m_shadowData.find(light);
 	if (it == m_shadowData.end())
@@ -556,13 +556,13 @@ void ShadowSystem::CalculateLightSpaceMatrix(const std::shared_ptr<Light> light,
 
 	if (light->GetType() == LightType::Directional)
 	{
-		const DirectionalLight* dirLight = static_cast<const DirectionalLight*>(light.get());
+		const DirectionalLight* dirLight = static_cast<const DirectionalLight*>(light);
 		lightDir = glm::normalize(-dirLight->GetDirection());
 		lightPos = frustumCenter - lightDir * frustumRadius; // Use frustumRadius as a base distance
 	}
 	else if (light->GetType() == LightType::Point)
 	{
-		const PointLight* pointLight = static_cast<const PointLight*>(light.get());
+		const PointLight* pointLight = static_cast<const PointLight*>(light);
 		lightPos = pointLight->GetPosition();
 		lightDir = glm::normalize(frustumCenter - lightPos);
 	}

@@ -74,7 +74,7 @@ protected:
 class DirectionalLight : public Light
 {
 public:
-	DirectionalLight();
+	DirectionalLight(glm::vec3 dir);
 
 	glm::vec3 GetDirection() const;
 	void SetDirection(const glm::vec3& direction);
@@ -89,7 +89,7 @@ public:
 		glm::vec3 direction;
 		float padding1 = PADDING;
 	};
-	BindingData GetBindingData();
+	BindingData GetBindingData() const;
 	size_t GetBindingDataSize() const;
 
 	void ImGuiDebug() override;
@@ -121,7 +121,7 @@ public:
 		glm::vec3 position;
 		float radius;
 	};
-	BindingData GetBindingData();
+	BindingData GetBindingData() const;
 	size_t GetBindingDataSize() const;
 
 	void ImGuiDebug() override;

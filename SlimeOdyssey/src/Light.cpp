@@ -73,7 +73,8 @@ void DirectionalLight::ImGuiDebug()
 	}
 }
 
-DirectionalLight::DirectionalLight()
+DirectionalLight::DirectionalLight(glm::vec3 dir)
+	: m_direction(dir)
 {
 	m_lightType = LightType::Directional;
 	m_data.ambientStrength = 0.075f;
@@ -99,7 +100,7 @@ void DirectionalLight::SetData(const LightData& data)
 	m_data = data;
 }
 
-DirectionalLight::BindingData DirectionalLight::GetBindingData()
+DirectionalLight::BindingData DirectionalLight::GetBindingData() const
 {
 	return { m_data, m_direction, m_padding3 };
 }
@@ -144,7 +145,7 @@ void PointLight::SetData(const LightData& data)
 	m_data = data;
 }
 
-PointLight::BindingData PointLight::GetBindingData()
+PointLight::BindingData PointLight::GetBindingData() const
 {
 	return { m_data, m_position, m_radius };
 }

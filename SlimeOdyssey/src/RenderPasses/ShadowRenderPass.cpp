@@ -1,7 +1,6 @@
 #include "RenderPasses/ShadowRenderPass.h"
 #include "Camera.h"
 #include "DescriptorManager.h"
-#include "Entity.h"
 #include "ModelManager.h"
 #include "PipelineGenerator.h"
 #include "RenderPasses/ShadowRenderPass.h"
@@ -9,6 +8,7 @@
 #include "ShaderManager.h"
 #include "ShadowSystem.h"
 #include "VulkanUtil.h"
+
 
 ShadowRenderPass::ShadowRenderPass(ModelManager& modelManager, VmaAllocator allocator, VkCommandPool commandPool, VkQueue graphicsQueue)
       : m_modelManager(modelManager), m_allocator(allocator), m_commandPool(commandPool), m_graphicsQueue(graphicsQueue)
@@ -126,24 +126,26 @@ void ShadowRenderPass::Cleanup(vkb::DispatchTable& disp, VmaAllocator allocator)
 
 void ShadowRenderPass::Execute(vkb::DispatchTable& disp, VkCommandBuffer& cmd, vkb::Swapchain swapchain, Scene* scene, Camera* camera, RenderPassManager* renderPassManager)
 {
-	std::vector<std::shared_ptr<Light>> lights;
-	scene->m_entityManager.ForEachEntityWith<DirectionalLight>(
-	        [&lights](Entity& entity)
-	        {
-		        if (auto light = entity.GetComponentShrPtr<DirectionalLight>())
-		        {
-			        lights.push_back(std::move(light));
-		        }
-	        });
+	std::vector<Light*> lights;
 
-	scene->m_entityManager.ForEachEntityWith<PointLight>(
-	        [&lights](Entity& entity)
-	        {
-		        if (auto light = entity.GetComponentShrPtr<PointLight>())
-		        {
-			        lights.push_back(std::move(light));
-		        }
-	        });
+	// ENTT registry is used to iterate over all entities with a specific component
+	entt::registry& registry = scene->m_entityRegistry;
+	
+	// Get and add all point lights to lights
+	auto pointLightView = registry.view<PointLight>();
+	for (auto entity : pointLightView)
+	{
+		auto& pointLight = pointLightView.get<PointLight>(entity);
+		lights.push_back(&pointLight);
+	}
+
+	// Get and add all directional lights to lights
+	auto directionalLightView = registry.view<DirectionalLight>();
+	for (auto entity : directionalLightView)
+	{
+		auto& directionalLight = directionalLightView.get<DirectionalLight>(entity);
+		lights.push_back(&directionalLight);
+	}
 
 	auto drawModelsFn = [this](vkb::DispatchTable d, VulkanDebugUtils& du, VkCommandBuffer& c, ModelManager& mm, Scene* s) { this->DrawModelsForShadowMap(d, du, c, mm, s); };
 	m_shadowSystem.UpdateShadowMaps(disp, cmd, m_modelManager, m_allocator, m_commandPool, m_graphicsQueue, m_debugUtils, scene, drawModelsFn, lights, camera);
@@ -166,20 +168,20 @@ void ShadowRenderPass::ImGuiDraw(vkb::DispatchTable disp)
 
 void ShadowRenderPass::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDebugUtils& debugUtils, VkCommandBuffer& cmd, ModelManager& modelManager, Scene* scene)
 {
-	EntityManager& entityManager = scene->m_entityManager;
-	auto modelEntities = entityManager.GetEntitiesWithComponents<Model, Transform>();
+	entt::registry& registry = scene->m_entityRegistry;
+
+	std::vector<entt::entity> modelEntities;
+	registry.view<Model, PBRMaterial, Transform>().each([&modelEntities](auto entity, Model& model, PBRMaterial& material, Transform& transform) // Maybe remove the material
+	{
+		modelEntities.push_back(entity);
+	});
 
 	// Get the light entity and its transform
-	auto lightEntity = entityManager.GetEntityByName("Light");
-
-	if (!lightEntity)
-	{
-		spdlog::error("Light entity not found, skipping shadow mapping.");
-		return;
-	}
-
-	DirectionalLight& light = lightEntity->GetComponent<DirectionalLight>();
-	Camera& camera = entityManager.GetEntityByName("MainCamera")->GetComponent<Camera>();
+	entt::entity lightEntity = registry.view<DirectionalLight>().front();
+	Light& light = registry.get<DirectionalLight>(lightEntity);
+	
+	entt::entity cameraEntity = registry.view<Camera>().front();
+	Camera& camera = registry.get<Camera>(cameraEntity);
 
 	// Bind the shadow map pipeline
 	disp.cmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
@@ -195,10 +197,10 @@ void ShadowRenderPass::DrawModelsForShadowMap(vkb::DispatchTable disp, VulkanDeb
 
 	for (const auto& entity: modelEntities)
 	{
-		ModelResource* model = entity->GetComponent<Model>().modelResource;
-		Transform& transform = entity->GetComponent<Transform>();
+		ModelResource* model = registry.get<Model>(entity).modelResource;
+		Transform& transform = registry.get<Transform>(entity);
 
-		debugUtils.BeginDebugMarker(cmd, ("Process Model for Shadow: " + entity->GetName()).c_str(), debugUtil_StartDrawColour);
+		debugUtils.BeginDebugMarker(cmd, ("Process Model for Shadow: "), debugUtil_StartDrawColour); // TODO: Update once we have names again
 
 		// Update push constants for shadow mapping
 		struct ShadowMapPushConstants
