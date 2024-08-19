@@ -111,13 +111,15 @@ jobs:
         run: |
           pip install defusedxml
           pip install pillow
-          python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}"
+          commit_msg=$(git log -1 --pretty=%B)
+          python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "$commit_msg"
 
       - name: Post results
         if: success()
+        shell: bash
         run: |
           npm install github-actions-ctrf@0.0.20
-          npx github-actions-ctrf ${{ github.workspace }}/scripts/finalresult.json
+          npx github-actions-ctrf "${{ github.workspace }}/scripts/finalresult.json"
 
       - name: Post results to Discord
         if: success()
