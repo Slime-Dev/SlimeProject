@@ -12,6 +12,45 @@
 #include <spdlog/spdlog.h>
 #include <VulkanContext.h>
 
+#include <vector>
+#include <random>
+
+// Maze generation using depth-first search (DFS)
+std::vector<std::vector<int>> GenerateMaze(int width, int height)
+{
+	std::vector<std::vector<int>> maze(height, std::vector<int>(width, 1));
+
+	std::function<void(int, int)> carvePath = [&](int x, int y)
+	{
+		int directions[4][2] = {
+			{ 0, -2},
+            { 0,  2},
+            {-2,  0},
+            { 2,  0}
+		};
+		std::shuffle(std::begin(directions), std::end(directions), std::mt19937{ std::random_device{}() });
+
+		for (auto& dir: directions)
+		{
+			int nx = x + dir[0];
+			int ny = y + dir[1];
+
+			if (nx > 0 && nx < width - 1 && ny > 0 && ny < height - 1 && maze[ny][nx] == 1)
+			{
+				maze[ny][nx] = 0;
+				maze[y + dir[1] / 2][x + dir[0] / 2] = 0;
+				carvePath(nx, ny);
+			}
+		}
+	};
+
+	// Start carving from the top left corner
+	maze[1][1] = 0;
+	carvePath(1, 1);
+
+	return maze;
+}
+
 DebugScene::DebugScene(SlimeWindow* window)
       : Scene(), m_window(window)
 {
@@ -75,7 +114,7 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
 	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
 
-	auto groundPlane = modelManager.CreatePlane(allocator, 50.0f, 25);
+	auto groundPlane = modelManager.CreatePlane(allocator, 200.0f, 30);
 	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
 
 	// Create the groundPlane
@@ -109,6 +148,30 @@ void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManag
 
 			int materialIndex = rand() % m_pbrMaterials.size();
 			CreateCube(debugMesh, glm::vec3(xPos, yPos, zPos), glm::vec3(1.0f), m_pbrMaterials[materialIndex]);
+		}
+	}
+
+	auto wallMesh = modelManager.CreateCube(allocator);
+	modelManager.CreateBuffersForMesh(allocator, *wallMesh);
+	wallMesh->pipelineName = "pbr";
+
+	int mazeWidth = 21;  // Must be odd
+	int mazeHeight = 21; // Must be odd
+	float wallHeight = 3.0f;
+	float startX = 25.0f;
+
+	std::vector<std::vector<int>> maze = GenerateMaze(mazeWidth, mazeHeight);
+
+	for (int y = 0; y < mazeHeight; ++y)
+	{
+		for (int x = 0; x < mazeWidth; ++x)
+		{
+			if (maze[y][x] == 1)
+			{
+				glm::vec3 position(startX + (x * 2.0f), wallHeight / 2.0f, y * 2.0f);
+				glm::vec3 scale(1.0f, wallHeight, 1.0f);
+				CreateCube(wallMesh, position, scale, m_pbrMaterials[0]);
+			}
 		}
 	}
 }
@@ -212,8 +275,9 @@ void DebugScene::Render()
 			ImGui::Text("Select an entity to view details.");
 		}
 
-		ImGui::End();
 	}
+
+	ImGui::End();
 }
 
 void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
