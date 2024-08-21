@@ -1,6 +1,7 @@
 #include "DebugScene.h"
 
 #include <Camera.h>
+#include <ComponentInspector.h>
 #include <DescriptorManager.h>
 #include <imgui.h>
 #include <Light.h>
@@ -160,29 +161,70 @@ void DebugScene::Render()
 	ImGui::Text("Camera Speed: %.2f", m_cameraSpeed);
 	ImGui::End();
 
-	// m_entityRegistry.ImGuiDebug(); // Might wanna add a wrapper around entt?
+	// ImGui entity inspector
+	static entt::entity selectedEntity = entt::null;
 
-	// Light info
-	m_entityRegistry.view<DirectionalLight>().each([&](auto entity, DirectionalLight& light) {
-		light.ImGuiDebug();
-	});
+	if (ImGui::Begin("Entity Inspector"))
+	{
+		bool entitySelected = false;
+
+		// List all entities with their details
+		m_entityRegistry.group<Transform>(entt::get<Model>)
+		        .each(
+		                [&](auto entity, Transform& transform, Model& model)
+		                {
+			                if (ImGui::Selectable(fmt::format("Entity {}: Model {}", static_cast<int>(entity), model.modelResource->pipelineName).c_str(), selectedEntity == entity))
+			                {
+				                selectedEntity = entity;
+				                entitySelected = true;
+			                }
+
+			                // You might want to include this for debugging purposes or if you want to see more than one entity at a time.
+			                if (selectedEntity == entity)
+			                {
+				                ImGui::SameLine();
+				                ImGui::Text("(Selected)");
+			                }
+		                });
+
+		ImGui::Separator();
+
+		// Show details of the selected entity
+		if (selectedEntity != entt::null)
+		{
+			ImGui::Text("Details of Entity %d:", selectedEntity);
+
+			// Fetch the components of the selected entity
+			auto& transform = m_entityRegistry.get<Transform>(selectedEntity);
+			auto& model = m_entityRegistry.get<Model>(selectedEntity);
+
+			ImGui::Text("Position: (%.2f, %.2f, %.2f)", transform.position.x, transform.position.y, transform.position.z);
+			ImGui::Text("Rotation: (%.2f, %.2f, %.2f)", transform.rotation.x, transform.rotation.y, transform.rotation.z);
+			ImGui::Text("Scale: (%.2f, %.2f, %.2f)", transform.scale.x, transform.scale.y, transform.scale.z);
+
+			ImGui::Separator();
+
+			// Render additional components if needed
+			ComponentInspector::Render(m_entityRegistry, selectedEntity);
+		}
+		else
+		{
+			ImGui::Text("Select an entity to view details.");
+		}
+
+		ImGui::End();
+	}
 }
 
 void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
 	// Clean up lights
-	m_entityRegistry.view<PointLight>().each([&](auto entity, PointLight& light) {
-		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
-	});
+	m_entityRegistry.view<PointLight>().each([&](auto entity, PointLight& light) { vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation); });
 
-	m_entityRegistry.view<DirectionalLight>().each([&](auto entity, DirectionalLight& light) {
-		vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation);
-	});
+	m_entityRegistry.view<DirectionalLight>().each([&](auto entity, DirectionalLight& light) { vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation); });
 
 	// Clean up cameras
-	m_entityRegistry.view<Camera>().each([&](auto entity, Camera& camera) {
-		camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator());
-	});
+	m_entityRegistry.view<Camera>().each([&](auto entity, Camera& camera) { camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator()); });
 
 	modelManager.CleanUpAllPipelines(vulkanContext.GetDispatchTable());
 }

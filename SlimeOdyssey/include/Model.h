@@ -4,7 +4,6 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#include "Component.h"
 #include "vk_mem_alloc.h"
 
 #include <glm/glm.hpp>
@@ -40,16 +39,15 @@ struct ModelResource
 	std::string pipelineName;
 };
 
-struct Model : public Component
+struct Model
 {
 	Model() = default;
 	Model(ModelResource* model)
 	      : modelResource(model){};
 	ModelResource* modelResource;
-	void ImGuiDebug();
 };
 
-struct Transform : public Component
+struct Transform
 {
 	Transform(glm::vec3 pos = glm::vec3(0.0f), glm::vec3 rot = glm::vec3(0.0f), glm::vec3 scale = glm::vec3(1.0f))
 	      : position(pos), rotation(rot), scale(scale){}
@@ -68,6 +66,4 @@ struct Transform : public Component
 		model = glm::scale(model, scale);
 		return model;
 	}
-
-	void ImGuiDebug();
 };

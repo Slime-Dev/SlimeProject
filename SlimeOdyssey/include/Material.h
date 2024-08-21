@@ -7,7 +7,6 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#include "Component.h"
 #include "vk_mem_alloc.h"
 
 struct TextureResource
@@ -57,7 +56,7 @@ struct PBRMaterialResource : public MaterialResource
 	std::shared_ptr<TextureResource> aoTex;
 };
 
-struct PBRMaterial : public Component
+struct PBRMaterial
 {
 	PBRMaterial() = default;
 
@@ -67,11 +66,9 @@ struct PBRMaterial : public Component
 	}
 
 	std::shared_ptr<PBRMaterialResource> materialResource;
-
-	void ImGuiDebug();
 };
 
-struct BasicMaterial : public Component
+struct BasicMaterial
 {
 	BasicMaterial() = default;
 
@@ -81,6 +78,4 @@ struct BasicMaterial : public Component
 	}
 
 	std::shared_ptr<BasicMaterialResource> materialResource;
-
-	void ImGuiDebug();
 };

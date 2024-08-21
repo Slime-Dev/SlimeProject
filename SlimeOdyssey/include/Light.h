@@ -4,8 +4,6 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
-#include "Component.h"
-
 constexpr float PADDING = 420.0f;
 
 enum class LightType
@@ -30,7 +28,7 @@ struct LightData
 };
 
 // Base Light class
-class Light : public Component
+class Light
 {
 public:
 	virtual ~Light() = default;
@@ -59,8 +57,6 @@ public:
 	{
 		m_data.color = color;
 	}
-
-	virtual void ImGuiDebug() = 0;
 
 	VkBuffer buffer = VK_NULL_HANDLE;
 	VmaAllocation allocation = VK_NULL_HANDLE;
@@ -92,7 +88,7 @@ public:
 	BindingData GetBindingData() const;
 	size_t GetBindingDataSize() const;
 
-	void ImGuiDebug() override;
+	void ImGuiDebug();
 
 private:
 	glm::vec3 m_direction = glm::normalize(glm::vec3(-20.0f, 15.0f, 20.0f));
@@ -124,7 +120,7 @@ public:
 	BindingData GetBindingData() const;
 	size_t GetBindingDataSize() const;
 
-	void ImGuiDebug() override;
+	void ImGuiDebug();
 private:
 	glm::vec3 m_position = glm::vec3(-6.0f, 6.0f, 6.0f);
 	float m_radius = 50.0f; // Light's influence radius
