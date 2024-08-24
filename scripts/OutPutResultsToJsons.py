@@ -429,29 +429,30 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        # Generate JSON data
-        json_data = xml_to_json(args.xml_file, args.tool_name)
+        # # Generate JSON data
+        # json_data = xml_to_json(args.xml_file, args.tool_name)
 
-        # Determine output file paths
-        json_output_file = args.json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_output.json"
-        discord_json_output_file = args.discord_json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_discord_output.json"
+        # # Determine output file paths
+        # json_output_file = args.json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_output.json"
+        # discord_json_output_file = args.discord_json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_discord_output.json"
 
-        # Ensure the output directories exist
-        os.makedirs(os.path.dirname(json_output_file), exist_ok=True)
-        os.makedirs(os.path.dirname(discord_json_output_file), exist_ok=True)
+        # # Ensure the output directories exist
+        # os.makedirs(os.path.dirname(json_output_file), exist_ok=True)
+        # os.makedirs(os.path.dirname(discord_json_output_file), exist_ok=True)
 
-        # Write JSON output to file
-        with open(json_output_file, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
-        print(f"JSON output has been written to {json_output_file}")
+        # # Write JSON output to file
+        # with open(json_output_file, 'w') as json_file:
+        #     json.dump(json_data, json_file, indent=2)
+        # print(f"JSON output has been written to {json_output_file}")
 
-        # Generate Discord JSON output
-        discord_json = json_to_discord_json(json_data, args.os, args.compiler, args.event, args.author, args.branch)
+        # # Generate Discord JSON output
+        # discord_json = json_to_discord_json(json_data, args.os, args.compiler, args.event, args.author, args.branch)
 
-        # Write Discord JSON output to file
-        with open(discord_json_output_file, 'w') as discord_json_file:
-            json.dump(discord_json, discord_json_file, indent=2)
-        print(f"Discord JSON output has been written to {discord_json_output_file}")
+        # # Write Discord JSON output to file
+        # with open(discord_json_output_file, 'w') as discord_json_file:
+        #     json.dump(discord_json, discord_json_file, indent=2)
+        # print(f"Discord JSON output has been written to {discord_json_output_file}")
+
         # Generate data
         image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch, args.commit_msg)
 
