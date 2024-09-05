@@ -1,0 +1,13 @@
+name: Hello World on Self-Hosted Runner
+
+on:
+  push:
+    branches:
+      - TestingSelfHostedRunner
+
+jobs:
+  say-hello:
+    runs-on: self-hosted  # Use the self-hosted runner
+    steps:
+      - name: Print Hello World
+        run: echo "Hello World!"
