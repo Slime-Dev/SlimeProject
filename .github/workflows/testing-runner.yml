@@ -3,7 +3,7 @@ name: Hello World on Self-Hosted Runner
 on:
   push:
     branches:
-      - TestingSelfHostedRunner
+      - TestSelfHostedRunner
 
 jobs:
   say-hello:
