@@ -8,6 +8,91 @@ on:
 jobs:
   say-hello:
     runs-on: self-hosted  # Use the self-hosted runner
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        build_type: [Release]
+        c_compiler: [clang]
+        include:
+          - os: ubuntu-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+        exclude:
+          - os: ubuntu-latest
+            c_compiler: clang
+
     steps:
-      - name: Print Hello World
-        run: echo "Hello World!"
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: UBUNTU - Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglfw3-dev xorg-dev libegl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
+
+      - name: UBUNTU - Install Vulkan SDK
+        run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt update
+          sudo apt install vulkan-sdk
+
+          - name: Set reusable strings
+          id: strings
+          shell: bash
+          run: |
+            echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S "${{ github.workspace }}" \
+              -DCPM_SOURCE_CACHE="${{ github.workspace }}/.cpm" \
+              -DENABLE_TESTING=ON
+          else
+            cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+              -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -S ${{ github.workspace }} \
+              -DCPM_SOURCE_CACHE=~/.cpm \
+              -DENABLE_TESTING=ON
+          fi
+
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+      - name: Test
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
+        continue-on-error: true
+
+      - name: Convert XML to CTRF
+        if: success()
+        shell: bash
+        run: |
+          pip install defusedxml
+          pip install pillow
+          commit_msg=$(git log -1 --pretty=%B)
+          python "${{ github.workspace }}/scripts/OutPutResultsToJsons.py" "${{ github.workspace }}/scripts/junitout.xml" "Real Test" --json_output "${{ github.workspace }}/scripts/finalresult.json" --discord_json_output "${{ github.workspace }}/scripts/discordJson_output.json" --image_out  "${{ github.workspace }}/scripts/discrod_image.png" --os "${{ runner.os }}" --compiler "${{ matrix.c_compiler }}" --event "${{ github.event_name }}" --author "${{ github.actor }}" --branch "${{ github.ref_name }}" --commit_msg "$commit_msg"
+
+      - name: Post results
+        if: success()
+        shell: bash
+        run: |
+          npm install github-actions-ctrf@0.0.20
+          npx github-actions-ctrf "${{ github.workspace }}/scripts/finalresult.json"
+
+      - name: Post results to Discord
+        if: success()
+        uses: tsickert/discord-webhook@v6.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          filename: "${{ github.workspace }}/scripts/discrod_image.png"
