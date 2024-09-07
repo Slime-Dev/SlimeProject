@@ -6,7 +6,7 @@ on:
       - TestSelfHostedRunner
 
 jobs:
-  say-hello:
+  testing:
     runs-on: self-hosted  # Use the self-hosted runner
     strategy:
       fail-fast: false
