@@ -1,4 +1,4 @@
-name: Hello World on Self-Hosted Runner
+name: Testing on self hosted runner
 
 on:
   push:
@@ -54,4 +54,4 @@ jobs:
 
       - name: Deleting Build folder
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: rm -r ${{ steps.strings.outputs.build-output-dir }}/build
+        run: rm -r ${{ steps.strings.outputs.build-output-dir }}
