@@ -53,5 +53,6 @@ jobs:
         continue-on-error: true
 
       - name: Deleting Build folder
+        if: always()
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: rm -r ${{ steps.strings.outputs.build-output-dir }}

@@ -59,5 +59,4 @@ endfunction()
 
 # Create test executables
 create_test_executable(ModelTesting Model.cpp)
-create_test_executable(CameraTesting Camera.cpp)
-create_test_executable(LightTesting Lighting.cpp)
+create_test_executable(GPUTesting GPU.cpp)
