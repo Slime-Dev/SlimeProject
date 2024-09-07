@@ -58,6 +58,8 @@ function(create_test_executable NAME SOURCE_FILE)
 endfunction()
 
 # Create test executables
-create_test_executable(ModelLoading ModelLoading.cpp)
-create_test_executable(CameraInitializing CameraInitializing.cpp)
-#create_test_executable(ShaderLoading ShaderLoading.cpp)
+create_test_executable(ModelTesting Model.cpp)
+create_test_executable(CameraTesting Camera.cpp)
+create_test_executable(LightTesting Lighting.cpp)
+create_test_executable(ShadowTesting Shadow.cpp)
+create_test_executable(InputTesting Input.cpp)

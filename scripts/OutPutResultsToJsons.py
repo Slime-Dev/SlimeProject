@@ -6,7 +6,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timezone
 import traceback
-import textwrap
+import re
 
 def xml_to_json(xml_file, tool_name):
     # Check if the file exists
@@ -203,6 +203,7 @@ def parse_test_results_from_file(file_path):
     total_time = 0
     test_cases = []
     failed_cases = []
+    total_case_lines = 0
     for testcase in root.findall('testcase'):
         name = testcase.attrib['name']
         time = float(testcase.attrib['time'])
@@ -214,20 +215,31 @@ def parse_test_results_from_file(file_path):
             status = 'failed'
             error_message = failure.attrib.get('message', '') + ' ' + testcase.find('system-out').text.strip()
             failed_cases.append((name, error_message))
-
+            total_case_lines += len(error_message.split("\n"))
         test_cases.append((name, status, time, error_message))
 
         total_time += time
 
-    return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases
+    return test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases, total_case_lines
 
-def clean_up_error_msg(message):
-    lines = message.split("]")
-    return lines[len(lines) - 1]
+def clean_log_text(log_text):
+    # Remove the first "Failed" and all timestamps
+    cleaned_text = re.sub(r'^Failed \[.*?\]', '', log_text)
+    cleaned_text = re.sub(r'\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\]', '', cleaned_text)
+
+    # Remove lines containing '[info]'
+    cleaned_text = re.sub(r'\[info\].*?(?=\[error\]|\Z)', '', cleaned_text, flags=re.DOTALL)
+
+    # Remove extra spaces and newlines
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    cleaned_text = re.sub(r'(\[error\])', r'\n\1', cleaned_text)
+
+    return cleaned_text.strip()
 
 def create_horizontal_test_results_image(file_path, os, compiler, event, author, branch, commit_message):
+#region Image generation
     # Parse the XML data from the file
-    test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases = parse_test_results_from_file(file_path)
+    test_suite_name, tests, failures, skipped, total_time, test_cases, failed_cases, total_case_lines = parse_test_results_from_file(file_path)
 
     # Manually setting the suite name as it is incorrect from the XML
     test_suite_name = compiler
@@ -235,16 +247,16 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     commit_message = insert_newlines_after_max_length(commit_message)
     num_new_lines = commit_message.count('\n')
     print(f"Number of new lines: {num_new_lines}")
-
+    print(f'Number of failed test lines: {total_case_lines}')
     # Set height depending on the amount of new lines in the comment
     default_height = 475  # Base height
-    height_per_line = 10  # Additional height per new line
+    height_per_line = 20  # Additional height per new line
 
     # Calculate the total height
     total_height = default_height + (num_new_lines * height_per_line)
 
     if failures != 0:
-        total_height = total_height + 175 + (failures * height_per_line)
+        total_height = total_height + 75 + (total_case_lines * height_per_line)
 
     print(f"Calculated image height: {total_height}")
 
@@ -255,14 +267,6 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     #gradient_color = (50, 50, 150)  # Gradient color
     image = Image.new('RGB', (width, height), color=background_color)
     draw = ImageDraw.Draw(image)
-
-    # Create gradient effect
-    # for i in range(height):
-    #     ratio = i / height
-    #     r = int(background_color[0] * (1 - ratio) + gradient_color[0] * ratio)
-    #     g = int(background_color[1] * (1 - ratio) + gradient_color[1] * ratio)
-    #     b = int(background_color[2] * (1 - ratio) + gradient_color[2] * ratio)
-    #     draw.line([(0, i), (width, i)], fill=(r, g, b))
 
     # Global levels
     title_height = 30
@@ -316,7 +320,6 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
 
     # Draw title with drop shadow
     title_position = (width // 2 - 100, title_height)
-    #draw.text((title_position[0] + 2, title_position[1] + 2), "Test Results", font=title_font, fill=shadow_color)
     draw.text(title_position, "Test Results", font=title_font, fill=white)
 
     # Draw Event details text
@@ -379,11 +382,11 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
     draw.text((left_buffer, y), "Commit Comment", font=header_font, fill=white)
     y += content_buffer
     draw.text((left_buffer, y), f"{commit_message}", font=body_font, fill=white)
-
+#endregion
     # Only draw detailed failed tests if there are any
     if failures != 0:
-        dynamic_height = comment_height + title_box_height + (failures * height_per_line)
-        failure_box_height = dynamic_height + content_buffer
+        dynamic_height = comment_height + (total_case_lines * height_per_line)
+        failure_box_height = y + content_buffer + 75
         detailed_failure_box = [left_buffer - padding, failure_box_height - padding, title_box_width, dynamic_height + 150]
         shadow_box = [left_buffer - padding + 5, failure_box_height - padding + 5, title_box_width + 5, dynamic_height + 155]
 
@@ -398,13 +401,11 @@ def create_horizontal_test_results_image(file_path, os, compiler, event, author,
                 draw.text((left_buffer, y), name, font=body_font, fill=red)
 
                 # Clean and wrap the error message to fit within the box width
-                clean_message = clean_up_error_msg(error_message)
-                wrapped_message = textwrap.fill(clean_message, width=80)  # Adjust width as needed
-
-                # Draw each line of the wrapped error message
-                for line in wrapped_message.splitlines():
+                cleaned_text = clean_log_text(error_message)
+                cleaned_texts = cleaned_text.split("\n")
+                for line in cleaned_texts:
                     draw.text((left_buffer + 150, y), line, font=body_font, fill=white)
-                    y += height_per_line  # Increment y for each line of text
+                    y += height_per_line
 
                 y += content_buffer  # Add some buffer before the next entry
 
@@ -428,29 +429,30 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        # Generate JSON data
-        json_data = xml_to_json(args.xml_file, args.tool_name)
+        # # Generate JSON data
+        # json_data = xml_to_json(args.xml_file, args.tool_name)
 
-        # Determine output file paths
-        json_output_file = args.json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_output.json"
-        discord_json_output_file = args.discord_json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_discord_output.json"
+        # # Determine output file paths
+        # json_output_file = args.json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_output.json"
+        # discord_json_output_file = args.discord_json_output or f"{os.path.splitext(os.path.basename(args.xml_file))[0]}_discord_output.json"
 
-        # Ensure the output directories exist
-        os.makedirs(os.path.dirname(json_output_file), exist_ok=True)
-        os.makedirs(os.path.dirname(discord_json_output_file), exist_ok=True)
+        # # Ensure the output directories exist
+        # os.makedirs(os.path.dirname(json_output_file), exist_ok=True)
+        # os.makedirs(os.path.dirname(discord_json_output_file), exist_ok=True)
 
-        # Write JSON output to file
-        with open(json_output_file, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
-        print(f"JSON output has been written to {json_output_file}")
+        # # Write JSON output to file
+        # with open(json_output_file, 'w') as json_file:
+        #     json.dump(json_data, json_file, indent=2)
+        # print(f"JSON output has been written to {json_output_file}")
 
-        # Generate Discord JSON output
-        discord_json = json_to_discord_json(json_data, args.os, args.compiler, args.event, args.author, args.branch)
+        # # Generate Discord JSON output
+        # discord_json = json_to_discord_json(json_data, args.os, args.compiler, args.event, args.author, args.branch)
 
-        # Write Discord JSON output to file
-        with open(discord_json_output_file, 'w') as discord_json_file:
-            json.dump(discord_json, discord_json_file, indent=2)
-        print(f"Discord JSON output has been written to {discord_json_output_file}")
+        # # Write Discord JSON output to file
+        # with open(discord_json_output_file, 'w') as discord_json_file:
+        #     json.dump(discord_json, discord_json_file, indent=2)
+        # print(f"Discord JSON output has been written to {discord_json_output_file}")
+
         # Generate data
         image = create_horizontal_test_results_image(args.xml_file, args.os, args.compiler, args.event, args.author, args.branch, args.commit_msg)
 
