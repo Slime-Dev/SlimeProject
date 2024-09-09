@@ -48,6 +48,7 @@ function(create_test_executable NAME SOURCE_FILE)
     target_include_directories(${NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/../SlimeOdyssey/include
+        ${SLIME_INCLUDE_DIRS}
     )
     set_target_properties(${NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -55,6 +56,13 @@ function(create_test_executable NAME SOURCE_FILE)
     target_precompile_headers(${NAME} REUSE_FROM SlimeOdyssey)
     link_or_copy_resources(${NAME})
     add_test(NAME ${NAME} COMMAND ${NAME})
+    # Add ImGui-related compile definitions
+    target_compile_definitions(${NAME} PRIVATE
+    VK_NO_PROTOTYPES
+    IMGUI_IMPL_VULKAN_DYNAMIC_LOADER=glfwGetInstanceProcAddress
+    IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+    IMGUI_DEFINE_MATH_OPERATORS
+    )
 endfunction()
 
 # Create test executables
