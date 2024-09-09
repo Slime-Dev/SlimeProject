@@ -1,4 +1,8 @@
 #include "SlimeWindow.h"
+#include "VulkanContext.h"
+#include "ShaderManager.h"
+#include "ModelManager.h"
+#include "DescriptorManager.h"
 #include <spdlog/spdlog.h>
 #include <vector>
 #include <stdexcept>
@@ -21,5 +25,42 @@ int main() {
 	else
 	{
 		spdlog::info("Created window successfully");
+	}
+
+	VulkanContext context;
+	if (context.CreateContext(&window) != 0)
+	{
+		spdlog::error("Failed to create context");
+		return 1;
+	}
+	else
+	{
+		spdlog::info("Created context successfully");
+	}
+
+	ShaderManager shaderManager;
+	ModelManager modelManager;
+
+	try {
+		shaderManager = ShaderManager();
+		modelManager = ModelManager();
+	}
+	catch (const std::exception e) {
+		spdlog::error("Failed to initailize managers with error {}", e.what());
+		return 1;
+	}
+
+	DescriptorManager descriptorManager = DescriptorManager(context.GetDispatchTable());
+
+	spdlog::info("Created managers for cleanup");
+
+	if (context.Cleanup(shaderManager, modelManager, descriptorManager) != 0)
+	{
+		spdlog::error("Failed to clean up context");
+		return 1;
+	}
+	else
+	{
+		spdlog::info("Successfully cleaned up context");
 	}
 }
