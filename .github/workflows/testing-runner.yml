@@ -1,6 +1,8 @@
 name: Testing on self hosted runner
 
 on:
+  workflow_dispatch:
+    {}
   push:
     branches:
       - TestSelfHostedRunner
@@ -51,8 +53,3 @@ jobs:
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure -VV --verbose --output-junit ${{ github.workspace }}/scripts/junitout.xml
         continue-on-error: true
-
-      - name: Deleting Build folder
-        if: always()
-        working-directory: ${{ steps.strings.outputs.build-output-dir }}
-        run: rm -r ${{ steps.strings.outputs.build-output-dir }}
