@@ -3,9 +3,9 @@ name: Testing on self hosted runner
 on:
   workflow_dispatch:
     {}
-  push:
+  pull_request:
     branches:
-      - TestSelfHostedRunner
+      [ "TestSelfHostedRunner" ]
 
 jobs:
   testing:
