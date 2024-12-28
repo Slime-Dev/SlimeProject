@@ -5,7 +5,7 @@ include(cmake/link_vulkan.cmake)
 include(cmake/get_cpm.cmake)
 include(${CPM_DOWNLOAD_LOCATION})
 
-CPMFindPackage(
+CPMAddPackage(
         NAME SPIRV-Cross
         GITHUB_REPOSITORY KhronosGroup/SPIRV-Cross
         GIT_TAG vulkan-sdk-1.3.283.0
@@ -13,7 +13,7 @@ CPMFindPackage(
         "SPIRV_CROSS_ENABLE_TESTS OFF"
 )
 
-CPMFindPackage(
+CPMAddPackage(
         NAME glfw
         GITHUB_REPOSITORY glfw/glfw
         GIT_TAG 3.4
@@ -23,52 +23,52 @@ CPMFindPackage(
         "GLFW_BUILD_EXAMPLES OFF"
 )
 
-CPMFindPackage(
+CPMAddPackage(
         NAME vk-bootstrap
         GITHUB_REPOSITORY charles-lunarg/vk-bootstrap
         GIT_TAG v1.3.285
 )
 
-CPMFindPackage(
+CPMAddPackage(
         NAME spdlog
         GITHUB_REPOSITORY gabime/spdlog
         GIT_TAG v1.14.1
 )
 
-CPMFindPackage(
-        NAME tinyobj
+CPMAddPackage(
+        NAME tinyobjloader
         GITHUB_REPOSITORY tinyobjloader/tinyobjloader
         GIT_TAG v2.0.0rc13
 )
 
-CPMFindPackage(
+CPMAddPackage(
         NAME glm
         GITHUB_REPOSITORY g-truc/glm
         GIT_TAG 1.0.1
 )
 
-CPMFindPackage(
-        NAME GSL
+CPMAddPackage(
+        NAME Microsoft.GSL
         GITHUB_REPOSITORY microsoft/GSL
         GIT_TAG v4.0.0
 )
 
-CPMFindPackage(
+CPMAddPackage(
         NAME VulkanMemoryAllocator
         GITHUB_REPOSITORY GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
         VERSION 3.1.0
 )
 
-CPMFINDPACKAGE(
+CPMAddPackage(
         NAME IMGUI
         GITHUB_REPOSITORY ocornut/imgui
         GIT_TAG v1.90.9-docking
         DOWNLOAD_ONLY YES
-        options
+        OPTIONS
         "IMGUI_IMPL_VULKAN_NO_PROTOTYPES ON"
 )
 
-CPMFINDPACKAGE(
+CPMAddPackage(
         NAME ENTT
         GITHUB_REPOSITORY skypjack/entt
         GIT_TAG v3.13.2
