@@ -66,53 +66,82 @@ void main()
     float roughness = texture(roughnessMap, TexCoords).r * material.roughness;
     float ao = texture(aoMap, TexCoords).r * material.ao;
 
-    // Normal mapping
-    vec3 normal = normalize(Normal);
-    vec3 tangent = normalize(Tangent);
-    vec3 bitangent = normalize(Bitangent);
-    mat3 TBN = mat3(tangent, bitangent, normal);
+    // Create TBN matrix for normal mapping
+    vec3 T = normalize(Tangent);
+    vec3 B = normalize(Bitangent);
+    vec3 N = normalize(Normal);
+    mat3 TBN = mat3(T, B, N);
+
+    // Sample and transform normal from normal map
     vec3 normalMap = texture(normalMap, TexCoords).rgb * 2.0 - 1.0;
-    vec3 N = normalize(TBN * normalMap);
+    vec3 normal = normalize(TBN * normalMap);
 
-    // Debug normals
-    // FragColor = vec4(N * 0.5 + 0.5, 1.0);
-    // return;
-
-    // Correct view and light vectors
+    // Use the transformed normal for lighting calculations
     vec3 V = normalize(camera.viewPos - FragPos);
     vec3 L = normalize(-light.direction);
     vec3 H = normalize(V + L);
+
+    // Calculate basic dot products with transformed normal
+    float NdotV = max(dot(normal, V), 0.001);
+    float NdotL = max(dot(normal, L), 0.001);
+    float NdotH = max(dot(normal, H), 0.0);
+    float HdotV = max(dot(H, V), 0.0);
 
     // Calculate reflectance at normal incidence
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
 
-    // Cook-Torrance BRDF
-    float NDF = DistributionGGX(N, H, roughness);
-    float G = GeometrySmith(N, V, L, roughness);
-    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+    // Modify roughness to prevent specular artifacts at very low values
+    float roughness_clamped = max(roughness, 0.01);
 
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-    vec3 specular = numerator / denominator;
+    // Cook-Torrance BRDF components
+    float D = DistributionGGX(normal, H, roughness_clamped);
+    float G = GeometrySmith(normal, V, L, roughness_clamped);
+    vec3 F = fresnelSchlick(HdotV, F0);
 
+    // Calculate specular
+    vec3 numerator = D * G * F;
+    float denominator = 4.0 * NdotV * NdotL;
+    vec3 specular = numerator / max(denominator, 0.001);
+
+    // Debug visualization
+    vec3 ambientDebug = albedo * 0.1;
+    vec3 specularDebug = (specular * 0.75) * albedo;
+
+    // You can uncomment different debug outputs to see different components:
+
+    // Output 1: Just specular contribution (current debug setup)
+    // FragColor = vec4(specularDebug + ambientDebug, 1.0);
+
+    // Output 2: Normal map visualization
+    //FragColor = vec4(normal * 0.5 + 0.5, 1.0);
+
+    // Output 3: Individual components
+    //FragColor = vec4(vec3(D, G, F.r) + ambientDebug, 1.0);
+
+    //return;
+
+    // Energy conservation
     vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metallic;
+    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
-    float NdotL = max(dot(N, L), 0.0);
+    // Combine components with better energy conservation
+    vec3 diffuse = kD * albedo / PI;
 
-    // Calculate shadow
+    // Final combination with better bounded specular contribution
+    vec3 Lo = (diffuse + specular * clamp(light.specularStrength, 0.0, 1.0)) * light.color * NdotL;
+
+    // Calculate shadow (your existing shadow calculation)
     float shadow = ShadowCalculation(FragPosLightSpace);
 
-    // Combine lighting
-    vec3 Lo = (kD * albedo / PI + specular) * light.color * NdotL * (1.0 - shadow) * ao;
+    // Combine lighting with shadow and ambient
     vec3 ambient = light.ambientStrength * albedo * ao;
+    vec3 color = ambient + Lo * (1.0 - shadow);
 
-    vec3 color = ambient + Lo;
-
-    // HDR tonemapping and gamma correction
+    // HDR tonemapping (modified for better specular handling)
     color = color / (color + vec3(1.0));
+
+    // Gamma correction
     color = pow(color, vec3(1.0/2.2));
 
     FragColor = vec4(color, 1.0);

@@ -30,7 +30,6 @@ private:
     void UpdateFlyCam(float dt, const InputManager* inputManager);
 
 	void CreateCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material);
-	void CreateLargeCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material);
 
     std::vector<std::shared_ptr<PBRMaterialResource>> m_pbrMaterials;
 	std::vector<std::shared_ptr<BasicMaterialResource>> m_basicMaterials;

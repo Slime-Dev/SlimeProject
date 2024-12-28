@@ -621,148 +621,217 @@ ModelResource* ModelManager::CreateLinePlane(VmaAllocator allocator)
 
 ModelResource* ModelManager::CreatePlane(VmaAllocator allocator, float size, int divisions)
 {
-	std::string name = "plane" + std::to_string(size) + "_" + std::to_string(divisions);
-	if (m_modelResources.contains(name))
-	{
-		return &m_modelResources[name];
-	}
-	ModelResource model;
-	model.pipelineName = "pbr";
-	// Calculate the step size
-	float step = size / divisions;
-	// Create vertices
-	for (int i = 0; i <= divisions; ++i)
-	{
-		for (int j = 0; j <= divisions; ++j)
-		{
-			float x = -size / 2 + i * step;
-			float z = -size / 2 + j * step;
-			Vertex vertex;
-			vertex.pos = glm::vec3(x, 0.0f, z);
-			vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-			// Calculate UV coordinates to be 0-1 for each quad, but uniform direction
-			vertex.texCoord = glm::vec2(static_cast<float>(i % 2), static_cast<float>(1 - (j % 2)));
-			vertex.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-			vertex.bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
-			model.vertices.push_back(vertex);
-		}
-	}
-	// Create indices for triangles
-	for (int i = 0; i < divisions; ++i)
-	{
-		for (int j = 0; j < divisions; ++j)
-		{
-			int topLeft = i * (divisions + 1) + j;
-			int topRight = topLeft + 1;
-			int bottomLeft = (i + 1) * (divisions + 1) + j;
-			int bottomRight = bottomLeft + 1;
-			// First triangle
-			model.indices.push_back(topLeft);
-			model.indices.push_back(topRight);
-			model.indices.push_back(bottomLeft);
-			// Second triangle
-			model.indices.push_back(topRight);
-			model.indices.push_back(bottomRight);
-			model.indices.push_back(bottomLeft);
-		}
-	}
-	m_modelResources[name] = std::move(model);
-	spdlog::debug("{} generated.", name);
-	return &m_modelResources[name];
+    std::string name = "plane" + std::to_string(size) + "_" + std::to_string(divisions);
+    if (m_modelResources.contains(name))
+    {
+        return &m_modelResources[name];
+    }
+
+    ModelResource model;
+    model.pipelineName = "pbr";
+
+    // Calculate the step size
+    float step = size / divisions;
+    float uvStep = 1.0f / divisions;  // UV coordinates from 0 to 1 across entire plane
+
+    // Create vertices
+    for (int i = 0; i <= divisions; ++i)
+    {
+        for (int j = 0; j <= divisions; ++j)
+        {
+            Vertex vertex;
+
+            // Position
+            float x = -size / 2 + i * step;
+            float z = -size / 2 + j * step;
+            vertex.pos = glm::vec3(x, 0.0f, z);
+
+            // Normal (always up for a plane)
+            vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+
+            // UV coordinates (spread uniformly across the plane)
+            vertex.texCoord = glm::vec2(
+                static_cast<float>(i) * uvStep,
+                static_cast<float>(j) * uvStep
+            );
+
+            // Calculate tangent space vectors
+            // For a plane, we can compute these directly based on the UV orientation
+            // Tangent points in the direction of increasing U (along X axis)
+            vertex.tangent = glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f));
+
+            // Bitangent points in the direction of increasing V (along Z axis)
+            // Note: We negate it to follow the right-hand rule with our normal
+            vertex.bitangent = glm::normalize(glm::vec3(0.0f, 0.0f, -1.0f));
+
+            // Verify orthonormality
+            // B = N × T (cross product of normal and tangent)
+            glm::vec3 computedBitangent = glm::cross(vertex.normal, vertex.tangent);
+            // If the computed bitangent points in the opposite direction, flip it
+            if (glm::dot(computedBitangent, vertex.bitangent) < 0.0f)
+            {
+                vertex.bitangent = -vertex.bitangent;
+            }
+
+            model.vertices.push_back(vertex);
+        }
+    }
+
+    // Create indices for triangles
+    for (int i = 0; i < divisions; ++i)
+    {
+        for (int j = 0; j < divisions; ++j)
+        {
+            int topLeft = i * (divisions + 1) + j;
+            int topRight = topLeft + 1;
+            int bottomLeft = (i + 1) * (divisions + 1) + j;
+            int bottomRight = bottomLeft + 1;
+
+            // First triangle (counter-clockwise winding)
+            model.indices.push_back(topLeft);
+            model.indices.push_back(bottomLeft);
+            model.indices.push_back(topRight);
+
+            // Second triangle (counter-clockwise winding)
+            model.indices.push_back(topRight);
+            model.indices.push_back(bottomLeft);
+            model.indices.push_back(bottomRight);
+        }
+    }
+
+    try {
+        m_modelResources[name] = std::move(model);
+    }
+    catch (const std::exception& e) {
+        spdlog::error("Failed to store plane model: {}", e.what());
+        return nullptr;
+    }
+
+    spdlog::debug("Plane model '{}' generated with {} vertices.", name, model.vertices.size());
+    return &m_modelResources[name];
 }
 
 ModelResource* ModelManager::CreateCube(VmaAllocator allocator, float size)
 {
-	std::string name = "cube_" + std::to_string(size);
-	if (m_modelResources.contains(name))
-	{
-		return &m_modelResources[name];
-	}
-	ModelResource model;
-	model.pipelineName = "pbr"; // Assume a default pipeline for basic shapes can be changed after
-	float halfSize = size / 2.0f;
-	// Define the 8 vertices of the cube
-	std::vector<glm::vec3> positions = {
-		{-halfSize, -halfSize, -halfSize}, // 0: left-bottom-front
-		{ halfSize, -halfSize, -halfSize}, // 1: right-bottom-front
-		{ halfSize,  halfSize, -halfSize}, // 2: right-top-front
-		{-halfSize,  halfSize, -halfSize}, // 3: left-top-front
-		{-halfSize, -halfSize,  halfSize}, // 4: left-bottom-back
-		{ halfSize, -halfSize,  halfSize}, // 5: right-bottom-back
-		{ halfSize,  halfSize,  halfSize}, // 6: right-top-back
-		{-halfSize,  halfSize,  halfSize}  // 7: left-top-back
-	};
-	// Define the 6 face normals
-	std::vector<glm::vec3> normals = {
-		{ 0.0f,  0.0f, -1.0f}, // Front
-		{ 0.0f,  0.0f,  1.0f}, // Back
-		{ 1.0f,  0.0f,  0.0f}, // Right
-		{-1.0f,  0.0f,  0.0f}, // Left
-		{ 0.0f,  1.0f,  0.0f}, // Top
-		{ 0.0f, -1.0f,  0.0f}  // Bottom
-	};
-	// Define the vertices for each face (corrected winding order)
-	const int faceVertices[6][4] = {
-		{0, 3, 2, 1}, // Front face
-		{5, 6, 7, 4}, // Back face
-		{1, 2, 6, 5}, // Right face
-		{4, 7, 3, 0}, // Left face
-		{3, 7, 6, 2}, // Top face
-		{4, 0, 1, 5}  // Bottom face
-	};
-	// Define UVs for each face
-	const glm::vec2 faceUVs[4] = {
-		{0.0f, 1.0f}, // bottom-left
-		{0.0f, 0.0f}, // top-left
-		{1.0f, 0.0f}, // top-right
-		{1.0f, 1.0f}  // bottom-right
-	};
-	// Create vertices and indices
-	std::vector<uint32_t> newIndices;
-	uint32_t vertexCount = 0;
-	for (int face = 0; face < 6; ++face)
-	{
-		for (int i = 0; i < 4; ++i) // 4 vertices per face
-		{
-			Vertex vertex;
-			vertex.pos = positions[faceVertices[face][i]];
-			vertex.normal = normals[face];
-			vertex.texCoord = faceUVs[i];
-			// Tangent space calculation
-			glm::vec3 tangent, bitangent;
-			if (face == 0 || face == 1) // Front and Back faces
-			{
-				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-				bitangent = glm::vec3(0.0f, -1.0f, 0.0f);
-			}
-			else if (face == 2 || face == 3) // Right and Left faces
-			{
-				tangent = glm::vec3(0.0f, 0.0f, -1.0f);
-				bitangent = glm::vec3(0.0f, -1.0f, 0.0f);
-			}
-			else // Top and Bottom faces
-			{
-				tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-				bitangent = glm::vec3(0.0f, 0.0f, 1.0f);
-			}
-			vertex.tangent = tangent;
-			vertex.bitangent = bitangent;
-			model.vertices.push_back(vertex);
-			vertexCount++;
-		}
-		// Add indices for two triangles
-		newIndices.push_back(vertexCount - 4);
-		newIndices.push_back(vertexCount - 3);
-		newIndices.push_back(vertexCount - 2);
-		newIndices.push_back(vertexCount - 4);
-		newIndices.push_back(vertexCount - 2);
-		newIndices.push_back(vertexCount - 1);
-	}
-	// Assign the new indices to the model
-	model.indices = newIndices;
-	m_modelResources[name] = std::move(model);
-	spdlog::debug("{} generated.", name);
-	return &m_modelResources[name];
+    std::string name = "cube_" + std::to_string(size);
+    if (m_modelResources.contains(name))
+    {
+        return &m_modelResources[name];
+    }
+
+    ModelResource model;
+    model.pipelineName = "pbr";
+    float halfSize = size / 2.0f;
+
+    // Define the 8 vertices of the cube
+    std::vector<glm::vec3> positions = {
+        {-halfSize, -halfSize, -halfSize}, // 0: left-bottom-front
+        { halfSize, -halfSize, -halfSize}, // 1: right-bottom-front
+        { halfSize,  halfSize, -halfSize}, // 2: right-top-front
+        {-halfSize,  halfSize, -halfSize}, // 3: left-top-front
+        {-halfSize, -halfSize,  halfSize}, // 4: left-bottom-back
+        { halfSize, -halfSize,  halfSize}, // 5: right-bottom-back
+        { halfSize,  halfSize,  halfSize}, // 6: right-top-back
+        {-halfSize,  halfSize,  halfSize}  // 7: left-top-back
+    };
+
+    // Define the 6 face normals
+    std::vector<glm::vec3> normals = {
+        { 0.0f,  0.0f, -1.0f}, // Front
+        { 0.0f,  0.0f,  1.0f}, // Back
+        { 1.0f,  0.0f,  0.0f}, // Right
+        {-1.0f,  0.0f,  0.0f}, // Left
+        { 0.0f,  1.0f,  0.0f}, // Top
+        { 0.0f, -1.0f,  0.0f}  // Bottom
+    };
+
+    // Define the vertices for each face (counter-clockwise winding)
+    const int faceVertices[6][4] = {
+        {0, 3, 2, 1}, // Front face
+        {5, 6, 7, 4}, // Back face
+        {1, 2, 6, 5}, // Right face
+        {4, 7, 3, 0}, // Left face
+        {3, 7, 6, 2}, // Top face
+        {4, 0, 1, 5}  // Bottom face
+    };
+
+    // Define UVs for each face
+    const glm::vec2 faceUVs[4] = {
+        {0.0f, 1.0f}, // bottom-left
+        {0.0f, 0.0f}, // top-left
+        {1.0f, 0.0f}, // top-right
+        {1.0f, 1.0f}  // bottom-right
+    };
+
+    // Create vertices and indices
+    std::vector<uint32_t> newIndices;
+    uint32_t vertexCount = 0;
+
+    for (int face = 0; face < 6; ++face)
+    {
+        // Calculate tangent space for this face
+        glm::vec3 pos0 = positions[faceVertices[face][0]];
+        glm::vec3 pos1 = positions[faceVertices[face][1]];
+        glm::vec3 pos2 = positions[faceVertices[face][2]];
+
+        glm::vec2 uv0 = faceUVs[0];
+        glm::vec2 uv1 = faceUVs[1];
+        glm::vec2 uv2 = faceUVs[2];
+
+        // Calculate edges and UV deltas
+        glm::vec3 edge1 = pos1 - pos0;
+        glm::vec3 edge2 = pos2 - pos0;
+        glm::vec2 deltaUV1 = uv1 - uv0;
+        glm::vec2 deltaUV2 = uv2 - uv0;
+
+        // Calculate tangent and bitangent
+        float denominator = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        float f = denominator != 0.0f ? 1.0f / denominator : 0.0f;
+
+        glm::vec3 tangent = glm::normalize(f * (deltaUV2.y * edge1 - deltaUV1.y * edge2));
+        glm::vec3 bitangent = glm::normalize(f * (-deltaUV2.x * edge1 + deltaUV1.x * edge2));
+
+        // Ensure orthogonality
+        glm::vec3 normal = normals[face];
+        tangent = glm::normalize(tangent - normal * glm::dot(normal, tangent));
+        bitangent = glm::cross(normal, tangent);
+
+        // Create the four vertices for this face
+        for (int i = 0; i < 4; ++i)
+        {
+            Vertex vertex;
+            vertex.pos = positions[faceVertices[face][i]];
+            vertex.normal = normal;
+            vertex.texCoord = faceUVs[i];
+            vertex.tangent = tangent;
+            vertex.bitangent = bitangent;
+            model.vertices.push_back(vertex);
+            vertexCount++;
+        }
+
+        // Add indices for two triangles (counter-clockwise winding)
+        newIndices.push_back(vertexCount - 4); // First triangle
+        newIndices.push_back(vertexCount - 3);
+        newIndices.push_back(vertexCount - 2);
+
+        newIndices.push_back(vertexCount - 4); // Second triangle
+        newIndices.push_back(vertexCount - 2);
+        newIndices.push_back(vertexCount - 1);
+    }
+
+    model.indices = std::move(newIndices);
+
+    // Insert the model into the resource map
+    try {
+        m_modelResources[name] = std::move(model);
+    }
+    catch (const std::exception& e) {
+        spdlog::error("Failed to store cube model: {}", e.what());
+        return nullptr;
+    }
+
+    spdlog::debug("Cube model '{}' generated successfully.", name);
+    return &m_modelResources[name];
 }
 
 ModelResource* ModelManager::CreateSphere(VmaAllocator allocator, float radius, int segments, int rings)

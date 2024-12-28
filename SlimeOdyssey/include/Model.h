@@ -1,15 +1,14 @@
 #pragma once
 
+#include <entt/entity/entity.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtx/hash.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
 #include "vk_mem_alloc.h"
-
-#include <glm/glm.hpp>
-#include <glm/gtx/hash.hpp>
-
-#include <memory>
 
 struct Vertex
 {
@@ -55,6 +54,8 @@ struct Transform
 	glm::vec3 position = glm::vec3(0.0f);
 	glm::vec3 rotation = glm::vec3(0.0f);
 	glm::vec3 scale = glm::vec3(1.0f);
+	entt::entity parent = entt::null;
+	std::vector<entt::entity> children;
 
 	glm::mat4 GetModelMatrix() const
 	{

@@ -9,51 +9,12 @@
 #include <ModelManager.h>
 #include <ResourcePathManager.h>
 #include <SlimeWindow.h>
-#include <spdlog/spdlog.h>
 #include <VulkanContext.h>
-
-#include <vector>
-#include <random>
-
-// Maze generation using depth-first search (DFS)
-std::vector<std::vector<int>> GenerateMaze(int width, int height)
-{
-	std::vector<std::vector<int>> maze(height, std::vector<int>(width, 1));
-
-	std::function<void(int, int)> carvePath = [&](int x, int y)
-	{
-		int directions[4][2] = {
-			{ 0, -2},
-            { 0,  2},
-            {-2,  0},
-            { 2,  0}
-		};
-		std::shuffle(std::begin(directions), std::end(directions), std::mt19937{ std::random_device{}() });
-
-		for (auto& dir: directions)
-		{
-			int nx = x + dir[0];
-			int ny = y + dir[1];
-
-			if (nx > 0 && nx < width - 1 && ny > 0 && ny < height - 1 && maze[ny][nx] == 1)
-			{
-				maze[ny][nx] = 0;
-				maze[y + dir[1] / 2][x + dir[0] / 2] = 0;
-				carvePath(nx, ny);
-			}
-		}
-	};
-
-	// Start carving from the top left corner
-	maze[1][1] = 0;
-	carvePath(1, 1);
-
-	return maze;
-}
 
 DebugScene::DebugScene(SlimeWindow* window)
       : Scene(), m_window(window)
 {
+	// Create main camera
 	entt::entity mainCamera = m_entityRegistry.create();
 	m_entityRegistry.emplace<Camera>(mainCamera, 90.0f, 1920.0f / 1080.0f, 0.01f, 1000.0f);
 }
@@ -65,17 +26,10 @@ int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager)
 
 	MaterialManager& materialManager = *vulkanContext.GetMaterialManager();
 
-	std::shared_ptr<PBRMaterialResource> pbrMaterialResource = materialManager.CreatePBRMaterial();
-	materialManager.SetAllTextures(pbrMaterialResource, "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
-	m_pbrMaterials.push_back(pbrMaterialResource);
-
-	pbrMaterialResource = materialManager.CreatePBRMaterial();
-	materialManager.SetAllTextures(pbrMaterialResource, "planet_surface/albedo.png", "planet_surface/normal.png", "planet_surface/metallic.png", "planet_surface/roughness.png", "planet_surface/ao.png");
-	m_pbrMaterials.push_back(pbrMaterialResource);
-
-	pbrMaterialResource = materialManager.CreatePBRMaterial();
-	materialManager.SetAllTextures(pbrMaterialResource, "grass/albedo.png", "grass/normal.png", "planet_surface/metallic.png", "grass/roughness.png", "grass/ao.png");
-	m_pbrMaterials.push_back(pbrMaterialResource);
+	// Create basic PBR material
+	std::shared_ptr<PBRMaterialResource> pbrMaterial = materialManager.CreatePBRMaterial();
+	materialManager.SetAllTextures(pbrMaterial, "albedo.png", "normal.png", "metallic.png", "roughness.png", "ao.png");
+	m_pbrMaterials.push_back(pbrMaterial);
 
 	InitializeDebugObjects(vulkanContext, modelManager);
 
@@ -84,101 +38,49 @@ int DebugScene::Enter(VulkanContext& vulkanContext, ModelManager& modelManager)
 
 void DebugScene::SetupShaders(VulkanContext& vulkanContext, ModelManager& modelManager, ShaderManager& shaderManager, DescriptorManager& descriptorManager)
 {
-	// Set up the shadow map pipeline
+	// Setup shadow map pipeline
 	modelManager.CreateShadowMapPipeline(vulkanContext, shaderManager, descriptorManager);
 
-	// Set up a basic pipeline
+	// Setup basic PBR pipeline
 	std::vector<std::pair<std::string, VkShaderStageFlagBits>> meshShaderPaths = {
-		{ResourcePathManager::GetShaderPath("basic.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT},
-        {ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT}
+		{ ResourcePathManager::GetShaderPath("basic.vert.spv"),   VK_SHADER_STAGE_VERTEX_BIT },
+        { ResourcePathManager::GetShaderPath("basic.frag.spv"), VK_SHADER_STAGE_FRAGMENT_BIT }
 	};
 
 	modelManager.CreatePipeline("pbr", vulkanContext, shaderManager, descriptorManager, meshShaderPaths, true);
-
-	// Set up the shared descriptor set pair (Grabbing it from the basic descriptors)
 	descriptorManager.CreateSharedDescriptorSet(modelManager.GetPipelines()["pbr"].descriptorSetLayouts[0]);
 }
 
 void DebugScene::InitializeDebugObjects(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
-	// Light
+	// Create directional light
 	entt::entity lightEntity = m_entityRegistry.create();
 	m_entityRegistry.emplace<Transform>(lightEntity, glm::vec3(0.0f, 10.0f, 0.0f));
 	m_entityRegistry.emplace<DirectionalLight>(lightEntity, glm::vec3(-0.98f, 0.506f, 0.365f));
 
 	VmaAllocator allocator = vulkanContext.GetAllocator();
-	auto debugMesh = modelManager.CreateCube(allocator);
-	modelManager.CreateBuffersForMesh(allocator, *debugMesh);
-	debugMesh->pipelineName = "pbr";
 
-	auto bunnyMesh = modelManager.LoadModel("stanford-bunny.obj", "pbr");
-	modelManager.CreateBuffersForMesh(allocator, *bunnyMesh);
+	// Create basic test meshes
+	auto cubeMesh = modelManager.CreateCube(allocator);
+	modelManager.CreateBuffersForMesh(allocator, *cubeMesh);
+	cubeMesh->pipelineName = "pbr";
 
-	auto groundPlane = modelManager.CreatePlane(allocator, 200.0f, 30);
+	auto groundPlane = modelManager.CreatePlane(allocator, 50.0f, 10);
 	modelManager.CreateBuffersForMesh(allocator, *groundPlane);
+	groundPlane->pipelineName = "pbr";
 
-	// Create the groundPlane
-	entt::entity gridEntity = m_entityRegistry.create();
-	m_entityRegistry.emplace<Transform>(gridEntity, glm::vec3(0.0f, 0.2f, 0.0f));
-	m_entityRegistry.emplace<Model>(gridEntity, groundPlane);
-	m_entityRegistry.emplace<PBRMaterial>(gridEntity, m_pbrMaterials[2]);
+	// Create ground plane
+	entt::entity planeEntity = m_entityRegistry.create();
+	m_entityRegistry.emplace<Transform>(planeEntity, glm::vec3(0.0f, 0.1f, 0.0f));
+	m_entityRegistry.emplace<Model>(planeEntity, groundPlane);
+	m_entityRegistry.emplace<PBRMaterial>(planeEntity, m_pbrMaterials[0]);
 
-	// Create a bunny
-	entt::entity bunnyEntity = m_entityRegistry.create();
-	m_entityRegistry.emplace<Transform>(bunnyEntity, glm::vec3(7.5f, 3.0f, 0.0f), glm::vec3(0.0f), glm::vec3(20.0f)); // pos, rot, scale
-	m_entityRegistry.emplace<Model>(bunnyEntity, bunnyMesh);
-	m_entityRegistry.emplace<PBRMaterial>(bunnyEntity, m_pbrMaterials[0]);
-
-	// Large cube at Y=1
-	CreateLargeCube(debugMesh, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(25.0f, 1.0f, 25.0f), m_pbrMaterials[0]);
-
-	// Grid of cubes
-	const int gridSize = 6;
-	const float startY = 6.0f;
-	const float cubeOffset = 2.0f;
-	const float yVariation = 1.5f;
-
-	for (int x = 0; x < gridSize; ++x)
-	{
-		for (int z = 0; z < gridSize; ++z)
-		{
-			float xPos = (x - (gridSize - 1) / 2.0f) * cubeOffset;
-			float zPos = (z - (gridSize - 1) / 2.0f) * cubeOffset;
-			float yPos = startY + static_cast<float>(rand()) / RAND_MAX * yVariation;
-
-			int materialIndex = rand() % m_pbrMaterials.size();
-			CreateCube(debugMesh, glm::vec3(xPos, yPos, zPos), glm::vec3(1.0f), m_pbrMaterials[materialIndex]);
-		}
-	}
-
-	auto wallMesh = modelManager.CreateCube(allocator);
-	modelManager.CreateBuffersForMesh(allocator, *wallMesh);
-	wallMesh->pipelineName = "pbr";
-
-	int mazeWidth = 21;  // Must be odd
-	int mazeHeight = 21; // Must be odd
-	float wallHeight = 3.0f;
-	float startX = 25.0f;
-
-	std::vector<std::vector<int>> maze = GenerateMaze(mazeWidth, mazeHeight);
-
-	for (int y = 0; y < mazeHeight; ++y)
-	{
-		for (int x = 0; x < mazeWidth; ++x)
-		{
-			if (maze[y][x] == 1)
-			{
-				glm::vec3 position(startX + (x * 2.0f), wallHeight / 2.0f, y * 2.0f);
-				glm::vec3 scale(1.0f, wallHeight, 1.0f);
-				CreateCube(wallMesh, position, scale, m_pbrMaterials[0]);
-			}
-		}
-	}
+	// Create test cube
+	CreateCube(cubeMesh, glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(1.0f), m_pbrMaterials[0]);
 }
 
 void DebugScene::CreateCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
 {
-	static int cubeCount = 0;
 	entt::entity cubeEntity = m_entityRegistry.create();
 	m_entityRegistry.emplace<Transform>(cubeEntity, position, glm::vec3(0.0f), scale);
 	m_entityRegistry.emplace<Model>(cubeEntity, mesh);
@@ -186,27 +88,9 @@ void DebugScene::CreateCube(ModelResource* mesh, const glm::vec3& position, cons
 	m_cubeTransforms.push_back(&m_entityRegistry.get<Transform>(cubeEntity));
 }
 
-void DebugScene::CreateLargeCube(ModelResource* mesh, const glm::vec3& position, const glm::vec3& scale, std::shared_ptr<PBRMaterialResource> material)
-{
-	entt::entity largeCube = m_entityRegistry.create();
-	m_entityRegistry.emplace<Transform>(largeCube, position, glm::vec3(0.0f), scale);
-	m_entityRegistry.emplace<Model>(largeCube, mesh);
-	m_entityRegistry.emplace<PBRMaterial>(largeCube, material);
-}
-
 void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManager* inputManager)
 {
 	UpdateFlyCam(dt, inputManager);
-
-	static float time = 0.0f;
-	time += dt;
-	int cubeIndex = 0;
-	for (auto& cubeTransform: m_cubeTransforms)
-	{
-		// Move the cubes up and down
-		cubeTransform->position.y = 2.25f + sin(time + cubeIndex * 0.5f) * 0.5f;
-		cubeIndex++;
-	}
 
 	if (inputManager->IsKeyPressed(GLFW_KEY_ESCAPE))
 	{
@@ -216,78 +100,182 @@ void DebugScene::Update(float dt, VulkanContext& vulkanContext, const InputManag
 
 void DebugScene::Render()
 {
-	// scene Camera info
-	ImGui::Begin("Camera Info");
-	ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", m_flyCamPosition.x, m_flyCamPosition.y, m_flyCamPosition.z);
-	ImGui::Text("Camera Yaw: %.2f", m_flyCamYaw);
-	ImGui::Text("Camera Pitch: %.2f", m_flyCamPitch);
-	ImGui::Text("Camera Speed: %.2f", m_cameraSpeed);
-	ImGui::End();
-
-	// ImGui entity inspector
-	static entt::entity selectedEntity = entt::null;
-
-	if (ImGui::Begin("Entity Inspector"))
+	if (ImGui::Begin("Entity Inspector", nullptr, ImGuiWindowFlags_NoCollapse))
 	{
-		bool entitySelected = false;
+		static entt::entity selectedEntity = entt::null;
+		static char searchBuffer[128] = "";
+		static std::string lastSearch = "";
 
-		// List all entities with their details
-		m_entityRegistry.group<Transform>(entt::get<Model>)
-		        .each(
-		                [&](auto entity, Transform& transform, Model& model)
-		                {
-			                if (ImGui::Selectable(fmt::format("Entity {}: Model {}", static_cast<int>(entity), model.modelResource->pipelineName).c_str(), selectedEntity == entity))
-			                {
-				                selectedEntity = entity;
-				                entitySelected = true;
-			                }
+		// Persistent height for the top section
+		static float hierarchyHeight = 300.0f; // Initial height for the hierarchy section
+		const float splitterThickness = 8.0f;
 
-			                // You might want to include this for debugging purposes or if you want to see more than one entity at a time.
-			                if (selectedEntity == entity)
-			                {
-				                ImGui::SameLine();
-				                ImGui::Text("(Selected)");
-			                }
-		                });
+		// Calculate available space dynamically
+		float totalAvailableHeight = ImGui::GetContentRegionAvail().y;
+		hierarchyHeight = std::clamp(hierarchyHeight, 100.0f, totalAvailableHeight - 100.0f);
 
+		// Search bar
+		ImGui::InputTextWithHint("##search", "Search Entity...", searchBuffer, IM_ARRAYSIZE(searchBuffer));
+		std::string currentSearch = std::string(searchBuffer);
+		if (lastSearch != currentSearch)
+			lastSearch = currentSearch;
+
+		// Entity Hierarchy Section
+		ImGui::Text("Entity Hierarchy");
 		ImGui::Separator();
-
-		// Show details of the selected entity
-		if (selectedEntity != entt::null)
+		ImGui::BeginChild("Entity Hierarchy", ImVec2(0, hierarchyHeight), true);
 		{
-			ImGui::Text("Details of Entity %d:", selectedEntity);
+			std::function<void(entt::entity)> renderEntityHierarchy = [&](entt::entity entity)
+			{
+				if (entity == entt::null)
+					return;
 
-			// Fetch the components of the selected entity
-			auto& transform = m_entityRegistry.get<Transform>(selectedEntity);
-			auto& model = m_entityRegistry.get<Model>(selectedEntity);
+				auto& transform = m_entityRegistry.get<Transform>(entity);
+				auto* model = m_entityRegistry.try_get<Model>(entity);
 
-			ImGui::Text("Position: (%.2f, %.2f, %.2f)", transform.position.x, transform.position.y, transform.position.z);
-			ImGui::Text("Rotation: (%.2f, %.2f, %.2f)", transform.rotation.x, transform.rotation.y, transform.rotation.z);
-			ImGui::Text("Scale: (%.2f, %.2f, %.2f)", transform.scale.x, transform.scale.y, transform.scale.z);
+				ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+				if (selectedEntity == entity)
+					flags |= ImGuiTreeNodeFlags_Selected;
 
-			ImGui::Separator();
+				bool hasChildren = !transform.children.empty();
+				if (!hasChildren)
+					flags |= ImGuiTreeNodeFlags_Leaf;
 
-			// Render additional components if needed
-			ComponentInspector::Render(m_entityRegistry, selectedEntity);
+				std::string entityName = fmt::format("Entity {}", static_cast<int>(entity));
+				if (model)
+					entityName += fmt::format(": Model {}", model->modelResource->pipelineName);
+
+				if (!lastSearch.empty() && entityName.find(lastSearch) == std::string::npos)
+					return;
+
+				bool nodeOpen = ImGui::TreeNodeEx((void*) (intptr_t) entity, flags, entityName.c_str());
+
+				// Context menu
+				if (ImGui::BeginPopupContextItem())
+				{
+					if (ImGui::MenuItem("Delete Entity"))
+					{
+						m_entityRegistry.destroy(entity);
+						if (selectedEntity == entity)
+							selectedEntity = entt::null;
+					}
+					if (ImGui::MenuItem("Duplicate Entity"))
+					{
+						// Add duplication logic here
+					}
+					ImGui::EndPopup();
+				}
+
+				if (ImGui::IsItemClicked())
+					selectedEntity = entity;
+
+				if (nodeOpen)
+				{
+					for (auto& child: transform.children)
+						renderEntityHierarchy(child);
+
+					ImGui::TreePop();
+				}
+			};
+
+			// Render root entities
+			m_entityRegistry.view<Transform>().each(
+			        [&](auto entity, const Transform& transform)
+			        {
+				        if (transform.parent == entt::null)
+					        renderEntityHierarchy(entity);
+			        });
+		}
+		ImGui::EndChild();
+
+		// Resizable Splitter
+		ImGui::InvisibleButton("Splitter", ImVec2(-1, splitterThickness));
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		ImVec2 splitterMin = ImGui::GetItemRectMin();
+		ImVec2 splitterMax = ImGui::GetItemRectMax();
+
+		// Change color based on state
+		ImU32 splitterColor;
+		if (ImGui::IsItemActive())
+		{
+			float delta = ImGui::GetIO().MouseDelta.y;
+			hierarchyHeight += delta;
+
+			// Recalculate limits dynamically to avoid out-of-bounds errors
+			totalAvailableHeight = ImGui::GetContentRegionAvail().y + hierarchyHeight;
+			hierarchyHeight = std::clamp(hierarchyHeight, 100.0f, totalAvailableHeight - 100.0f);
+
+			splitterColor = ImGui::GetColorU32(ImGuiCol_ButtonActive); // Active color
+		}
+		else if (ImGui::IsItemHovered())
+		{
+			splitterColor = ImGui::GetColorU32(ImGuiCol_ButtonHovered); // Hover color
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
 		}
 		else
 		{
-			ImGui::Text("Select an entity to view details.");
+			splitterColor = ImGui::GetColorU32(ImGuiCol_Button); // Default color
 		}
 
-	}
+		// Draw the splitter highlight with rounded corners
+		float cornerRadius = 4.0f; // Adjust the radius as needed
+		drawList->AddRectFilled(splitterMin, splitterMax, splitterColor, cornerRadius);
 
+		// Entity Properties Section
+		ImGui::Text("Entity Properties");
+		ImGui::Separator();
+		ImGui::BeginChild("Entity Properties", ImVec2(0, 0), true); // Remaining space
+		{
+			if (selectedEntity != entt::null)
+			{
+				ImGui::Text("Selected Entity: %d", static_cast<int>(selectedEntity));
+				ImGui::Separator();
+
+				auto* transform = m_entityRegistry.try_get<Transform>(selectedEntity);
+				if (transform)
+				{
+					std::vector<entt::entity> breadcrumb;
+					auto current = transform->parent;
+
+					while (current != entt::null)
+					{
+						breadcrumb.push_back(current);
+						current = m_entityRegistry.get<Transform>(current).parent;
+					}
+
+					ImGui::Text("Path:");
+					for (auto it = breadcrumb.rbegin(); it != breadcrumb.rend(); ++it)
+					{
+						if (it != breadcrumb.rbegin())
+							ImGui::SameLine();
+
+						if (ImGui::SmallButton(fmt::format("Entity {}", static_cast<int>(*it)).c_str()))
+							selectedEntity = *it;
+
+						if (std::next(it) != breadcrumb.rend())
+							ImGui::SameLine();
+						ImGui::Text(">");
+					}
+				}
+
+				ComponentInspector::Render(m_entityRegistry, selectedEntity);
+			}
+			else
+			{
+				ImGui::Text("No Entity Selected");
+			}
+		}
+		ImGui::EndChild();
+	}
 	ImGui::End();
 }
 
 void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 {
-	// Clean up lights
-	m_entityRegistry.view<PointLight>().each([&](auto entity, PointLight& light) { vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation); });
-
+	// Cleanup lights
 	m_entityRegistry.view<DirectionalLight>().each([&](auto entity, DirectionalLight& light) { vmaDestroyBuffer(vulkanContext.GetAllocator(), light.buffer, light.allocation); });
 
-	// Clean up cameras
+	// Cleanup cameras
 	m_entityRegistry.view<Camera>().each([&](auto entity, Camera& camera) { camera.DestroyCameraUBOBuffer(vulkanContext.GetAllocator()); });
 
 	modelManager.CleanUpAllPipelines(vulkanContext.GetDispatchTable());
@@ -295,29 +283,19 @@ void DebugScene::Exit(VulkanContext& vulkanContext, ModelManager& modelManager)
 
 void DebugScene::UpdateFlyCam(float dt, const InputManager* inputManager)
 {
+	// Handle camera speed adjustment
 	if (inputManager->GetScrollDelta())
 	{
-		double multiplier = 1.0;
-
-		// If shift is pressed, increase the speed
-		if (inputManager->IsKeyPressed(GLFW_KEY_LEFT_SHIFT))
-		{
-			multiplier = 10.0;
-		}
-
+		double multiplier = inputManager->IsKeyPressed(GLFW_KEY_LEFT_SHIFT) ? 10.0 : 1.0;
 		m_cameraSpeed += inputManager->GetScrollDelta() * dt * multiplier;
-
-		// Clamp it to 0.00001f
 		m_cameraSpeed = glm::max(m_cameraSpeed, 0.00001f);
 	}
 
 	float moveSpeed = m_cameraSpeed * dt;
 	float mouseSensitivity = 0.1f;
 
-	// Check if right mouse button is pressed
+	// Handle mouse look
 	bool currentRightMouseState = inputManager->IsMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
-
-	// Mouse look only when right mouse button is pressed
 	if (currentRightMouseState)
 	{
 		auto [mouseX, mouseY] = inputManager->GetMouseDelta();
@@ -326,22 +304,14 @@ void DebugScene::UpdateFlyCam(float dt, const InputManager* inputManager)
 		m_flyCamPitch = glm::clamp(m_flyCamPitch, -89.0f, 89.0f);
 	}
 
-	// Handle mouse cursor visibility
-	if (currentRightMouseState && !m_rightMousePressed)
+	// Handle cursor visibility
+	if (currentRightMouseState != m_rightMousePressed)
 	{
-		// Right mouse button just pressed
-		m_window->SetCursorMode(GLFW_CURSOR_DISABLED);
-	}
-	else if (!currentRightMouseState && m_rightMousePressed)
-	{
-		// Right mouse button just released
-		m_window->SetCursorMode(GLFW_CURSOR_NORMAL);
+		m_window->SetCursorMode(currentRightMouseState ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+		m_rightMousePressed = currentRightMouseState;
 	}
 
-	// Update right mouse button state
-	m_rightMousePressed = currentRightMouseState;
-
-	// Calculate front, right, and up vectors
+	// Calculate camera vectors
 	glm::vec3 front;
 	front.x = cos(glm::radians(m_flyCamYaw)) * cos(glm::radians(m_flyCamPitch));
 	front.y = sin(glm::radians(m_flyCamPitch));
@@ -350,7 +320,7 @@ void DebugScene::UpdateFlyCam(float dt, const InputManager* inputManager)
 	glm::vec3 flyCamRight = glm::normalize(glm::cross(flyCamFront, glm::vec3(0.0f, 1.0f, 0.0f)));
 	glm::vec3 flyCamUp = glm::normalize(glm::cross(flyCamRight, flyCamFront));
 
-	// Movement (can be done regardless of right mouse button state)
+	// Handle movement
 	if (inputManager->IsKeyPressed(GLFW_KEY_W))
 		m_flyCamPosition += flyCamFront * moveSpeed;
 	if (inputManager->IsKeyPressed(GLFW_KEY_S))
@@ -364,7 +334,7 @@ void DebugScene::UpdateFlyCam(float dt, const InputManager* inputManager)
 	if (inputManager->IsKeyPressed(GLFW_KEY_LEFT_CONTROL))
 		m_flyCamPosition -= flyCamUp * moveSpeed;
 
-	// Update camera
+	// Update camera entity
 	entt::entity cameraEntity = m_entityRegistry.view<Camera>().front();
 	Camera& camera = m_entityRegistry.get<Camera>(cameraEntity);
 	camera.SetPosition(m_flyCamPosition);

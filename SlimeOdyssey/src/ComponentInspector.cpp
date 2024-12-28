@@ -51,9 +51,9 @@ void ComponentInspector::RegisterComponentInspectors()
 		        if (ImGui::CollapsingHeader("Transform"))
 		        {
 			        auto& transform = registry.get<Transform>(entity);
-			        ImGui::InputFloat3("Position", &transform.position.x);
-			        ImGui::InputFloat3("Rotation", &transform.rotation.x);
-			        ImGui::InputFloat3("Scale", &transform.scale.x);
+			        ImGui::DragFloat3("Position", &transform.position.x);
+			        ImGui::DragFloat3("Rotation", &transform.rotation.x);
+			        ImGui::DragFloat3("Scale", &transform.scale.x);
 
 					if (ImGui::Button("Reset"))
 			        {
