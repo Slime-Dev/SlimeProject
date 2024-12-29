@@ -51,7 +51,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglfw3-dev xorg-dev libegl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
+          sudo apt-get install -y libglfw3-dev xorg-dev libegl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols libyaml-cpp0.7
 
       - name: UBUNTU - Install Vulkan SDK
         if: matrix.os == 'ubuntu-latest'
